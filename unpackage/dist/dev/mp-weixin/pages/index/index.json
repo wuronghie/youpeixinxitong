@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "uni-pay示例",
+  "usingComponents": {
+    "uni-popup": "../../uni_modules/uni-popup/components/uni-popup/uni-popup",
+    "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
+  }
+}

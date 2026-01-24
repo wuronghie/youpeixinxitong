@@ -1,0 +1,68 @@
+{
+	"pages": [
+		// #ifndef MP-HARMONY || APP-HARMONY
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "uni-pay示例"
+			}
+		},
+		// #endif
+		// #ifdef MP-HARMONY || APP-HARMONY
+		{
+			"path": "pages/huawei/huawei",
+			"style": {
+				"navigationBarTitleText": "华为支付示例"
+			}
+		},
+		// #endif
+		{
+			"path": "pages/order-detail/order-detail",
+			"style": {
+				"navigationBarTitleText": "订单详情"
+			}
+		},
+		{
+			"path": "pages/iosiap/iosiap",
+			"style": {
+				"navigationBarTitleText": "ios内购示例"
+			}
+		},
+		{
+			"path": "pages/weixin-virtual-payment/weixin-virtual-payment",
+			"style": {
+				"navigationBarTitleText": "微信小程序虚拟支付示例"
+			}
+		},
+		{
+			"path": "uni_modules/uni-pay/pages/success/success",
+			"style": {
+				"navigationBarTitleText": "",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "uni_modules/uni-pay/pages/ad-interactive-webview/ad-interactive-webview",
+			"style": {
+				"navigationBarTitleText": "ad",
+				"backgroundColor": "#F8F8F8"
+			}
+		},
+		{
+			"path": "uni_modules/uni-pay/pages/pay-desk/pay-desk",
+			"style": {
+				"navigationBarTitleText": "收银台",
+				"backgroundColor": "#F8F8F8"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-pay示例",
+		// #ifndef MP-ALIPAY
+		"navigationBarBackgroundColor": "#F8F8F8",
+		// #endif
+		"backgroundColor": "#F8F8F8"
+	},
+	"uniIdRouter": {}
+}

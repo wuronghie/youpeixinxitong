@@ -1,0 +1,129 @@
+/**
+ * 这里是uni-app内置的常用样式变量
+ *
+ * uni-app 官方扩展插件及插件市场（https://ext.dcloud.net.cn）上很多三方插件均使用了这些样式变量
+ * 如果你是插件开发者，建议你使用scss预处理，并在插件代码中直接使用这些变量（无需 import 这个文件），方便用户通过搭积木的方式开发整体风格一致的App
+ *
+ */
+/**
+ * 如果你是App开发者（插件使用者），你可以通过修改这些变量来定制自己的插件主题，实现自定义主题功能
+ *
+ * 如果你的项目同样使用了scss预处理，你也可以直接在你的 scss 代码中使用如下变量，同时无需 import 这个文件
+ */
+/* 颜色变量 */
+/* 行为相关颜色 */
+/* 文字基本颜色 */
+/* 背景颜色 */
+/* 边框颜色 */
+/* 尺寸变量 */
+/* 文字尺寸 */
+/* 图片尺寸 */
+/* Border Radius */
+/* 水平间距 */
+/* 垂直间距 */
+/* 透明度 */
+/* 文章场景相关 */
+.app.data-v-86597cd6 {
+  --bgcolor: #f3f3f3;
+  background-color: var(--bgcolor);
+  min-height: calc(100vh - var(--window-bottom) - var(--window-top));
+}
+.header.data-v-86597cd6 {
+  background-color: var(--main);
+  text-align: center;
+  color: #ffffff;
+  padding: 40px 15px 25px 15px;
+}
+.header .success-image.data-v-86597cd6 {
+  width: 60px;
+  height: 60px;
+}
+.header .success-title.data-v-86597cd6 {
+  font-size: 17px;
+  margin-top: 20px;
+  font-weight: bold;
+}
+.header .hr.data-v-86597cd6 {
+  margin-top: 20px;
+  width: 100%;
+  height: 15px;
+  border-radius: 10px;
+  opacity: 0.1;
+  background-color: #000000;
+}
+.info-box.data-v-86597cd6 {
+  width: calc(100% - 50px);
+  margin: 0 25px;
+  position: relative;
+  margin-top: -32px;
+  background-color: #ffffff;
+}
+.info-box .info-amount.data-v-86597cd6 {
+  height: 75px;
+  line-height: 75px;
+  text-align: center;
+  color: var(--main);
+  font-weight: bold;
+  font-size: 30px;
+  border-bottom: 2px dashed #f3f3f3;
+}
+.info-box .left-circle.data-v-86597cd6 {
+  background-color: var(--bgcolor);
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  top: 65px;
+  left: -10px;
+}
+.info-box .right-circle.data-v-86597cd6 {
+  background-color: var(--bgcolor);
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  top: 65px;
+  right: -10px;
+}
+.info-box .info-main.data-v-86597cd6 {
+  padding: 15px;
+  font-size: 13px;
+  color: #333333;
+}
+.info-box .info-main .info-cell.data-v-86597cd6 {
+  display: flex;
+  line-height: 25px;
+}
+.info-box .info-main .info-cell .left.data-v-86597cd6 {
+  width: 100px;
+  text-align: left;
+}
+.info-box .info-main .info-cell .right.data-v-86597cd6 {
+  flex: 1;
+  text-align: right;
+}
+.uni-ad.data-v-86597cd6 {
+  margin-top: 25px;
+  min-height: 50px;
+}
+.uni-ad .ad-interactive.data-v-86597cd6 {
+  text-align: center;
+}
+.button-query.data-v-86597cd6 {
+  background-color: var(--main);
+  color: #ffffff;
+  width: calc(100% - 60px);
+  margin: 25px 30px 0 30px;
+  padding: 10px 15px;
+  border-radius: 25px;
+  text-align: center;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+.button-query.data-v-86597cd6:active {
+  opacity: 0.7;
+}
+.footer-hr.data-v-86597cd6 {
+  height: 50px;
+  display: block;
+}
