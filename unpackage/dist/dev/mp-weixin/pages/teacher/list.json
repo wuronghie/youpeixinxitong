@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "找教师",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "parent-tab-bar": "../../components/ParentTabBar",
+    "location-bar": "../../components/LocationBar"
+  }
+}

@@ -1,0 +1,114 @@
+
+/* 顶部筛选栏（全部 / 科目 / 年级 / 排序） */
+.filter-tabs.data-v-808011a9 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10rpx 12rpx;
+	margin: 0 24rpx 8rpx;
+	background-color: #FFFFFF;
+	border-radius: 24rpx;
+	overflow: hidden;
+	box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
+}
+.filter-tab.data-v-808011a9 {
+	flex: 1;
+	text-align: center;
+	font-size: 24rpx;
+	color: #666666;
+	padding: 10rpx 0;
+	position: relative;
+}
+.filter-tab + .filter-tab.data-v-808011a9 {
+	border-left: 1rpx solid #F5F5F5;
+}
+.filter-tab-label.data-v-808011a9 {
+	font-size: 22rpx;
+	color: #999999;
+	margin-left: 4rpx;
+}
+.filter-tab.active.data-v-808011a9 {
+	color: #F8A100;
+	font-weight: 600;
+}
+
+/* 下拉筛选面板 */
+.dropdown-mask.data-v-808011a9 {
+	position: fixed;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.15);
+	z-index: 1000;
+}
+.dropdown-panel.data-v-808011a9 {
+	background-color: #FFFFFF;
+	border-radius: 0 0 20rpx 20rpx;
+	padding: 10rpx 0;
+	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.08);
+}
+.dropdown-list.data-v-808011a9 {
+	padding: 10rpx 20rpx 20rpx;
+}
+.dropdown-section-title.data-v-808011a9 {
+	font-size: 22rpx;
+	color: #999999;
+	padding: 16rpx 4rpx 8rpx;
+}
+.dropdown-item.data-v-808011a9 {
+	padding: 18rpx 10rpx;
+	font-size: 26rpx;
+	color: #333333;
+	border-bottom: 1rpx solid #F5F5F5;
+}
+.dropdown-item.data-v-808011a9:last-child {
+	border-bottom: none;
+}
+.dropdown-item.active.data-v-808011a9 {
+	color: #F8A100;
+	font-weight: 600;
+}
+
+/* 单列教师列表滚动区域 */
+.list-scroll-single.data-v-808011a9 {
+	height: calc(100vh - 200rpx);
+	background: #F5F5F5;
+}
+.tabbar-spacer.data-v-808011a9 {
+	height: 140rpx;
+}
+
+/* 收藏按钮 */
+.favorite-btn.data-v-808011a9 {
+	position: absolute;
+	top: 20rpx;
+	right: 20rpx;
+	z-index: 10;
+	width: 60rpx;
+	height: 60rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.favorite-btn .favorite-icon.data-v-808011a9 {
+	width: 44rpx;
+	height: 44rpx;
+	transition: transform 0.2s ease;
+}
+.favorite-btn:active .favorite-icon.data-v-808011a9 {
+	transform: scale(0.9);
+}
+
+/* 教师卡片动效与阴影 */
+.teacher-card.data-v-808011a9 {
+	border-radius: 24rpx;
+	overflow: hidden;
+	transform: translateY(0);
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
+	transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+}
+.teacher-card-hover.data-v-808011a9 {
+	transform: translateY(-4rpx);
+	box-shadow: 0 18rpx 40rpx rgba(0, 0, 0, 0.14);
+}

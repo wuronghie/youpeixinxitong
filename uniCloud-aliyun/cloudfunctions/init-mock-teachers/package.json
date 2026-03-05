@@ -1,0 +1,13 @@
+{
+  "name": "init-mock-teachers",
+  "version": "1.0.0",
+  "description": "批量插入模拟教师数据",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "concurrency": 1
+  },
+  "dependencies": {},
+  "extensions": {}
+}

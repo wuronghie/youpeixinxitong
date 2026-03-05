@@ -1,0 +1,52 @@
+
+.scroll.data-v-34221cb1 {
+	flex: 1;
+	height: calc(100vh - 300rpx);
+}
+
+/* 选中状态的选项卡样式 */
+.tab-active.data-v-34221cb1 {
+	background-color: #FFFFFF;
+	color: #07C160;
+	font-weight: 600;
+}
+
+/* 未选中状态的选项卡样式 */
+.tab-inactive.data-v-34221cb1 {
+	background-color: rgba(255, 255, 255, 0.2);
+	color: #FFFFFF;
+}
+
+/* CSS图标样式 */
+.icon-empty.data-v-34221cb1 {
+	width: 240rpx;
+	height: 240rpx;
+	position: relative;
+	display: inline-block;
+	border: 4rpx dashed #ddd;
+	border-radius: 20rpx;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: visible;
+}
+.icon-empty.data-v-34221cb1::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -60%);
+	width: 60rpx;
+	height: 60rpx;
+	border: 4rpx solid #ddd;
+	border-radius: 50%;
+}
+.icon-empty.data-v-34221cb1::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -30%);
+	width: 80rpx;
+	height: 4rpx;
+	background: #ddd;
+}

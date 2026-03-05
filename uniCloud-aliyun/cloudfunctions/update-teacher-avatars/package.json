@@ -1,0 +1,13 @@
+{
+  "name": "update-teacher-avatars",
+  "version": "1.0.0",
+  "description": "批量更新教师头像",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "concurrency": 1
+  },
+  "dependencies": {},
+  "extensions": {}
+}

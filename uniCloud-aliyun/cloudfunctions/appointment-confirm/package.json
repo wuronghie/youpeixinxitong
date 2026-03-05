@@ -1,0 +1,15 @@
+{
+  "name": "appointment-confirm",
+  "version": "1.0.0",
+  "description": "教师确认预约云对象",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "concurrency": 10
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

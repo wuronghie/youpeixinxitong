@@ -6175,7 +6175,7 @@ function populateParameters(fromRes, toRes) {
   const hostLanguage = (language || "").replace(/_/g, "-");
   const parameters = {
     appId: "__UNI__863DB44",
-    appName: "test",
+    appName: "家教帮",
     appVersion: "1.0.0",
     appVersionCode: "100",
     appLanguage: getAppLanguage(hostLanguage),
@@ -6324,7 +6324,7 @@ const getAppBaseInfo = {
       hostSDKVersion: SDKVersion,
       hostTheme: theme,
       appId: "__UNI__863DB44",
-      appName: "test",
+      appName: "家教帮",
       appVersion: "1.0.0",
       appVersionCode: "100",
       appLanguage: getAppLanguage(hostLanguage),
@@ -7072,9 +7072,9 @@ function isConsoleWritable() {
   return isWritable;
 }
 function initRuntimeSocketService() {
-  const hosts = "192.168.109.1,192.168.226.1,10.17.210.76,127.0.0.1";
+  const hosts = "192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
   const port = "8090";
-  const id = "mp-weixin_zbDEso";
+  const id = "mp-weixin_9Pd-gn";
   const lazy = typeof swan !== "undefined";
   let restoreError = lazy ? () => {
   } : initOnError();
@@ -8024,59 +8024,351 @@ const pages = [
   {
     path: "pages/index/index",
     style: {
-      navigationBarTitleText: "uni-pay示例"
+      navigationBarTitleText: "家教帮",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
   },
   {
-    path: "pages/order-detail/order-detail",
+    path: "pages/login/index",
     style: {
-      navigationBarTitleText: "订单详情"
+      navigationBarTitleText: "登录",
+      navigationStyle: "custom",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
   },
   {
-    path: "pages/iosiap/iosiap",
+    path: "pages/common/register",
     style: {
-      navigationBarTitleText: "ios内购示例"
+      navigationBarTitleText: "完善信息",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
   },
   {
-    path: "pages/weixin-virtual-payment/weixin-virtual-payment",
+    path: "pages/common/agreement",
     style: {
-      navigationBarTitleText: "微信小程序虚拟支付示例"
+      navigationBarTitleText: "用户协议",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/teacher/list",
+    style: {
+      navigationBarTitleText: "找教师",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/teacher/detail",
+    style: {
+      navigationBarTitleText: "教师详情",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/appointment/create",
+    style: {
+      navigationBarTitleText: "创建预约",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/appointment/list",
+    style: {
+      navigationBarTitleText: "我的预约",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/appointment/detail",
+    style: {
+      navigationBarTitleText: "预约详情",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/order/list",
+    style: {
+      navigationBarTitleText: "订单列表",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/order/detail",
+    style: {
+      navigationBarTitleText: "订单详情",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/order/refund",
+    style: {
+      navigationBarTitleText: "申请退款",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/review/create",
+    style: {
+      navigationBarTitleText: "发表评价",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/chat/list",
+    style: {
+      navigationBarTitleText: "消息",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/chat/conversation",
+    style: {
+      navigationBarTitleText: "聊天",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/user/index",
+    style: {
+      navigationBarTitleText: "个人中心",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/user/profile",
+    style: {
+      navigationBarTitleText: "个人信息",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/user/collection",
+    style: {
+      navigationBarTitleText: "我的收藏",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/user/messages",
+    style: {
+      navigationBarTitleText: "系统消息",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/coupon/list",
+    style: {
+      navigationBarTitleText: "我的优惠券",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/teacher-profiles/add",
+    style: {
+      navigationBarTitleText: "新增",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/teacher-profiles/edit",
+    style: {
+      navigationBarTitleText: "编辑",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/teacher-profiles/list",
+    style: {
+      navigationBarTitleText: "列表",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/payment/result",
+    style: {
+      navigationBarTitleText: "支付结果",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
   },
   {
     path: "uni_modules/uni-pay/pages/success/success",
     style: {
       navigationBarTitleText: "",
-      backgroundColor: "#F8F8F8"
-    }
-  },
-  {
-    path: "uni_modules/uni-pay/pages/ad-interactive-webview/ad-interactive-webview",
-    style: {
-      navigationBarTitleText: "ad",
-      backgroundColor: "#F8F8F8"
+      backgroundColor: "#F8F8F8",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
   },
   {
     path: "uni_modules/uni-pay/pages/pay-desk/pay-desk",
     style: {
       navigationBarTitleText: "收银台",
-      backgroundColor: "#F8F8F8"
+      backgroundColor: "#F8F8F8",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
     }
+  }
+];
+const subPackages = [
+  {
+    root: "pages-teacher",
+    pages: [
+      {
+        path: "index/index",
+        style: {
+          navigationBarTitleText: "工作台",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "appointment/list",
+        style: {
+          navigationBarTitleText: "预约管理",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "appointment/detail",
+        style: {
+          navigationBarTitleText: "预约详情",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "appointment/calendar",
+        style: {
+          navigationBarTitleText: "课程日历",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "profile/index",
+        style: {
+          navigationBarTitleText: "我的主页",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "profile/edit",
+        style: {
+          navigationBarTitleText: "编辑主页"
+        }
+      },
+      {
+        path: "profile/schedule",
+        style: {
+          navigationBarTitleText: "时间设置"
+        }
+      },
+      {
+        path: "wallet/index",
+        style: {
+          navigationBarTitleText: "我的钱包",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "wallet/income",
+        style: {
+          navigationBarTitleText: "收入明细",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "wallet/withdraw",
+        style: {
+          navigationBarTitleText: "提现",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "review/list",
+        style: {
+          navigationBarTitleText: "评价管理",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "chat/list",
+        style: {
+          navigationBarTitleText: "聊天列表",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "chat/conversation",
+        style: {
+          navigationBarTitleText: "聊天",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "user/index",
+        style: {
+          navigationBarTitleText: "个人中心",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "user/messages",
+        style: {
+          navigationBarTitleText: "系统消息",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      }
+    ]
   }
 ];
 const globalStyle = {
   navigationBarTextStyle: "black",
-  navigationBarTitleText: "uni-pay示例",
-  navigationBarBackgroundColor: "#F8F8F8",
+  navigationBarTitleText: "家教帮",
+  navigationBarBackgroundColor: "#FFFFFF",
   backgroundColor: "#F8F8F8"
 };
+const lazyCodeLoading = "requiredComponents";
 const uniIdRouter = {};
 const e = {
   pages,
+  subPackages,
   globalStyle,
+  lazyCodeLoading,
   uniIdRouter
 };
 var define_process_env_UNI_SECURE_NETWORK_CONFIG_default = [];
@@ -8404,7 +8696,7 @@ class S {
 function T(e2) {
   return e2 && "string" == typeof e2 ? JSON.parse(e2) : e2;
 }
-const b = true, E = "mp-weixin", A = T(define_process_env_UNI_SECURE_NETWORK_CONFIG_default), P = E, C = T('{"address":["127.0.0.1","192.168.109.1","192.168.226.1","10.17.210.76"],"servePort":7000,"debugPort":9000,"initialLaunchType":"remote","skipFiles":["<node_internals>/**","D:/software/HBuilderX/plugins/unicloud/**/*.js"]}'), O = T('[{"provider":"aliyun","spaceName":"liye","spaceId":"mp-feefb659-358b-4c0f-938b-e3764472432b","clientSecret":"QTC11Il6JFL4h23WSkmG9A==","endpoint":"https://api.next.bspapp.com"}]') || [];
+const b = true, E = "mp-weixin", A = T(define_process_env_UNI_SECURE_NETWORK_CONFIG_default), P = E, C = T('{"address":["127.0.0.1","192.168.109.1","192.168.226.1","192.168.3.68"],"servePort":7000,"debugPort":9000,"initialLaunchType":"remote","skipFiles":["<node_internals>/**","D:/software/HBuilderX/plugins/unicloud/**/*.js"]}'), O = T('[{"provider":"aliyun","spaceName":"liye","spaceId":"mp-feefb659-358b-4c0f-938b-e3764472432b","clientSecret":"QTC11Il6JFL4h23WSkmG9A==","endpoint":"https://api.next.bspapp.com"}]') || [];
 let N = "";
 try {
   N = "__UNI__863DB44";

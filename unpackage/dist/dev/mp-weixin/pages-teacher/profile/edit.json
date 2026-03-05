@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "编辑主页",
+  "usingComponents": {
+    "card": "../../components/common/card"
+  }
+}

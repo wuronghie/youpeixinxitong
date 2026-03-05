@@ -1,0 +1,224 @@
+
+/* 状态选项卡 */
+.status-tabs.data-v-456ecf67 {
+	display: flex;
+	background: #ffffff;
+	border-bottom: 1rpx solid #f0f0f0;
+}
+.tab-item.data-v-456ecf67 {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24rpx 0;
+	font-size: 28rpx;
+	color: #666666;
+	position: relative;
+	transition: color 0.2s ease;
+}
+.tab-item.tab-active.data-v-456ecf67 {
+	color: #667eea;
+	font-weight: 600;
+}
+.tab-item.tab-active.data-v-456ecf67::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 60rpx;
+	height: 4rpx;
+	background: linear-gradient(135deg, #667eea 0%, #8a7efc 100%);
+	border-radius: 2rpx;
+}
+.list-scroll.data-v-456ecf67 {
+	flex: 1;
+	height: calc(100vh - 200rpx);
+}
+
+/* 订单卡片 */
+.order-card.data-v-456ecf67 {
+	background: #ffffff;
+	border-radius: 24rpx;
+	overflow: hidden;
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
+	transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+}
+.order-card.data-v-456ecf67:active {
+	transform: translateY(-2rpx);
+	box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.08);
+}
+.card-content.data-v-456ecf67 {
+	padding: 24rpx;
+}
+
+/* 订单头部 */
+.order-header.data-v-456ecf67 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 20rpx;
+	padding-bottom: 20rpx;
+	border-bottom: 1rpx solid #f0f0f0;
+}
+.order-time.data-v-456ecf67 {
+	font-size: 24rpx;
+	color: #8a94a6;
+}
+.status-badge.data-v-456ecf67 {
+	padding: 8rpx 20rpx;
+	border-radius: 999rpx;
+	font-size: 24rpx;
+	font-weight: 500;
+}
+.status-unpaid.data-v-456ecf67 {
+	background: #fff4e6;
+	color: #ff9800;
+}
+.status-paid.data-v-456ecf67 {
+	background: #e8f5e9;
+	color: #2ea170;
+}
+.status-refunding.data-v-456ecf67 {
+	background: #fff3e0;
+	color: #ff6b35;
+}
+.status-refunded.data-v-456ecf67 {
+	background: #f5f5f5;
+	color: #8a94a6;
+}
+.status-default.data-v-456ecf67 {
+	background: #f0f2ff;
+	color: #667eea;
+}
+
+/* 订单信息 */
+.order-body.data-v-456ecf67 {
+	margin-bottom: 20rpx;
+}
+.order-info-item.data-v-456ecf67 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12rpx 0;
+}
+.order-info-item.highlight.data-v-456ecf67 {
+	padding: 16rpx 0;
+	border-top: 1rpx solid #f0f0f0;
+	border-bottom: 1rpx solid #f0f0f0;
+	margin: 12rpx 0;
+}
+.order-info-item.appointment-link.data-v-456ecf67 {
+	cursor: pointer;
+}
+.info-label.data-v-456ecf67 {
+	font-size: 26rpx;
+	color: #8a94a6;
+}
+.info-value.data-v-456ecf67 {
+	font-size: 26rpx;
+	color: #2f3542;
+	max-width: 400rpx;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.amount-value.data-v-456ecf67 {
+	font-size: 32rpx;
+	color: #ff4757;
+	font-weight: 600;
+}
+.link-value.data-v-456ecf67 {
+	font-size: 26rpx;
+	color: #667eea;
+	max-width: 400rpx;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 订单底部操作 */
+.order-footer.data-v-456ecf67 {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 16rpx;
+	padding-top: 20rpx;
+	border-top: 1rpx solid #f0f0f0;
+}
+.action-btn.data-v-456ecf67 {
+	padding: 16rpx 32rpx;
+	border-radius: 999rpx;
+	font-size: 26rpx;
+	border: none;
+	line-height: 1;
+	white-space: nowrap;
+	transition: all 0.2s ease;
+}
+.primary-btn.data-v-456ecf67 {
+	background: linear-gradient(135deg, #667eea 0%, #8a7efc 100%);
+	color: #ffffff;
+}
+.primary-btn.data-v-456ecf67:active {
+	opacity: 0.8;
+	transform: scale(0.98);
+}
+.default-btn.data-v-456ecf67 {
+	background: #ffffff;
+	color: #667eea;
+	border: 1rpx solid #667eea !important;
+}
+.default-btn.data-v-456ecf67:active {
+	background: #f0f2ff;
+	transform: scale(0.98);
+}
+
+/* 空状态 */
+.empty-state.data-v-456ecf67 {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 100rpx 40rpx;
+}
+.empty-icon.data-v-456ecf67 {
+	font-size: 120rpx;
+	color: #ddd;
+}
+.empty-text.data-v-456ecf67 {
+	font-size: 28rpx;
+	color: #8a94a6;
+	margin-top: 24rpx;
+	font-weight: 500;
+}
+.empty-desc.data-v-456ecf67 {
+	font-size: 24rpx;
+	color: #b0b7c6;
+	margin-top: 12rpx;
+	text-align: center;
+	line-height: 1.6;
+}
+.loading-text.data-v-456ecf67 {
+	text-align: center;
+	font-size: 24rpx;
+	color: #8a94a6;
+	padding: 40rpx 0;
+}
+
+/* 骨架屏动画 */
+.skeleton.data-v-456ecf67 {
+	animation: pulse-456ecf67 1.4s ease-in-out infinite;
+	background: linear-gradient(90deg, #eceff9 0%, #f4f6ff 50%, #eceff9 100%);
+	border-radius: 8rpx;
+}
+@keyframes pulse-456ecf67 {
+0% {
+		opacity: 0.6;
+}
+50% {
+		opacity: 1;
+}
+100% {
+		opacity: 0.6;
+}
+}

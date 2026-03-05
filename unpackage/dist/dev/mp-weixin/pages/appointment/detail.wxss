@@ -1,0 +1,91 @@
+
+/* 底部操作栏 */
+.action-bar-placeholder.data-v-1578feaf {
+	height: 120rpx;
+}
+.action-bar.data-v-1578feaf {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	background: #FFFFFF;
+	border-top: 1rpx solid #F0F0F0;
+	padding: 20rpx 32rpx;
+	padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+	z-index: 100;
+	box-shadow: 0 -4rpx 20rpx rgba(0, 0, 0, 0.05);
+}
+.action-buttons.data-v-1578feaf {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 20rpx;
+}
+
+/* 统一按钮样式 */
+.action-btn.data-v-1578feaf {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24rpx 48rpx;
+	border-radius: 48rpx;
+	font-size: 30rpx;
+	font-weight: 500;
+	line-height: 1;
+	border: none;
+	outline: none;
+	transition: all 0.3s ease;
+	box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
+	min-width: 180rpx;
+}
+.action-btn.data-v-1578feaf::after {
+	border: none;
+}
+
+/* 主要按钮（实心） */
+.action-btn-primary.data-v-1578feaf {
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+	color: #FFFFFF;
+}
+.action-btn-primary.data-v-1578feaf:active {
+	background: linear-gradient(135deg, #357ABD 0%, #2A5F8F 100%);
+	transform: scale(0.98);
+	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+/* 警告按钮（退款） */
+.action-btn-warning.data-v-1578feaf {
+	background: linear-gradient(135deg, #FF9500 0%, #FF7A00 100%);
+	color: #FFFFFF;
+}
+.action-btn-warning.data-v-1578feaf:active {
+	background: linear-gradient(135deg, #FF7A00 0%, #E66A00 100%);
+	transform: scale(0.98);
+	box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+/* 次要按钮（边框） */
+.action-btn-outline.data-v-1578feaf {
+	background: #FFFFFF;
+	color: #4A90E2;
+	border: 2rpx solid #4A90E2;
+	box-shadow: 0 2rpx 8rpx rgba(74, 144, 226, 0.15);
+}
+.action-btn-outline.data-v-1578feaf:active {
+	background: #F5F9FF;
+	transform: scale(0.98);
+	box-shadow: 0 2rpx 6rpx rgba(74, 144, 226, 0.2);
+}
+
+
+/* 响应式调整 */
+@media screen and (max-width: 750rpx) {
+.action-btn.data-v-1578feaf {
+		padding: 20rpx 40rpx;
+		font-size: 28rpx;
+		min-width: 160rpx;
+}
+.action-buttons.data-v-1578feaf {
+		gap: 16rpx;
+}
+}

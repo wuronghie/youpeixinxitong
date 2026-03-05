@@ -1,0 +1,9 @@
+{
+  "name": "search-history",
+  "version": "1.0.0",
+  "description": "搜索历史云函数",
+  "main": "index.js",
+  "dependencies": {
+    "common": "file:../common"
+  }
+}

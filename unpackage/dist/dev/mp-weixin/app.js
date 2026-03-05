@@ -3,22 +3,56 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const common_vendor = require("./common/vendor.js");
 if (!Math) {
   "./pages/index/index.js";
-  "./pages/order-detail/order-detail.js";
-  "./pages/iosiap/iosiap.js";
-  "./pages/weixin-virtual-payment/weixin-virtual-payment.js";
+  "./pages/login/index.js";
+  "./pages/common/register.js";
+  "./pages/common/agreement.js";
+  "./pages/teacher/list.js";
+  "./pages/teacher/detail.js";
+  "./pages/appointment/create.js";
+  "./pages/appointment/list.js";
+  "./pages/appointment/detail.js";
+  "./pages/order/list.js";
+  "./pages/order/detail.js";
+  "./pages/order/refund.js";
+  "./pages/review/create.js";
+  "./pages/chat/list.js";
+  "./pages/chat/conversation.js";
+  "./pages/user/index.js";
+  "./pages/user/profile.js";
+  "./pages/user/collection.js";
+  "./pages/user/messages.js";
+  "./pages/coupon/list.js";
+  "./pages/teacher-profiles/add.js";
+  "./pages/teacher-profiles/edit.js";
+  "./pages/teacher-profiles/list.js";
+  "./pages/payment/result.js";
   "./uni_modules/uni-pay/pages/success/success.js";
-  "./uni_modules/uni-pay/pages/ad-interactive-webview/ad-interactive-webview.js";
   "./uni_modules/uni-pay/pages/pay-desk/pay-desk.js";
+  "./pages-teacher/index/index.js";
+  "./pages-teacher/appointment/list.js";
+  "./pages-teacher/appointment/detail.js";
+  "./pages-teacher/appointment/calendar.js";
+  "./pages-teacher/profile/index.js";
+  "./pages-teacher/profile/edit.js";
+  "./pages-teacher/profile/schedule.js";
+  "./pages-teacher/wallet/index.js";
+  "./pages-teacher/wallet/income.js";
+  "./pages-teacher/wallet/withdraw.js";
+  "./pages-teacher/review/list.js";
+  "./pages-teacher/chat/list.js";
+  "./pages-teacher/chat/conversation.js";
+  "./pages-teacher/user/index.js";
+  "./pages-teacher/user/messages.js";
 }
 const _sfc_main = {
   onLaunch: function() {
     common_vendor.index.__f__("log", "at App.vue:4", "App Launch");
   },
   onShow: function() {
-    common_vendor.index.__f__("log", "at App.vue:7", "App Show");
+    common_vendor.index.__f__("log", "at App.vue:8", "App Show");
   },
   onHide: function() {
-    common_vendor.index.__f__("log", "at App.vue:10", "App Hide");
+    common_vendor.index.__f__("log", "at App.vue:11", "App Hide");
   }
 };
 function createApp() {

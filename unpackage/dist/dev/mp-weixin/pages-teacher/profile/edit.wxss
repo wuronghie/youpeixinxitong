@@ -1,0 +1,157 @@
+
+.scroll.data-v-1a0f7470 {
+	flex: 1;
+	height: calc(100vh - 200rpx);
+	padding-bottom: 160rpx;
+}
+
+/* 必填项标注 */
+.required-label.data-v-1a0f7470 {
+	font-weight: 500;
+	color: #333;
+}
+.required-star.data-v-1a0f7470 {
+	color: #ff4757;
+	font-size: 32rpx;
+	font-weight: bold;
+	margin-left: 4rpx;
+}
+
+/* 表单项样式 */
+.form-item.data-v-1a0f7470 {
+	min-height: 88rpx;
+	transition: all 0.3s;
+}
+.form-input.data-v-1a0f7470 {
+	border: none;
+	outline: none;
+	background: transparent;
+}
+.form-input.error-input.data-v-1a0f7470 {
+	color: #ff4757;
+}
+.form-textarea.data-v-1a0f7470 {
+	border: none;
+	outline: none;
+	resize: none;
+	width: 100%;
+}
+
+/* 选择器样式 */
+.picker-view.data-v-1a0f7470 {
+	color: #333;
+	min-width: 200rpx;
+	text-align: right;
+}
+
+/* 标签样式 */
+.tag-item.data-v-1a0f7470 {
+	transition: all 0.3s;
+	cursor: pointer;
+}
+.tag-default.data-v-1a0f7470 {
+	background-color: #f5f5f5;
+	color: #666;
+	border: 2rpx solid #e0e0e0;
+}
+.tag-selected.data-v-1a0f7470 {
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+	color: #fff;
+	border: 2rpx solid #4A90E2;
+	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
+}
+
+/* 错误状态样式 */
+.error-highlight.data-v-1a0f7470 {
+	border: 2rpx solid #ffebee;
+	background-color: #fff5f5;
+}
+.error-item.data-v-1a0f7470 {
+	background-color: #fff5f5;
+	border-radius: 8rpx;
+	padding: 8rpx;
+}
+.error-text.data-v-1a0f7470 {
+	color: #ff4757;
+	font-size: 24rpx;
+	margin-top: 8rpx;
+	display: block;
+}
+
+/* CSS图标样式 */
+.icon-warning.data-v-1a0f7470 {
+	width: 40rpx;
+	height: 40rpx;
+	position: relative;
+	display: inline-block;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: visible;
+}
+.icon-warning.data-v-1a0f7470::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 0;
+	height: 0;
+	border-left: 20rpx solid transparent;
+	border-right: 20rpx solid transparent;
+	border-bottom: 14rpx solid currentColor;
+}
+.icon-warning.data-v-1a0f7470::after {
+	content: '!';
+	position: absolute;
+	bottom: 6rpx;
+	left: 50%;
+	transform: translateX(-50%);
+	color: #fff;
+	font-weight: bold;
+	font-size: 24rpx;
+	line-height: 1;
+}
+
+/* 地图预览容器 */
+.map-preview-container.data-v-1a0f7470 {
+	width: 100%;
+	height: 300rpx;
+	border-radius: 12rpx;
+	overflow: hidden;
+	background-color: #F5F5F5;
+	margin-top: 16rpx;
+}
+.icon-camera.data-v-1a0f7470 {
+	width: 48rpx;
+	height: 48rpx;
+	position: relative;
+	display: inline-block;
+	border: 2rpx solid currentColor;
+	border-radius: 6rpx;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: visible;
+}
+.icon-camera.data-v-1a0f7470::before {
+	content: '';
+	position: absolute;
+	top: 6rpx;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 12rpx;
+	height: 8rpx;
+	border: 2rpx solid currentColor;
+	border-radius: 4rpx;
+	background: transparent;
+}
+.icon-camera.data-v-1a0f7470::after {
+	content: '';
+	position: absolute;
+	bottom: 4rpx;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 4rpx;
+	height: 4rpx;
+	background: currentColor;
+	border-radius: 50%;
+}

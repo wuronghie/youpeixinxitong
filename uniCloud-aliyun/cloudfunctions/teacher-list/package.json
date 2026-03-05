@@ -1,0 +1,16 @@
+{
+  "name": "teacher-list",
+  "version": "1.0.0",
+  "description": "教师列表云对象",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "concurrency": 20,
+    "memorySize": 512,
+    "timeout": 60,
+    "triggers": []
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

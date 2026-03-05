@@ -1,0 +1,27 @@
+
+.badge.data-v-79e6a490 {
+	position: absolute;
+	top: 8rpx;
+	right: 20rpx;
+	background: #ff4757;
+	color: #fff;
+	font-size: 20rpx;
+	border-radius: 999rpx;
+	padding: 2rpx 10rpx;
+	min-width: 32rpx;
+	text-align: center;
+	line-height: 1.2;
+}
+.tabbar-spacer.data-v-79e6a490 {
+	height: 140rpx;
+}
+.icp-footer.data-v-79e6a490 {
+	padding: 16rpx 0 24rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.icp-text.data-v-79e6a490 {
+	font-size: 22rpx;
+	color: #aaaaaa;
+}

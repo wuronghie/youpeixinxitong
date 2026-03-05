@@ -1,0 +1,15 @@
+{
+  "name": "teacher-schedule",
+  "version": "1.0.0",
+  "description": "教师时间设置云对象",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 256,
+    "timeout": 60,
+    "concurrency": 1
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

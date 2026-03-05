@@ -1,0 +1,1 @@
+{"version":3,"file":"mapConfig.js","sources":["utils/mapConfig.js"],"sourcesContent":["/**\r\n * 腾讯地图API配置\r\n */\r\n\r\n// 腾讯地图API Key\r\nexport const TENCENT_MAP_KEY = 'TEFBZ-IGS6L-EUIPR-MUGXC-KRCRS-W4FRX'\r\n\r\n// 腾讯地图API基础URL\r\nexport const TENCENT_MAP_API_BASE = 'https://apis.map.qq.com'\r\n\r\n"],"names":[],"mappings":";AAKY,MAAC,kBAAkB;AAGnB,MAAC,uBAAuB;;;"}

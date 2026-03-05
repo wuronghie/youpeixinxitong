@@ -1,0 +1,15 @@
+{
+  "name": "teacher-update",
+  "version": "1.0.0",
+  "description": "教师数据更新云对象",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "concurrency": 10
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

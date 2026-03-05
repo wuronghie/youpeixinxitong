@@ -1,0 +1,48 @@
+
+.location-bar.data-v-1c8da91f {
+	flex-shrink: 0;
+}
+.location-content.data-v-1c8da91f {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	padding: 4rpx 12rpx;
+	border-radius: 30rpx;
+	background-color: #F5F5F5;
+}
+.icon-location.data-v-1c8da91f {
+	width: 28rpx;
+	height: 28rpx;
+	background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%234A90E2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	margin-right: 6rpx;
+}
+.location-text.data-v-1c8da91f {
+	font-size: 24rpx;
+	font-weight: 500;
+	color: #333;
+	white-space: nowrap;
+}
+.icon-arrow-down.data-v-1c8da91f {
+	width: 20rpx;
+	height: 20rpx;
+	margin-left: 6rpx;
+	transition: transform 0.3s;
+	background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23999"><path d="M7 10l5 5 5-5z"/></svg>');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+}
+.icon-arrow-down.rotating.data-v-1c8da91f {
+	animation: rotate-1c8da91f 1s linear infinite;
+}
+@keyframes rotate-1c8da91f {
+from {
+		transform: rotate(0deg);
+}
+to {
+		transform: rotate(360deg);
+}
+}

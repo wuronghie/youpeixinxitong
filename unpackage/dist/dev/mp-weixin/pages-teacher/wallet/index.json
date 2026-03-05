@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "我的钱包",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "card": "../../components/common/card"
+  }
+}

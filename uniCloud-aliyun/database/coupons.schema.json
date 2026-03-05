@@ -1,0 +1,102 @@
+{
+  "bsonType": "object",
+  "description": "优惠券模板表（配置每种活动的优惠规则）",
+  "permission": {
+    "read": true,
+    "create": "'CREATE_COUPONS' in auth.permission",
+    "update": "'UPDATE_COUPONS' in auth.permission",
+    "delete": "'DELETE_COUPONS' in auth.permission"
+  },
+  "properties": {
+    "name": {
+      "bsonType": "string",
+      "description": "优惠券名称，如“新用户立减10元”",
+      "title": "名称",
+      "trim": "both"
+    },
+    "description": {
+      "bsonType": "string",
+      "description": "优惠说明",
+      "title": "说明",
+      "trim": "both"
+    },
+    "type": {
+      "bsonType": "string",
+      "enum": [
+        "amount", 
+        "discount"
+      ],
+      "description": "优惠类型：amount=满减金额，discount=折扣",
+      "title": "类型"
+    },
+    "amount": {
+      "bsonType": "number",
+      "description": "减免金额（元），type=amount 时必填",
+      "title": "减免金额"
+    },
+    "discount": {
+      "bsonType": "number",
+      "description": "折扣比例，例如 0.9 表示9折，type=discount 时必填",
+      "title": "折扣比例"
+    },
+    "min_spend": {
+      "bsonType": "number",
+      "description": "使用门槛：订单金额不低于此金额（元）",
+      "title": "最低消费"
+    },
+    "valid_from": {
+      "bsonType": "timestamp",
+      "description": "有效期开始时间（时间戳毫秒）",
+      "title": "开始时间"
+    },
+    "valid_to": {
+      "bsonType": "timestamp",
+      "description": "有效期结束时间（时间戳毫秒）",
+      "title": "结束时间"
+    },
+    "target_role": {
+      "bsonType": "string",
+      "enum": [
+        "parent",
+        "teacher",
+        "all"
+      ],
+      "description": "目标用户角色：parent=家长，teacher=教师，all=全部用户",
+      "title": "目标角色"
+    },
+    "is_invite_reward": {
+      "bsonType": "bool",
+      "description": "是否作为邀请奖励自动发放，true=是，false=否",
+      "title": "邀请奖励券",
+      "defaultValue": false
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "description": "状态：active=启用，inactive=停用",
+      "title": "状态",
+      "defaultValue": "active"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    },
+    "update_time": {
+      "bsonType": "timestamp",
+      "description": "最后更新时间"
+    }
+  },
+  "required": [
+    "name",
+    "type",
+    "target_role",
+    "status"
+  ]
+}
+

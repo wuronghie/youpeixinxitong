@@ -1,0 +1,56 @@
+
+.scroll.data-v-c0c69757 {
+	flex: 1;
+	height: calc(100vh - 400rpx);
+}
+
+/* 统计卡片样式 */
+.stat-card.data-v-c0c69757 {
+	background-color: rgba(255, 255, 255, 0.2);
+	-webkit-backdrop-filter: blur(10rpx);
+	        backdrop-filter: blur(10rpx);
+	display: flex;
+	align-items: center;
+}
+
+/* 统计标签样式 */
+.stat-tag.data-v-c0c69757 {
+	background-color: rgba(255, 255, 255, 0.2);
+	-webkit-backdrop-filter: blur(10rpx);
+	        backdrop-filter: blur(10rpx);
+}
+
+/* CSS图标样式 */
+.icon-star.data-v-c0c69757 {
+	width: 24rpx;
+	height: 24rpx;
+	position: relative;
+	display: inline-block;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: visible;
+}
+.icon-star.data-v-c0c69757::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 0;
+	height: 0;
+	border-left: 6rpx solid transparent;
+	border-right: 6rpx solid transparent;
+	border-bottom: 4rpx solid currentColor;
+}
+.icon-star.data-v-c0c69757::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(180deg);
+	width: 0;
+	height: 0;
+	border-left: 6rpx solid transparent;
+	border-right: 6rpx solid transparent;
+	border-bottom: 4rpx solid currentColor;
+}

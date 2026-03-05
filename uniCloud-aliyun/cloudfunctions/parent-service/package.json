@@ -1,0 +1,7 @@
+{
+  "name": "parent-service",
+  "version": "1.0.0",
+  "description": "家长服务云函数",
+  "main": "index.js",
+  "dependencies": {}
+}

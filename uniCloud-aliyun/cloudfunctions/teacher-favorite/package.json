@@ -1,0 +1,11 @@
+{
+  "name": "teacher-favorite",
+  "version": "1.0.0",
+  "description": "家长收藏教师云对象",
+  "main": "index.obj.js",
+  "scripts": {},
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

@@ -1,6 +1,0 @@
-{
-  "navigationBarTitleText": "ios内购示例",
-  "usingComponents": {
-    "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
-  }
-}

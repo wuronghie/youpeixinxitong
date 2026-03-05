@@ -1,0 +1,16 @@
+{
+  "name": "user-login",
+  "version": "1.0.0",
+  "description": "用户登录云对象",
+  "main": "index.obj.js",
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "cloudfunction-config": {
+    "concurrency": 10,
+    "memorySize": 512,
+    "timeout": 60,
+    "triggers": []
+  },
+  "extensions": {}
+}

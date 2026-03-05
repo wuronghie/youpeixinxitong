@@ -1,0 +1,9 @@
+{
+  "name": "search-hot",
+  "version": "1.0.0",
+  "description": "热门搜索云函数",
+  "main": "index.js",
+  "dependencies": {
+    "common": "file:../common"
+  }
+}

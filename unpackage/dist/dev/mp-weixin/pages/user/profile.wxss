@@ -1,0 +1,6 @@
+
+.scroll.data-v-036958a5 {
+	flex: 1;
+	height: calc(100vh - 200rpx);
+	padding-bottom: 160rpx;
+}

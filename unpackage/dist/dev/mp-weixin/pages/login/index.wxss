@@ -1,0 +1,32 @@
+
+.logo-box.data-v-d08ef7d4 {
+	width: 160rpx;
+	height: 160rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.logo-image.data-v-d08ef7d4 {
+	width: 160rpx;
+	height: 160rpx;
+}
+.role-card.data-v-d08ef7d4 {
+	padding: 30rpx;
+	transition: all 0.3s ease;
+}
+.role-icon.data-v-d08ef7d4 {
+	margin-right: 20rpx;
+}
+.agreement-row.data-v-d08ef7d4 {
+	margin-top: 16rpx;
+}
+.icp-footer.data-v-d08ef7d4 {
+	margin-top: 24rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.icp-text.data-v-d08ef7d4 {
+	font-size: 22rpx;
+	color: #aaaaaa;
+}

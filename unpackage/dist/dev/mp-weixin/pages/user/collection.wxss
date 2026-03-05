@@ -1,0 +1,187 @@
+
+.list-scroll.data-v-cd66c500 {
+	flex: 1;
+	height: calc(100vh - 400rpx);
+}
+
+/* 统计卡片样式 */
+.stat-card.data-v-cd66c500 {
+	background-color: rgba(255, 255, 255, 0.2);
+	-webkit-backdrop-filter: blur(10rpx);
+	        backdrop-filter: blur(10rpx);
+}
+
+/* 收藏卡片样式 */
+.collection-card.data-v-cd66c500 {
+	background: #ffffff;
+	border-radius: 24rpx;
+	overflow: hidden;
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
+	transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+}
+.collection-card.data-v-cd66c500:active {
+	transform: translateY(-2rpx);
+	box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.08);
+}
+.card-content.data-v-cd66c500 {
+	padding: 24rpx;
+}
+
+/* 卡片头部 */
+.card-header.data-v-cd66c500 {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 20rpx;
+}
+.teacher-avatar.data-v-cd66c500 {
+	width: 120rpx;
+	height: 120rpx;
+	border-radius: 24rpx;
+	border: 2rpx solid #f0f0f0;
+	flex-shrink: 0;
+	margin-right: 24rpx;
+}
+.teacher-info.data-v-cd66c500 {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.name-row.data-v-cd66c500 {
+	display: flex;
+	align-items: center;
+	margin-bottom: 8rpx;
+	flex-wrap: wrap;
+}
+.teacher-name.data-v-cd66c500 {
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #2f3542;
+	margin-right: 12rpx;
+}
+.verified-badge.data-v-cd66c500 {
+	font-size: 20rpx;
+	color: #667eea;
+	background: #f0f2ff;
+	padding: 4rpx 12rpx;
+	border-radius: 999rpx;
+	flex-shrink: 0;
+}
+.teacher-title.data-v-cd66c500 {
+	font-size: 26rpx;
+	color: #8a94a6;
+	margin-bottom: 12rpx;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.rating-row.data-v-cd66c500 {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 16rpx;
+}
+.rating-text.data-v-cd66c500 {
+	font-size: 24rpx;
+	color: #ffa500;
+}
+.price-text.data-v-cd66c500 {
+	font-size: 24rpx;
+	color: #2ea170;
+	font-weight: 600;
+}
+.order-count.data-v-cd66c500 {
+	font-size: 22rpx;
+	color: #8a94a6;
+}
+
+/* 科目标签 */
+.subjects-tags.data-v-cd66c500 {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	margin-bottom: 20rpx;
+	overflow: hidden;
+}
+.subject-tag.data-v-cd66c500 {
+	font-size: 22rpx;
+	color: #667eea;
+	background: #f4f6ff;
+	padding: 8rpx 16rpx;
+	border-radius: 999rpx;
+	flex-shrink: 0;
+}
+.subject-tag.more-tag.data-v-cd66c500 {
+	color: #8a94a6;
+	background: #f5f5f5;
+}
+
+/* 卡片底部 */
+.card-footer.data-v-cd66c500 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 16rpx;
+	padding-top: 20rpx;
+	border-top: 1rpx solid #f0f0f0;
+}
+.favorite-time.data-v-cd66c500 {
+	font-size: 22rpx;
+	color: #8a94a6;
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.action-buttons.data-v-cd66c500 {
+	display: flex;
+	align-items: center;
+	gap: 12rpx;
+	flex-shrink: 0;
+}
+.action-btn.data-v-cd66c500 {
+	padding: 12rpx 24rpx;
+	border-radius: 999rpx;
+	font-size: 24rpx;
+	border: none;
+	line-height: 1;
+	white-space: nowrap;
+	transition: all 0.2s ease;
+}
+.contact-btn.data-v-cd66c500 {
+	background: linear-gradient(135deg, #667eea 0%, #8a7efc 100%);
+	color: #ffffff;
+}
+.contact-btn.data-v-cd66c500:active {
+	opacity: 0.8;
+	transform: scale(0.98);
+}
+.cancel-btn.data-v-cd66c500 {
+	background: #ffffff;
+	color: #ff4757;
+	border: 1rpx solid #ff4757 !important;
+}
+.cancel-btn.data-v-cd66c500:active {
+	background: #fff5f5;
+	transform: scale(0.98);
+}
+
+/* 骨架屏动画 */
+.skeleton.data-v-cd66c500 {
+	animation: pulse-cd66c500 1.4s ease-in-out infinite;
+	background: linear-gradient(90deg, #eceff9 0%, #f4f6ff 50%, #eceff9 100%);
+	border-radius: 8rpx;
+}
+@keyframes pulse-cd66c500 {
+0% {
+		opacity: 0.6;
+}
+50% {
+		opacity: 1;
+}
+100% {
+		opacity: 0.6;
+}
+}

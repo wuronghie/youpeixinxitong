@@ -1,0 +1,147 @@
+<template>
+  <view class="tabbar">
+    <view
+      v-for="item in navItems"
+      :key="item.key"
+      class="tabbar-item"
+      :class="{ active: item.key === current }"
+      @click="handleClick(item)"
+    >
+      <image
+        :src="item.key === current ? item.activeIcon : item.icon"
+        class="icon"
+        mode="aspectFit"
+      ></image>
+      <text class="label">{{ item.label }}</text>
+    </view>
+  </view>
+</template>
+
+<script>
+import { getIconUrl } from '@/utils/imageConfig.js'
+
+export default {
+  name: 'ParentTabBar',
+  props: {
+    current: {
+      type: String,
+      default: ''
+    }
+  },
+		data() {
+			return {
+				navItems: [
+					{
+						key: 'teacher',
+						label: '找教师',
+						icon: getIconUrl('teacher.png'),
+						activeIcon: getIconUrl('teacher-active.png'),
+						path: '/pages/teacher/list'
+					},
+					{
+						key: 'appointment',
+						label: '预约',
+						icon: getIconUrl('calendar.png'),
+						activeIcon: getIconUrl('calendar-active.png'),
+						path: '/pages/appointment/list'
+					},
+					{
+						key: 'chat',
+						label: '消息',
+						icon: getIconUrl('chat.png'),
+						activeIcon: getIconUrl('chat-active.png'),
+						path: '/pages/chat/list'
+					},
+					{
+						key: 'user',
+						label: '我的',
+						icon: getIconUrl('user.png'),
+						activeIcon: getIconUrl('user-active.png'),
+						path: '/pages/user/index'
+					}
+				]
+			}
+		},
+  methods: {
+    handleClick(item) {
+      if (item.key === this.current) {
+        return
+      }
+      // 使用 redirectTo 代替 reLaunch，避免关闭所有页面导致的超时
+      // redirectTo 只关闭当前页面，性能更好，更适合 tabbar 切换
+      const pages = getCurrentPages()
+      const currentPage = pages[pages.length - 1]
+      const currentPath = '/' + currentPage.route
+      
+      // 如果目标页面已经在页面栈中，使用 switchTab（如果配置了）或 navigateBack + navigateTo
+      // 否则使用 redirectTo
+      if (currentPath === item.path) {
+        return
+      }
+      
+      // 延迟执行，避免同步调用导致的超时
+      setTimeout(() => {
+        uni.redirectTo({ 
+          url: item.path,
+          fail: (err) => {
+            console.warn('redirectTo 失败，尝试使用 navigateTo:', err)
+            // 如果 redirectTo 失败（比如目标页面不存在），尝试 navigateTo
+            uni.navigateTo({ 
+              url: item.path,
+              fail: (navErr) => {
+                console.error('页面导航失败:', navErr)
+              }
+            })
+          }
+        })
+      }, 10)
+    }
+  }
+}
+</script>
+
+<style scoped>
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120rpx;
+  padding-bottom: constant(safe-area-inset-bottom);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #ffffff;
+  display: flex;
+  border-top: 1rpx solid #eef0f5;
+  box-shadow: 0 -8rpx 24rpx rgba(36, 46, 70, 0.08);
+  z-index: 999;
+}
+
+.tabbar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #7a7f90;
+  font-size: 22rpx;
+  transition: all 0.2s ease;
+}
+
+.tabbar-item .icon {
+  width: 32rpx;
+  height: 32rpx;
+  margin-bottom: 4rpx;
+}
+
+.tabbar-item.active {
+  color: #5a6ff0;
+  font-weight: 600;
+}
+
+.tabbar-item.active .icon {
+  transform: scale(1.08);
+  opacity: 1;
+}
+</style>
+
+

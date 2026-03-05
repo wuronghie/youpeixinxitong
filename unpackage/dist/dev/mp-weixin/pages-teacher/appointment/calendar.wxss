@@ -1,0 +1,49 @@
+
+.scroll.data-v-89d74025 {
+	flex: 1;
+	height: calc(100vh - 200rpx);
+}
+.day-cell.data-v-89d74025 {
+	width: calc(100% / 7);
+	height: 100rpx;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	border-radius: 8rpx;
+	margin-bottom: 8rpx;
+}
+
+/* CSS图标样式 */
+.icon-empty.data-v-89d74025 {
+	width: 240rpx;
+	height: 240rpx;
+	position: relative;
+	display: inline-block;
+	border: 4rpx dashed #ddd;
+	border-radius: 20rpx;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: visible;
+}
+.icon-empty.data-v-89d74025::before {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -60%);
+	width: 60rpx;
+	height: 60rpx;
+	border: 4rpx solid #ddd;
+	border-radius: 50%;
+}
+.icon-empty.data-v-89d74025::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -30%);
+	width: 80rpx;
+	height: 4rpx;
+	background: #ddd;
+}

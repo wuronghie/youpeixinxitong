@@ -1,18 +1,69 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/order-detail/order-detail",
-    "pages/iosiap/iosiap",
-    "pages/weixin-virtual-payment/weixin-virtual-payment",
+    "pages/login/index",
+    "pages/common/register",
+    "pages/common/agreement",
+    "pages/teacher/list",
+    "pages/teacher/detail",
+    "pages/appointment/create",
+    "pages/appointment/list",
+    "pages/appointment/detail",
+    "pages/order/list",
+    "pages/order/detail",
+    "pages/order/refund",
+    "pages/review/create",
+    "pages/chat/list",
+    "pages/chat/conversation",
+    "pages/user/index",
+    "pages/user/profile",
+    "pages/user/collection",
+    "pages/user/messages",
+    "pages/coupon/list",
+    "pages/teacher-profiles/add",
+    "pages/teacher-profiles/edit",
+    "pages/teacher-profiles/list",
+    "pages/payment/result",
     "uni_modules/uni-pay/pages/success/success",
-    "uni_modules/uni-pay/pages/ad-interactive-webview/ad-interactive-webview",
     "uni_modules/uni-pay/pages/pay-desk/pay-desk"
+  ],
+  "subPackages": [
+    {
+      "root": "pages-teacher",
+      "pages": [
+        "index/index",
+        "appointment/list",
+        "appointment/detail",
+        "appointment/calendar",
+        "profile/index",
+        "profile/edit",
+        "profile/schedule",
+        "wallet/index",
+        "wallet/income",
+        "wallet/withdraw",
+        "review/list",
+        "chat/list",
+        "chat/conversation",
+        "user/index",
+        "user/messages"
+      ]
+    }
   ],
   "window": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "uni-pay示例",
-    "navigationBarBackgroundColor": "#F8F8F8",
+    "navigationBarTitleText": "家教帮",
+    "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F8F8F8"
   },
+  "permission": {
+    "scope.userLocation": {
+      "desc": "获取您的位置信息，用于展示附近的教师"
+    }
+  },
+  "requiredPrivateInfos": [
+    "getLocation",
+    "chooseLocation"
+  ],
+  "lazyCodeLoading": "requiredComponents",
   "usingComponents": {}
 }

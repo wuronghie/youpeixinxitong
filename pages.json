@@ -1,68 +1,346 @@
 {
 	"pages": [
-		// #ifndef MP-HARMONY || APP-HARMONY
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "uni-pay示例"
-			}
-		},
-		// #endif
-		// #ifdef MP-HARMONY || APP-HARMONY
-		{
-			"path": "pages/huawei/huawei",
-			"style": {
-				"navigationBarTitleText": "华为支付示例"
-			}
-		},
-		// #endif
-		{
-			"path": "pages/order-detail/order-detail",
-			"style": {
-				"navigationBarTitleText": "订单详情"
+				"navigationBarTitleText": "家教帮",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
-			"path": "pages/iosiap/iosiap",
+			"path": "pages/login/index",
 			"style": {
-				"navigationBarTitleText": "ios内购示例"
+				"navigationBarTitleText": "登录",
+				"navigationStyle": "custom",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
-			"path": "pages/weixin-virtual-payment/weixin-virtual-payment",
+			"path": "pages/common/register",
 			"style": {
-				"navigationBarTitleText": "微信小程序虚拟支付示例"
+				"navigationBarTitleText": "完善信息",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/common/agreement",
+			"style": {
+				"navigationBarTitleText": "用户协议",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/teacher/list",
+			"style": {
+				"navigationBarTitleText": "找教师",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/teacher/detail",
+			"style": {
+				"navigationBarTitleText": "教师详情",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/appointment/create",
+			"style": {
+				"navigationBarTitleText": "创建预约",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/appointment/list",
+			"style": {
+				"navigationBarTitleText": "我的预约",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/appointment/detail",
+			"style": {
+				"navigationBarTitleText": "预约详情",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/order/list",
+			"style": {
+				"navigationBarTitleText": "订单列表",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/order/detail",
+			"style": {
+				"navigationBarTitleText": "订单详情",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/order/refund",
+			"style": {
+				"navigationBarTitleText": "申请退款",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/review/create",
+			"style": {
+				"navigationBarTitleText": "发表评价",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/chat/list",
+			"style": {
+				"navigationBarTitleText": "消息",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/chat/conversation",
+			"style": {
+				"navigationBarTitleText": "聊天",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/user/index",
+			"style": {
+				"navigationBarTitleText": "个人中心",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/user/profile",
+			"style": {
+				"navigationBarTitleText": "个人信息",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/user/collection",
+			"style": {
+				"navigationBarTitleText": "我的收藏",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/user/messages",
+			"style": {
+				"navigationBarTitleText": "系统消息",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/coupon/list",
+			"style": {
+				"navigationBarTitleText": "我的优惠券",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/teacher-profiles/add",
+			"style": {
+				"navigationBarTitleText": "新增",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/teacher-profiles/edit",
+			"style": {
+				"navigationBarTitleText": "编辑",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/teacher-profiles/list",
+			"style": {
+				"navigationBarTitleText": "列表",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/payment/result",
+			"style": {
+				"navigationBarTitleText": "支付结果",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
 			"path": "uni_modules/uni-pay/pages/success/success",
 			"style": {
 				"navigationBarTitleText": "",
-				"backgroundColor": "#F8F8F8"
-			}
-		},
-		{
-			"path": "uni_modules/uni-pay/pages/ad-interactive-webview/ad-interactive-webview",
-			"style": {
-				"navigationBarTitleText": "ad",
-				"backgroundColor": "#F8F8F8"
+				"backgroundColor": "#F8F8F8",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
 		},
 		{
 			"path": "uni_modules/uni-pay/pages/pay-desk/pay-desk",
 			"style": {
 				"navigationBarTitleText": "收银台",
-				"backgroundColor": "#F8F8F8"
+				"backgroundColor": "#F8F8F8",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
 			}
+		}
+	],
+	"subPackages": [
+		{
+			"root": "pages-teacher",
+			"pages": [
+				{
+					"path": "index/index",
+					"style": {
+						"navigationBarTitleText": "工作台",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "appointment/list",
+					"style": {
+						"navigationBarTitleText": "预约管理",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "appointment/detail",
+					"style": {
+						"navigationBarTitleText": "预约详情",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "appointment/calendar",
+					"style": {
+						"navigationBarTitleText": "课程日历",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "profile/index",
+					"style": {
+						"navigationBarTitleText": "我的主页",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "profile/edit",
+					"style": {
+						"navigationBarTitleText": "编辑主页"
+					}
+				},
+				{
+					"path": "profile/schedule",
+					"style": {
+						"navigationBarTitleText": "时间设置"
+					}
+				},
+				{
+					"path": "wallet/index",
+					"style": {
+						"navigationBarTitleText": "我的钱包",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "wallet/income",
+					"style": {
+						"navigationBarTitleText": "收入明细",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "wallet/withdraw",
+					"style": {
+						"navigationBarTitleText": "提现",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "review/list",
+					"style": {
+						"navigationBarTitleText": "评价管理",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "chat/list",
+					"style": {
+						"navigationBarTitleText": "聊天列表",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "chat/conversation",
+					"style": {
+						"navigationBarTitleText": "聊天",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "user/index",
+					"style": {
+						"navigationBarTitleText": "个人中心",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "user/messages",
+					"style": {
+						"navigationBarTitleText": "系统消息",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				}
+			]
 		}
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "uni-pay示例",
-		// #ifndef MP-ALIPAY
-		"navigationBarBackgroundColor": "#F8F8F8",
-		// #endif
+		"navigationBarTitleText": "家教帮",
+		"navigationBarBackgroundColor": "#FFFFFF",
 		"backgroundColor": "#F8F8F8"
 	},
+	"lazyCodeLoading": "requiredComponents",
 	"uniIdRouter": {}
 }

@@ -1,0 +1,7 @@
+{
+  "name": "favorite-service",
+  "version": "1.0.0",
+  "description": "收藏服务云函数",
+  "main": "index.js",
+  "dependencies": {}
+}

@@ -1,0 +1,16 @@
+{
+  "name": "init-testdata",
+  "version": "1.0.0",
+  "description": "测试数据初始化云对象（仅用于开发环境）",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "concurrency": 1,
+    "memorySize": 256,
+    "timeout": 120,
+    "triggers": []
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

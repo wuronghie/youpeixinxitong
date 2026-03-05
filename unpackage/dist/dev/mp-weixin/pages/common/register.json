@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "完善信息",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "card": "../../components/common/card"
+  }
+}

@@ -1,0 +1,1 @@
+<view class="location-bar data-v-1c8da91f" bindtap="{{c}}"><view class="location-content data-v-1c8da91f"><view class="icon-location data-v-1c8da91f"></view><text class="location-text data-v-1c8da91f">{{a}}</text><view class="{{['icon-arrow-down', 'data-v-1c8da91f', b && 'rotating']}}"></view></view></view>

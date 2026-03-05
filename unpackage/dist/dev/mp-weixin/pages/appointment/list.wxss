@@ -1,0 +1,159 @@
+
+/* 顶部状态选项卡容器 */
+.status-tabs-bar.data-v-b294f5c2 {
+	margin: 16rpx 24rpx 0;
+	padding: 4rpx;
+	background-color: #FFFFFF;
+	box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
+}
+.status-tab.data-v-b294f5c2 {
+	border-radius: 8rpx;
+	font-size: 26rpx;
+}
+.status-tab--active.data-v-b294f5c2 {
+	background-color: #4A90E2;
+	color: #FFFFFF;
+	font-weight: 600;
+}
+.status-tab--inactive.data-v-b294f5c2 {
+	color: #666666;
+}
+
+/* 预约卡片样式 */
+.appointment-card.data-v-b294f5c2 {
+	background-color: #FFFFFF;
+	border-radius: 16rpx;
+	padding: 32rpx;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+.appointment-card-header.data-v-b294f5c2 {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	margin-bottom: 24rpx;
+	padding-bottom: 24rpx;
+	border-bottom: 1rpx solid #F0F0F0;
+}
+.appointment-card-title.data-v-b294f5c2 {
+	flex: 1;
+	min-width: 0;
+	margin-right: 16rpx;
+}
+.appointment-card-title-row.data-v-b294f5c2 {
+	display: flex;
+	align-items: center;
+	margin-bottom: 12rpx;
+	flex-wrap: wrap;
+}
+.appointment-card-teacher-name.data-v-b294f5c2 {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #333333;
+	margin-right: 12rpx;
+	flex-shrink: 0;
+}
+.appointment-card-course-type.data-v-b294f5c2 {
+	font-size: 24rpx;
+	color: #999999;
+	flex-shrink: 0;
+}
+.appointment-card-time.data-v-b294f5c2 {
+	display: flex;
+	align-items: center;
+	font-size: 24rpx;
+}
+.appointment-card-time-label.data-v-b294f5c2 {
+	color: #999999;
+	margin-right: 8rpx;
+	flex-shrink: 0;
+}
+.appointment-card-time-value.data-v-b294f5c2 {
+	color: #666666;
+	word-break: break-all;
+}
+.appointment-card-content.data-v-b294f5c2 {
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 24rpx;
+}
+.appointment-card-info-row.data-v-b294f5c2 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16rpx;
+}
+.appointment-card-info-row.data-v-b294f5c2:last-child {
+	margin-bottom: 0;
+}
+.appointment-card-info-label.data-v-b294f5c2 {
+	font-size: 24rpx;
+	color: #999999;
+	flex-shrink: 0;
+}
+.appointment-card-info-value.data-v-b294f5c2 {
+	font-size: 24rpx;
+	color: #666666;
+	flex: 1;
+	text-align: right;
+	word-break: break-all;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-left: 16rpx;
+}
+.appointment-card-price.data-v-b294f5c2 {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #4A90E2;
+	flex-shrink: 0;
+}
+.appointment-card-footer.data-v-b294f5c2 {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding-top: 24rpx;
+	border-top: 1rpx solid #F0F0F0;
+}
+.appointment-card-action.data-v-b294f5c2 {
+	font-size: 24rpx;
+	color: #4A90E2;
+	flex-shrink: 0;
+}
+.appointment-card-status-text.data-v-b294f5c2 {
+	font-size: 24rpx;
+	color: #999999;
+}
+
+/* 状态徽章样式 */
+.status-badge.data-v-b294f5c2 {
+	border-radius: 999rpx;
+	padding: 6rpx 20rpx;
+	min-width: 120rpx;
+	text-align: center;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+.status-badge--warning.data-v-b294f5c2 {
+	background-color: #FFF7E6;
+	color: #FA8C16;
+}
+.status-badge--primary.data-v-b294f5c2 {
+	background-color: #E6F4FF;
+	color: #1890FF;
+}
+.status-badge--success.data-v-b294f5c2 {
+	background-color: #E6FFFB;
+	color: #13C2C2;
+}
+.status-badge--muted.data-v-b294f5c2 {
+	background-color: #F5F5F5;
+	color: #8C8C8C;
+}
+.list-scroll.data-v-b294f5c2 {
+	flex: 1;
+	height: calc(100vh - 200rpx);
+}
+.tabbar-spacer.data-v-b294f5c2 {
+	height: 140rpx;
+}

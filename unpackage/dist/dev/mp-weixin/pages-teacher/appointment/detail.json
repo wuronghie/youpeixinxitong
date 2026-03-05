@@ -1,0 +1,9 @@
+{
+  "navigationBarTitleText": "预约详情",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "card": "../../components/common/card",
+    "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
+  }
+}

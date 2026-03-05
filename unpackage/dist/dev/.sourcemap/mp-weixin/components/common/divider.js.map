@@ -1,0 +1,1 @@
+{"version":3,"file":"divider.js","sources":["../../software/HBuilderX/plugins/uniapp-cli-vite/uniComponent:/RDovc3R1ZHlfZmlyc3RfZGF5L3Rlc3QvY29tcG9uZW50cy9jb21tb24vZGl2aWRlci52dWU"],"sourcesContent":["import Component from 'D:/study_first_day/test/components/common/divider.vue'\nwx.createComponent(Component)"],"names":[],"mappings":";;;;;;;AACA,GAAG,gBAAgB,SAAS;"}

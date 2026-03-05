@@ -1,0 +1,372 @@
+/**
+ * 支付工具类
+ * 基于 uni-pay 组件实现统一支付接口
+ * 支持开发模式（模拟支付）和生产模式（真实支付）
+ */
+
+/**
+ * 创建支付订单（开发模式 - 模拟）
+ * @param {Object} options 支付参数
+ * @param {String} options.appointment_id 预约ID
+ * @param {String} options.payment_type 支付类型
+ * @param {Number} options.amount 支付金额（分）
+ * @returns {Promise<Object>} 支付订单信息
+ */
+async function createPaymentOrderDev(options) {
+	// 模拟创建订单
+	return new Promise((resolve) => {
+		setTimeout(() => {
+			const orderNo = `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+			resolve({
+				code: 0,
+				message: '订单创建成功',
+				data: {
+					order_no: orderNo,
+					appointment_id: options.appointment_id,
+					amount: options.amount,
+					payment_type: options.payment_type
+				}
+			})
+		}, 300)
+	})
+}
+
+/**
+ * 创建支付订单（生产模式 - 调用云服务）
+ * @param {Object} options 支付参数
+ * @param {String} options.appointment_id 预约ID
+ * @param {String} options.payment_type 支付类型
+ * @param {Number} options.amount 支付金额（元）
+ * @returns {Promise<Object>} 支付订单信息
+ */
+async function createPaymentOrderProd(options) {
+	try {
+		console.log('[创建订单] 调用云服务创建订单:', {
+			appointment_id: options.appointment_id,
+			payment_type: options.payment_type,
+			amount: options.amount
+		})
+		
+		const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
+		const res = await paymentCreate.create({
+			appointment_id: options.appointment_id,
+			payment_type: options.payment_type,
+			amount: options.amount, // 云函数期望的是元
+			user_coupon_id: options.user_coupon_id || null
+		})
+		
+		console.log('[创建订单] 云服务返回:', {
+			code: res.code,
+			message: res.message,
+			hasData: !!res.data,
+			order_no: res.data?.order_no,
+			order_id: res.data?.order_id
+		})
+		
+		if (res.code !== 0) {
+			throw new Error(res.message || '创建订单失败')
+		}
+		
+		return res
+	} catch (error) {
+		console.error('[创建订单] 失败:', error)
+		throw error
+	}
+}
+
+/**
+ * 检查是否使用开发模式
+ * @returns {Boolean} 是否使用开发模式
+ */
+function isDevMode() {
+	// 可以通过配置或环境变量控制
+	// 暂时默认使用开发模式（云服务未接入时）
+	return true
+}
+
+/**
+ * 使用 uni-pay 组件发起支付
+ * 注意：此方法需要页面中通过 @success、@fail 事件监听支付结果
+ * 建议直接使用 createAndPayWithUniPay 方法，它会自动处理事件监听
+ * @param {Object} payComponent uni-pay 组件实例（通过 this.$refs.pay 获取）
+ * @param {Object} options 支付参数
+ * @param {String} options.order_no 业务订单号
+ * @param {String} options.out_trade_no 支付单号
+ * @param {Number} options.total_fee 支付金额（分）
+ * @param {String} options.description 支付描述
+ * @param {String} options.type 支付回调类型
+ * @param {String} options.provider 支付供应商（可选，不传则打开收银台）
+ * @param {Object} options.custom 自定义数据
+ */
+export function payWithUniPay(payComponent, options) {
+	if (!payComponent) {
+		throw new Error('uni-pay 组件未找到，请确保页面中已引入 uni-pay 组件')
+	}
+
+	const {
+		order_no,
+		out_trade_no,
+		total_fee,
+		description = '课程费用',
+		type = 'appointment',
+		provider = null,
+		custom = {}
+	} = options
+
+	// 发起支付
+	const payParams = {
+		total_fee: total_fee, // 支付金额，单位分
+		order_no: order_no, // 业务系统订单号
+		out_trade_no: out_trade_no, // 插件支付单号
+		description: description, // 支付描述
+		type: type, // 支付回调类型
+		custom: {
+			appointment_id: custom.appointment_id,
+			payment_type: custom.payment_type,
+			...custom
+		}
+	}
+
+	if (provider) {
+		// 指定支付方式，直接发起支付
+		payComponent.createOrder({
+			provider: provider,
+			...payParams
+		})
+	} else {
+		// 不指定支付方式，打开收银台
+		payComponent.open(payParams)
+	}
+}
+
+/**
+ * 生成支付单号（确保不超过32字节）
+ * @param {String} appointment_id 预约ID
+ * @param {String} payment_type 支付类型
+ * @returns {String} 支付单号
+ */
+function generateOutTradeNo(appointment_id, payment_type) {
+	// 提取预约ID的短标识（取后8位或全部，如果较短）
+	const aptIdShort = appointment_id.length > 8 ? appointment_id.slice(-8) : appointment_id
+	// 支付类型简写
+	const typeMap = {
+		'course_fee': 'CF',
+		'deposit': 'DP',
+		'refund': 'RF'
+	}
+	const typeShort = typeMap[payment_type] || 'PAY'
+	// 时间戳后10位（秒级）
+	const timestamp = String(Date.now()).slice(-10)
+	// 组合：类型(2) + 时间戳(10) + 预约ID(最多8) = 最多20字节，远小于32字节限制
+	return `${typeShort}${timestamp}${aptIdShort}`.slice(0, 32)
+}
+
+/**
+ * 创建并支付订单（使用 uni-pay 组件）
+ * 注意：此方法会调用 uni-pay 组件发起支付，支付结果通过组件的 @success、@fail 事件返回
+ * 建议在页面中监听这些事件来处理支付结果
+ * @param {Object} payComponent uni-pay 组件实例
+ * @param {Object} options 支付参数
+ * @param {String} options.appointment_id 预约ID
+ * @param {String} options.payment_type 支付类型（course_fee: 课程费, deposit: 保证金）
+ * @param {Number} options.amount 支付金额（分）
+ * @param {String} options.description 支付描述
+ * @param {String} options.provider 支付供应商（可选）
+ * @returns {Promise<Object>} 返回订单信息，实际支付结果通过组件事件返回
+ */
+export async function createAndPayWithUniPay(payComponent, options) {
+	const { appointment_id, payment_type, amount, description, provider, user_coupon_id } = options
+	
+	// 允许 0 元支付（全额优惠），仅校验金额不为负且参数存在
+	if (!appointment_id || amount == null || amount < 0) {
+		throw new Error('支付参数不完整')
+	}
+
+	if (!payComponent) {
+		throw new Error('uni-pay 组件未找到')
+	}
+
+	try {
+		// 1. 先创建业务订单（必须在支付前创建）
+		console.log('[支付流程] 开始创建业务订单...')
+		// 金额转换：amount 是分，需要转换为元
+		// 使用更精确的转换方式，支持小于1元的金额（如0.5元 = 50分）
+		// 保留2位小数，避免浮点数精度问题
+		const amountInYuan = parseFloat((amount / 100).toFixed(2))
+		
+		console.log('[支付流程] 金额转换:', {
+			原始金额_分: amount,
+			转换后金额_元: amountInYuan
+		})
+		
+		if (amountInYuan <= 0 || isNaN(amountInYuan)) {
+			throw new Error(`支付金额必须大于0，当前金额：${amount}分（${amountInYuan}元）`)
+		}
+		
+		const createRes = await createPaymentOrderProd({
+			appointment_id,
+			payment_type: payment_type || 'course_fee',
+			amount: amountInYuan, // 云函数期望的是元
+			user_coupon_id
+		})
+		
+		if (createRes.code !== 0 || !createRes.data) {
+			// 如果错误是"已支付过"，抛出特殊错误，让调用方处理
+			const errorMessage = createRes.message || '创建订单失败'
+			if (errorMessage.includes('已支付过')) {
+				const error = new Error(errorMessage)
+				error.code = 'ALREADY_PAID'
+				error.createRes = createRes
+				throw error
+			}
+			throw new Error(errorMessage)
+		}
+		
+		const orderInfo = createRes.data
+		const order_no = orderInfo.order_no
+		const order_id = orderInfo.order_id
+		
+		console.log('[支付流程] 业务订单创建成功:', {
+			order_id,
+			order_no,
+			amount: orderInfo.amount
+		})
+		
+		// 2. 生成支付单号（必须不超过32字节）
+		const out_trade_no = generateOutTradeNo(appointment_id, payment_type || 'course_fee')
+		
+		// 3. 使用 uni-pay 组件发起支付
+		// 注意：uni-pay 的 order_no 使用业务订单号，out_trade_no 使用短支付单号
+		payWithUniPay(payComponent, {
+			order_no, // 使用业务订单号
+			out_trade_no, // 使用短支付单号
+			total_fee: amount, // uni-pay 需要的是分
+			description: description || (payment_type === 'deposit' ? '支付保证金' : '支付课程费用'),
+			type: 'appointment',
+			provider: provider, // 不传则打开收银台
+			custom: {
+				appointment_id,
+				payment_type: payment_type || 'course_fee',
+				order_id // 保存订单ID，供支付成功后使用
+			}
+		})
+
+		// 返回订单信息，实际支付结果通过组件事件返回
+		return {
+			code: 0,
+			message: '订单创建成功，请完成支付',
+			data: {
+				order_id,
+				order_no,
+				out_trade_no
+			}
+		}
+	} catch (error) {
+		console.error('[支付流程] 失败:', error)
+		throw error
+	}
+}
+
+/**
+ * 创建并支付订单（兼容旧接口，开发模式使用模拟支付）
+ * @param {Object} options 支付参数
+ * @param {String} options.appointment_id 预约ID
+ * @param {String} options.payment_type 支付类型
+ * @param {Number} options.amount 支付金额（分）
+ * @returns {Promise<Object>} 支付结果
+ */
+export async function createAndPay(options) {
+	const { appointment_id, payment_type, amount, user_coupon_id } = options
+	
+	// 允许 0 元支付（全额优惠），仅校验金额不为负且参数存在
+	if (!appointment_id || amount == null || amount < 0) {
+		return {
+			code: -1,
+			message: '支付参数不完整'
+		}
+	}
+
+	const isDev = isDevMode()
+	
+	// 开发模式：使用模拟支付
+	if (isDev) {
+		return new Promise((resolve) => {
+			// 先隐藏可能存在的 loading
+			uni.hideLoading()
+			
+			// 延迟一下，确保 loading 已隐藏
+			setTimeout(() => {
+				// 显示模拟支付弹窗
+				uni.showModal({
+					title: '模拟支付',
+					content: `预约ID：${appointment_id}\n支付类型：${payment_type === 'deposit' ? '保证金' : '课程费'}\n金额：¥${(amount / 100).toFixed(2)}\n\n这是开发模式，点击确认模拟支付成功`,
+					confirmText: '确认支付',
+					cancelText: '取消',
+					success: async (res) => {
+						if (res.confirm) {
+							// 模拟支付成功：先创建业务订单，再调用云端 mockPaySuccess，确保与正式流程一致
+							try {
+								const amountInYuan = parseFloat((amount / 100).toFixed(2))
+								const createRes = await createPaymentOrderProd({
+									appointment_id,
+									payment_type,
+									amount: amountInYuan,
+									user_coupon_id
+								})
+								
+								if (createRes.code !== 0 || !createRes.data || !createRes.data.order_no) {
+									return resolve({
+										code: -1,
+										message: createRes.message || '创建支付订单失败'
+									})
+								}
+								
+								const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
+								const mockRes = await paymentCreate.mockPaySuccess({
+									order_no: createRes.data.order_no
+								})
+								
+								return resolve({
+									code: mockRes.code,
+									message: mockRes.message,
+									data: mockRes.data
+								})
+							} catch (e) {
+								console.error('模拟支付失败:', e)
+								return resolve({
+									code: -1,
+									message: e.message || '支付失败'
+								})
+							}
+						} else {
+							// 用户取消支付
+							resolve({
+								code: -1,
+								message: '用户取消支付'
+							})
+						}
+					},
+					fail: (err) => {
+						console.error('显示支付弹窗失败:', err)
+						// 如果弹窗显示失败，直接返回成功（开发模式）
+						resolve({
+							code: 0,
+							message: '支付成功（模拟，弹窗显示失败）',
+							data: {
+								order_no: `ORDER_${Date.now()}`,
+								transaction_id: `TXN_${Date.now()}`,
+								pay_time: new Date().toISOString()
+							}
+						})
+					}
+				})
+			}, 100)
+		})
+	}
+	
+	// 生产模式：需要 uni-pay 组件，这里返回错误提示
+	return {
+		code: -1,
+		message: '请使用 createAndPayWithUniPay 方法，并传入 uni-pay 组件实例'
+	}
+}

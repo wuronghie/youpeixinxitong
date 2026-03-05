@@ -1,0 +1,86 @@
+{
+  "bsonType": "object",
+  "description": "用户优惠券表（记录每张券的发放与使用情况）",
+  "permission": {
+    "read": "doc.user_id == auth.uid || 'READ_USER_COUPONS' in auth.permission",
+    "create": "'CREATE_USER_COUPONS' in auth.permission",
+    "update": "doc.user_id == auth.uid || 'UPDATE_USER_COUPONS' in auth.permission",
+    "delete": "'DELETE_USER_COUPONS' in auth.permission"
+  },
+  "properties": {
+    "user_id": {
+      "bsonType": "string",
+      "description": "用户ID（家长/教师 uid）",
+      "title": "用户ID"
+    },
+    "role": {
+      "bsonType": "string",
+      "enum": [
+        "parent",
+        "teacher"
+      ],
+      "description": "用户角色",
+      "title": "角色"
+    },
+    "coupon_id": {
+      "bsonType": "string",
+      "description": "优惠券模板ID（coupons 表 _id）",
+      "title": "优惠券ID"
+    },
+    "source": {
+      "bsonType": "string",
+      "enum": [
+        "system",
+        "invite",
+        "manual"
+      ],
+      "description": "发放来源：system=系统活动，invite=邀请奖励，manual=后台手动发放",
+      "title": "来源",
+      "defaultValue": "system"
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "unused",
+        "used",
+        "expired"
+      ],
+      "description": "状态：unused=未使用，used=已使用，expired=已过期",
+      "title": "状态",
+      "defaultValue": "unused"
+    },
+    "order_id": {
+      "bsonType": "string",
+      "description": "使用时关联的预约/订单ID",
+      "title": "订单ID"
+    },
+    "issue_time": {
+      "bsonType": "timestamp",
+      "description": "发放时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    },
+    "use_time": {
+      "bsonType": "timestamp",
+      "description": "使用时间"
+    },
+    "remark": {
+      "bsonType": "string",
+      "description": "备注信息",
+      "trim": "both"
+    },
+    "activity_id": {
+      "bsonType": "string",
+      "description": "来源活动ID（coupon-activities._id），用于统计和追踪发放流向",
+      "title": "活动ID"
+    }
+  },
+  "required": [
+    "user_id",
+    "role",
+    "coupon_id",
+    "status"
+  ]
+}
+

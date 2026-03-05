@@ -1,0 +1,1 @@
+<view class="payment-result-page data-v-53ffba6a"><view class="content data-v-53ffba6a"><image class="icon data-v-53ffba6a" src="{{a}}" mode="aspectFit"/><text class="title data-v-53ffba6a">{{b}}</text><text class="message data-v-53ffba6a">{{c}}</text></view><view class="footer data-v-53ffba6a"><button class="btn-main data-v-53ffba6a" bindtap="{{d}}"> 返回商家 </button></view></view>

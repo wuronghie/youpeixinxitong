@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "教师详情",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "card": "../../components/common/card"
+  }
+}
