@@ -207,6 +207,84 @@ const _sfc_main = {
       const item = this.sortOptions.find((o) => o.value === this.selectedSort);
       return item ? item.label : "智能推荐";
     },
+    subjectDisplayLabel() {
+      return this.subjectLabel || "";
+    },
+    subjectTabText() {
+      return this.subjectDisplayLabel || "科目";
+    },
+    gradeDisplayLabel() {
+      return this.gradeLabel || "";
+    },
+    gradeTabText() {
+      return this.gradeDisplayLabel || "年级";
+    },
+    schoolDisplayLabel() {
+      if (!this.schoolLabel)
+        return "";
+      if (this.schoolLabel.length <= 4)
+        return this.schoolLabel;
+      if (this.schoolLabel === "四川大学")
+        return "川大";
+      if (this.schoolLabel === "电子科技大学")
+        return "电子科大";
+      if (this.schoolLabel === "西南交通大学")
+        return "西南交大";
+      if (this.schoolLabel === "四川农业大学")
+        return "川农";
+      if (this.schoolLabel === "西南财经大学")
+        return "西南财大";
+      if (this.schoolLabel === "其他985/211")
+        return "985/211";
+      if (this.schoolLabel === "专职老师")
+        return "专职";
+      return "已选";
+    },
+    schoolTabText() {
+      return this.schoolDisplayLabel || "院校";
+    },
+    experienceDisplayLabel() {
+      if (!this.experienceLabel)
+        return "";
+      if (this.experienceLabel.includes("大一"))
+        return "大一";
+      if (this.experienceLabel.includes("1年以内"))
+        return "1年内";
+      if (this.experienceLabel.includes("1-2年"))
+        return "1-2年";
+      if (this.experienceLabel.includes("2年以上"))
+        return "2年以上";
+      if (this.experienceLabel.includes("1-3年"))
+        return "1-3年";
+      if (this.experienceLabel.includes("3-5年"))
+        return "3-5年";
+      if (this.experienceLabel.includes("5年以上"))
+        return "5年以上";
+      return "已选";
+    },
+    experienceTabText() {
+      return this.experienceDisplayLabel || "资历";
+    },
+    priceDisplayLabel() {
+      if (!this.priceLabel)
+        return "";
+      return this.priceLabel.replace("元/小时", "").replace("全部价格", "").replace("以上", "+");
+    },
+    priceTabText() {
+      return this.priceDisplayLabel || "价格";
+    },
+    sortDisplayLabel() {
+      const map = {
+        rating: "",
+        newest: "人气",
+        price_asc: "低价",
+        price: "高价"
+      };
+      return map[this.selectedSort] || "";
+    },
+    sortTabText() {
+      return this.sortDisplayLabel || "排序";
+    },
     // “全部”是否处于激活态（所有筛选都是默认值）
     isAllActive() {
       return !this.selectedSubject && !this.selectedGrade && !this.selectedSchool && !this.selectedExperience && !this.selectedPrice && !this.selectedLocation && this.selectedTags.length === 0 && this.selectedSort === "rating";
@@ -218,8 +296,8 @@ const _sfc_main = {
    */
   onLoad() {
     this.useMock = utils_mockData.useMockData() === true;
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:527", "[teacher-list] 年级筛选选项:", this.gradeFilters);
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:528", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:586", "[teacher-list] 年级筛选选项:", this.gradeFilters);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:587", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
     this.$nextTick(() => {
       setTimeout(() => {
         this.loadTeachers(true);
@@ -294,7 +372,7 @@ const _sfc_main = {
      * 功能：重新加载第一页数据
      */
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/teacher/list.vue:604", "[teacher-list] 下拉刷新：重新加载教师列表");
+      common_vendor.index.__f__("log", "at pages/teacher/list.vue:663", "[teacher-list] 下拉刷新：重新加载教师列表");
       await this.loadTeachers(true);
     },
     /**
@@ -386,7 +464,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:700", "加载教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:759", "加载教师失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -560,7 +638,7 @@ const _sfc_main = {
           this.favoriteIds = [];
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:867", "获取收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:926", "获取收藏状态失败:", error);
       } finally {
         this.applyFavoriteStatus();
       }
@@ -636,7 +714,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:945", "操作收藏失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1004", "操作收藏失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       }
     },
@@ -815,44 +893,29 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     d: common_vendor.o((...args) => $options.handleSearch && $options.handleSearch(...args)),
     e: $options.isAllActive ? 1 : "",
     f: common_vendor.o((...args) => $options.resetAllFilters && $options.resetAllFilters(...args)),
-    g: $options.subjectLabel
-  }, $options.subjectLabel ? {
-    h: common_vendor.t($options.subjectLabel)
-  } : {}, {
-    i: $data.activeDropdown === "subject" ? 1 : "",
-    j: common_vendor.o(($event) => $options.toggleDropdown("subject")),
-    k: $options.gradeLabel
-  }, $options.gradeLabel ? {
-    l: common_vendor.t($options.gradeLabel)
-  } : {}, {
-    m: $data.activeDropdown === "grade" ? 1 : "",
-    n: common_vendor.o(($event) => $options.toggleDropdown("grade")),
-    o: $options.schoolLabel
-  }, $options.schoolLabel ? {
-    p: common_vendor.t($options.schoolLabel)
-  } : {}, {
-    q: $data.activeDropdown === "school" ? 1 : "",
-    r: common_vendor.o(($event) => $options.toggleDropdown("school")),
-    s: $options.experienceLabel
-  }, $options.experienceLabel ? {
-    t: common_vendor.t($options.experienceLabel)
-  } : {}, {
-    v: $data.activeDropdown === "experience" ? 1 : "",
-    w: common_vendor.o(($event) => $options.toggleDropdown("experience")),
-    x: $options.priceLabel
-  }, $options.priceLabel ? {
-    y: common_vendor.t($options.priceLabel)
-  } : {}, {
-    z: $data.activeDropdown === "price" ? 1 : "",
-    A: common_vendor.o(($event) => $options.toggleDropdown("price")),
-    B: common_vendor.t($options.sortLabel),
-    C: $data.activeDropdown === "sort" ? 1 : "",
-    D: common_vendor.o(($event) => $options.toggleDropdown("sort")),
-    E: $data.activeDropdown
+    g: common_vendor.t($options.subjectTabText),
+    h: $data.activeDropdown === "subject" || !!$data.selectedSubject ? 1 : "",
+    i: common_vendor.o(($event) => $options.toggleDropdown("subject")),
+    j: common_vendor.t($options.gradeTabText),
+    k: $data.activeDropdown === "grade" || !!$data.selectedGrade ? 1 : "",
+    l: common_vendor.o(($event) => $options.toggleDropdown("grade")),
+    m: common_vendor.t($options.schoolTabText),
+    n: $data.activeDropdown === "school" || !!$data.selectedSchool ? 1 : "",
+    o: common_vendor.o(($event) => $options.toggleDropdown("school")),
+    p: common_vendor.t($options.experienceTabText),
+    q: $data.activeDropdown === "experience" || !!$data.selectedExperience ? 1 : "",
+    r: common_vendor.o(($event) => $options.toggleDropdown("experience")),
+    s: common_vendor.t($options.priceTabText),
+    t: $data.activeDropdown === "price" || !!$data.selectedPrice ? 1 : "",
+    v: common_vendor.o(($event) => $options.toggleDropdown("price")),
+    w: common_vendor.t($options.sortTabText),
+    x: $data.activeDropdown === "sort" || $data.selectedSort !== "rating" ? 1 : "",
+    y: common_vendor.o(($event) => $options.toggleDropdown("sort")),
+    z: $data.activeDropdown
   }, $data.activeDropdown ? common_vendor.e({
-    F: $data.activeDropdown === "subject"
+    A: $data.activeDropdown === "subject"
   }, $data.activeDropdown === "subject" ? {
-    G: common_vendor.f($data.subjectFilters, (item, k0, i0) => {
+    B: common_vendor.f($data.subjectFilters, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -861,7 +924,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : $data.activeDropdown === "grade" ? {
-    I: common_vendor.f($data.gradeFilters, (item, k0, i0) => {
+    D: common_vendor.f($data.gradeFilters, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -870,7 +933,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : $data.activeDropdown === "school" ? {
-    K: common_vendor.f($data.schoolFilters, (item, k0, i0) => {
+    F: common_vendor.f($data.schoolFilters, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -879,7 +942,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : $data.activeDropdown === "experience" ? {
-    M: common_vendor.f($data.experienceFilters, (item, k0, i0) => {
+    H: common_vendor.f($data.experienceFilters, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -888,7 +951,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : $data.activeDropdown === "price" ? {
-    O: common_vendor.f($data.priceFilters, (item, k0, i0) => {
+    J: common_vendor.f($data.priceFilters, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -897,7 +960,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : $data.activeDropdown === "sort" ? {
-    Q: common_vendor.f($data.sortOptions, (item, k0, i0) => {
+    L: common_vendor.f($data.sortOptions, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.label),
         b: item.value,
@@ -906,24 +969,24 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    H: $data.activeDropdown === "grade",
-    J: $data.activeDropdown === "school",
-    L: $data.activeDropdown === "experience",
-    N: $data.activeDropdown === "price",
-    P: $data.activeDropdown === "sort",
-    R: common_vendor.o(() => {
+    C: $data.activeDropdown === "grade",
+    E: $data.activeDropdown === "school",
+    G: $data.activeDropdown === "experience",
+    I: $data.activeDropdown === "price",
+    K: $data.activeDropdown === "sort",
+    M: common_vendor.o(() => {
     }),
-    S: common_vendor.o((...args) => $options.closeDropdown && $options.closeDropdown(...args))
+    N: common_vendor.o((...args) => $options.closeDropdown && $options.closeDropdown(...args))
   }) : {}, {
-    T: $data.isLoading && !$data.teacherList.length
+    O: $data.isLoading && !$data.teacherList.length
   }, $data.isLoading && !$data.teacherList.length ? {
-    U: common_vendor.f(4, (n, k0, i0) => {
+    P: common_vendor.f(4, (n, k0, i0) => {
       return {
         a: n
       };
     })
   } : common_vendor.e({
-    V: common_vendor.f($data.teacherList, (teacher, k0, i0) => {
+    Q: common_vendor.f($data.teacherList, (teacher, k0, i0) => {
       return common_vendor.e({
         a: teacher.is_favorited ? $data.favoriteFilledUrl : $data.favoriteEmptyUrl,
         b: common_vendor.o(($event) => $options.toggleFavorite(teacher), teacher._id),
@@ -975,14 +1038,14 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         A: common_vendor.o(($event) => $options.goToDetail(teacher), teacher._id)
       });
     }),
-    W: !$data.teacherList.length && !$data.isLoading
+    R: !$data.teacherList.length && !$data.isLoading
   }, !$data.teacherList.length && !$data.isLoading ? {} : {}, {
-    X: $data.isLoading && $data.teacherList.length
+    S: $data.isLoading && $data.teacherList.length
   }, $data.isLoading && $data.teacherList.length ? {} : !$data.hasMore && $data.teacherList.length ? {} : {}, {
-    Y: !$data.hasMore && $data.teacherList.length
+    T: !$data.hasMore && $data.teacherList.length
   }), {
-    Z: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
-    aa: common_vendor.p({
+    U: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
+    V: common_vendor.p({
       current: "teacher"
     })
   });

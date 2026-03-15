@@ -46,7 +46,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/user/messages.vue:161", "[user-messages] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages/user/messages.vue:176", "[user-messages] 下拉刷新：重新加载消息");
       await this.initPage(true);
     },
     async initPage(reset = true) {
@@ -76,7 +76,7 @@ const _sfc_main = {
       try {
         await this.initPage(true);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/messages.vue:190", "刷新失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/messages.vue:205", "刷新失败:", error);
         common_vendor.index.showToast({ title: "刷新失败，请稍后再试", icon: "none" });
       } finally {
         this.refresherTriggered = false;
@@ -162,7 +162,7 @@ const _sfc_main = {
           throw new Error(res.message || "加载消息失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/messages.vue:273", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/messages.vue:288", "加载消息失败:", error);
         this.showError(error.message || "消息加载失败，请稍后重试");
       } finally {
         this.loading = false;
@@ -196,6 +196,10 @@ const _sfc_main = {
         refund: "退款进度"
       };
       return map[type] || "其他";
+    },
+    getCurrentTabLabel() {
+      const current = this.tabs.find((item) => item.value === this.currentTab);
+      return current ? current.label : "全部";
     },
     formatTime(timestamp) {
       const time = Number(timestamp);
@@ -247,7 +251,7 @@ const _sfc_main = {
           throw new Error(res.message || "标记失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/messages.vue:351", "标记消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/messages.vue:370", "标记消息失败:", error);
         this.showError(error.message || "操作失败");
       }
     },
@@ -272,7 +276,7 @@ const _sfc_main = {
           throw new Error(res.message || "操作失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/messages.vue:373", "批量标记失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/messages.vue:392", "批量标记失败:", error);
         this.showError(error.message || "操作失败");
       } finally {
         this.markingAll = false;
@@ -322,8 +326,12 @@ const _sfc_main = {
 };
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.t($data.stats.unread || 0),
-    b: common_vendor.f($data.tabs, (tab, k0, i0) => {
+    a: common_vendor.t($data.markingAll ? "处理中..." : "全部已读"),
+    b: common_vendor.o((...args) => $options.markAllRead && $options.markAllRead(...args)),
+    c: common_vendor.t($data.stats.unread || 0),
+    d: common_vendor.t($data.stats.total || 0),
+    e: common_vendor.t($options.getCurrentTabLabel()),
+    f: common_vendor.f($data.tabs, (tab, k0, i0) => {
       return common_vendor.e({
         a: common_vendor.t(tab.label),
         b: tab.unread > 0
@@ -331,59 +339,58 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         c: common_vendor.t(tab.unread)
       } : {}, {
         d: tab.value,
-        e: common_vendor.n($data.currentTab === tab.value ? "tab-active" : "tab-inactive"),
+        e: common_vendor.n($data.currentTab === tab.value ? "tab-pill-active" : "tab-pill-inactive"),
         f: common_vendor.o(($event) => $options.switchTab(tab.value), tab.value)
       });
     }),
-    c: common_vendor.t($data.markingAll ? "处理中..." : "全部已读"),
-    d: common_vendor.o((...args) => $options.markAllRead && $options.markAllRead(...args)),
-    e: $data.loading && $data.messageList.length === 0
+    g: $data.loading && $data.messageList.length === 0
   }, $data.loading && $data.messageList.length === 0 ? {
-    f: common_vendor.f(4, (n, k0, i0) => {
+    h: common_vendor.f(4, (n, k0, i0) => {
       return {
         a: n
       };
     })
   } : common_vendor.e({
-    g: common_vendor.f($data.messageList, (msg, k0, i0) => {
+    i: common_vendor.f($data.messageList, (msg, k0, i0) => {
       var _a, _b, _c, _d;
       return common_vendor.e({
-        a: common_vendor.t($options.getTypeIcon(msg.type)),
-        b: common_vendor.t(msg.title),
-        c: !msg.is_read
+        a: common_vendor.t($options.getTypeLabel(msg.type)),
+        b: common_vendor.t($options.formatTime(msg.create_time)),
+        c: common_vendor.t($options.getTypeIcon(msg.type)),
+        d: common_vendor.t(msg.title),
+        e: !msg.is_read
       }, !msg.is_read ? {} : {}, {
-        d: common_vendor.t($options.formatTime(msg.create_time)),
-        e: common_vendor.t(msg.content),
-        f: common_vendor.t($options.getTypeLabel(msg.type)),
-        g: msg.status === "action_required"
+        f: common_vendor.t(msg.content),
+        g: common_vendor.t($options.getTypeLabel(msg.type)),
+        h: msg.status === "action_required"
       }, msg.status === "action_required" ? {} : {}, {
-        h: (_a = msg.ext_data) == null ? void 0 : _a.appointment_id
+        i: (_a = msg.ext_data) == null ? void 0 : _a.appointment_id
       }, ((_b = msg.ext_data) == null ? void 0 : _b.appointment_id) ? {
-        i: common_vendor.o(($event) => $options.goAppointment(msg.ext_data.appointment_id), msg.message_id)
+        j: common_vendor.o(($event) => $options.goAppointment(msg.ext_data.appointment_id), msg.message_id)
       } : {}, {
-        j: (_c = msg.ext_data) == null ? void 0 : _c.order_id
+        k: (_c = msg.ext_data) == null ? void 0 : _c.order_id
       }, ((_d = msg.ext_data) == null ? void 0 : _d.order_id) ? {
-        k: common_vendor.o(($event) => $options.goOrder(msg.ext_data.order_id), msg.message_id)
+        l: common_vendor.o(($event) => $options.goOrder(msg.ext_data.order_id), msg.message_id)
       } : {}, {
-        l: common_vendor.o(($event) => $options.toggleActions(msg.message_id), msg.message_id),
-        m: $data.activeActionId === msg.message_id
+        m: common_vendor.o(($event) => $options.toggleActions(msg.message_id), msg.message_id),
+        n: $data.activeActionId === msg.message_id
       }, $data.activeActionId === msg.message_id ? {
-        n: common_vendor.t(msg.is_read ? "标记未读" : "标记已读"),
-        o: common_vendor.o(($event) => $options.markSingleRead(msg), msg.message_id),
-        p: common_vendor.o(($event) => $options.removeMessage(msg), msg.message_id)
+        o: common_vendor.t(msg.is_read ? "标记未读" : "标记已读"),
+        p: common_vendor.o(($event) => $options.markSingleRead(msg), msg.message_id),
+        q: common_vendor.o(($event) => $options.removeMessage(msg), msg.message_id)
       } : {}, {
-        q: msg.message_id,
-        r: !msg.is_read ? 1 : "",
-        s: common_vendor.o(($event) => $options.openMessage(msg), msg.message_id)
+        r: msg.message_id,
+        s: !msg.is_read ? 1 : "",
+        t: common_vendor.o(($event) => $options.openMessage(msg), msg.message_id)
       });
     }),
-    h: !$data.loading && !$data.messageList.length
+    j: !$data.loading && !$data.messageList.length
   }, !$data.loading && !$data.messageList.length ? {} : {}, {
-    i: $data.loading && $data.messageList.length
+    k: $data.loading && $data.messageList.length
   }, $data.loading && $data.messageList.length ? {} : !$data.hasMore && $data.messageList.length ? {} : {}, {
-    j: !$data.hasMore && $data.messageList.length
+    l: !$data.hasMore && $data.messageList.length
   }), {
-    k: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
+    m: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-b802e1e2"]]);

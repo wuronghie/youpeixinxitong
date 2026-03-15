@@ -417,15 +417,23 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
           return;
         }
+        common_vendor.index.__f__("log", "at pages/user/index.vue:603", "[user-index] 开始绑定邀请码:", {
+          inviteCode,
+          userInfo: common_vendor.index.getStorageSync("userInfo") || {}
+        });
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
+        common_vendor.index.__f__("log", "at pages/user/index.vue:611", "[user-index] 绑定邀请码返回结果:", res);
         if (res.code === 0) {
           common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
+          setTimeout(() => {
+            common_vendor.index.__f__("log", "at pages/user/index.vue:617", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
+          }, 300);
         } else {
           common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:612", "填写邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:623", "填写邀请码失败:", error);
         common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
@@ -479,7 +487,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/user/index.vue:669", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages/user/index.vue:680", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"

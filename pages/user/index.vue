@@ -600,11 +600,22 @@ export default {
 					return
 				}
 
+				console.log('[user-index] 开始绑定邀请码:', {
+					inviteCode,
+					userInfo: uni.getStorageSync('userInfo') || {}
+				})
+
 				const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
 				const res = await inviteCenter.acceptInvite({ invite_code: inviteCode })
 
+				console.log('[user-index] 绑定邀请码返回结果:', res)
+
 				if (res.code === 0) {
 					uni.showToast({ title: res.message || '邀请码填写成功', icon: 'success' })
+					// 绑定成功后提示刷新优惠券列表，便于联调排查
+					setTimeout(() => {
+						console.log('[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账')
+					}, 300)
 				} else {
 					uni.showToast({ title: res.message || '邀请码无效', icon: 'none', duration: 3000 })
 				}

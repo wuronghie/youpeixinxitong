@@ -66,7 +66,10 @@
 						<text class="font-sm text-success text-right">¥1（已支付）</text>
 					</view>
 					<view v-if="(appointment.type === 'trial' || appointment.course_type === 'trial')" class="bg-warning rounded px-3 py-2 mt-2">
-						<text class="font-sm text-dark">试课说明：试课成功后平台收取全部费用作为中介费</text>
+						<text class="font-sm text-dark">试课说明：试课成功后平台收取实际支付金额作为中介费（如使用优惠券，则收取优惠后金额）</text>
+					</view>
+					<view v-if="(appointment.type === 'regular' || appointment.course_type === 'regular')" class="bg-info rounded px-3 py-2 mt-2">
+						<text class="font-sm text-dark">正式课程说明：每个老师-家长对只收取一次中介费（在试课时收取），后续正式课程不再收取平台费</text>
 					</view>
 				</card>
 

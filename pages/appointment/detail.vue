@@ -112,9 +112,11 @@
 			</view>
 			<view class="mt-2 pt-2 border-top">
 				<text class="font-sm text-light-muted" v-if="appointment.course_type === 'trial'">
-					试课费用为2小时价格。如不满意可申请退款，将退还1小时费用（50%）。
+					试课费用为2小时价格。如使用优惠券，平台收取优惠后金额作为中介费；如未使用优惠券，平台收取全部费用作为中介费。如不满意可申请退款，将退还1小时费用（50%）。
 				</text>
-				<text class="font-sm text-light-muted" v-else>正式课程费用将在课程确认后扣除。</text>
+				<text class="font-sm text-light-muted" v-else>
+					正式课程费用将在课程确认后扣除。每个老师-家长对只收取一次中介费（在试课时收取），后续正式课程不再收取平台费。
+				</text>
 			</view>
 		</card>
 

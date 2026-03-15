@@ -26,9 +26,10 @@
  *   - 修改排序逻辑：修改 changeSort() 方法中的排序规则
 -->
 <template>
-	<view>
+	<view class="teacher-list-page">
+		<view class="teacher-list-top">
 		<!-- 搜索头部：位置栏、搜索框和搜索按钮 -->
-		<view class="main-bg-color py-3 px-3">
+		<view class="main-bg-color py-3 px-3 search-header">
 			<view class="d-flex a-center bg-white rounded" style="padding: 20rpx;">
 				<!-- 位置栏 -->
 				<LocationBar />
@@ -48,64 +49,59 @@
 			</view>
 		</view>
 
-		<!-- 顶部筛选栏：参考美团“全部 / 外卖 / 到店 ...”样式 -->
+		<!-- 顶部筛选栏：两行展示，避免左右滑动 -->
 		<view class="filter-tabs">
 			<view
 				class="filter-tab"
 				:class="{ active: isAllActive }"
 				@click="resetAllFilters"
 			>
-				全部
-						</view>
-							<view
+				<text>全部</text>
+			</view>
+			<view
 				class="filter-tab"
-				:class="{ active: activeDropdown === 'subject' }"
+				:class="{ active: activeDropdown === 'subject' || !!selectedSubject }"
 				@click="toggleDropdown('subject')"
 			>
-				科目
-				<text v-if="subjectLabel" class="filter-tab-label">·{{ subjectLabel }}</text>
-							</view>
+				<text>{{ subjectTabText }}</text>
+			</view>
 			<view
 				class="filter-tab"
-				:class="{ active: activeDropdown === 'grade' }"
+				:class="{ active: activeDropdown === 'grade' || !!selectedGrade }"
 				@click="toggleDropdown('grade')"
 			>
-				年级
-				<text v-if="gradeLabel" class="filter-tab-label">·{{ gradeLabel }}</text>
-						</view>
+				<text>{{ gradeTabText }}</text>
+			</view>
 			<view
 				class="filter-tab"
-				:class="{ active: activeDropdown === 'school' }"
+				:class="{ active: activeDropdown === 'school' || !!selectedSchool }"
 				@click="toggleDropdown('school')"
 			>
-				院校
-				<text v-if="schoolLabel" class="filter-tab-label">·{{ schoolLabel }}</text>
-					</view>
+				<text>{{ schoolTabText }}</text>
+			</view>
 			<view
 				class="filter-tab"
-				:class="{ active: activeDropdown === 'experience' }"
+				:class="{ active: activeDropdown === 'experience' || !!selectedExperience }"
 				@click="toggleDropdown('experience')"
 			>
-				资历
-				<text v-if="experienceLabel" class="filter-tab-label">·{{ experienceLabel }}</text>
-						</view>
-							<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'price' }"
-				@click="toggleDropdown('price')"
-							>
-				价格
-				<text v-if="priceLabel" class="filter-tab-label">·{{ priceLabel }}</text>
-							</view>
+				<text>{{ experienceTabText }}</text>
+			</view>
 			<view
 				class="filter-tab"
-				:class="{ active: activeDropdown === 'sort' }"
+				:class="{ active: activeDropdown === 'price' || !!selectedPrice }"
+				@click="toggleDropdown('price')"
+			>
+				<text>{{ priceTabText }}</text>
+			</view>
+			<view
+				class="filter-tab"
+				:class="{ active: activeDropdown === 'sort' || selectedSort !== 'rating' }"
 				@click="toggleDropdown('sort')"
 			>
-				排序
-				<text class="filter-tab-label">{{ sortLabel }}</text>
-						</view>
-					</view>
+				<text>{{ sortTabText }}</text>
+			</view>
+		</view>
+		</view>
 
 		<!-- 下拉筛选面板 -->
 		<view v-if="activeDropdown" class="dropdown-mask" @click="closeDropdown">
@@ -192,11 +188,11 @@
 				</view>
 
 		<!-- 教师列表（单列） -->
-			<scroll-view
-				scroll-y
-				@scrolltolower="loadMore"
+		<scroll-view
+			scroll-y
+			@scrolltolower="loadMore"
 			class="list-scroll-single"
-			>
+		>
 			<view class="px-2 py-3">
 				<view v-if="isLoading && !teacherList.length" class="d-flex flex-column">
 					<view v-for="n in 4" :key="n" class="card teacher-card mb-3">
@@ -504,6 +500,69 @@ export default {
 		sortLabel() {
 			const item = this.sortOptions.find(o => o.value === this.selectedSort)
 			return item ? item.label : '智能推荐'
+		},
+		subjectDisplayLabel() {
+			return this.subjectLabel || ''
+		},
+		subjectTabText() {
+			return this.subjectDisplayLabel || '科目'
+		},
+		gradeDisplayLabel() {
+			return this.gradeLabel || ''
+		}, 
+		gradeTabText() {
+			return this.gradeDisplayLabel || '年级'
+		},
+		schoolDisplayLabel() {
+			if (!this.schoolLabel) return ''
+			if (this.schoolLabel.length <= 4) return this.schoolLabel
+			if (this.schoolLabel === '四川大学') return '川大'
+			if (this.schoolLabel === '电子科技大学') return '电子科大'
+			if (this.schoolLabel === '西南交通大学') return '西南交大'
+			if (this.schoolLabel === '四川农业大学') return '川农'
+			if (this.schoolLabel === '西南财经大学') return '西南财大'
+			if (this.schoolLabel === '其他985/211') return '985/211'
+			if (this.schoolLabel === '专职老师') return '专职'
+			return '已选'
+		},
+		schoolTabText() {
+			return this.schoolDisplayLabel || '院校'
+		},
+		experienceDisplayLabel() {
+			if (!this.experienceLabel) return ''
+			if (this.experienceLabel.includes('大一')) return '大一'
+			if (this.experienceLabel.includes('1年以内')) return '1年内'
+			if (this.experienceLabel.includes('1-2年')) return '1-2年'
+			if (this.experienceLabel.includes('2年以上')) return '2年以上'
+			if (this.experienceLabel.includes('1-3年')) return '1-3年'
+			if (this.experienceLabel.includes('3-5年')) return '3-5年'
+			if (this.experienceLabel.includes('5年以上')) return '5年以上'
+			return '已选'
+		},
+		experienceTabText() {
+			return this.experienceDisplayLabel || '资历'
+		},
+		priceDisplayLabel() {
+			if (!this.priceLabel) return ''
+			return this.priceLabel
+				.replace('元/小时', '')
+				.replace('全部价格', '')
+				.replace('以上', '+')
+		},
+		priceTabText() {
+			return this.priceDisplayLabel || '价格'
+		},
+		sortDisplayLabel() {
+			const map = {
+				rating: '',
+				newest: '人气',
+				price_asc: '低价',
+				price: '高价'
+			}
+			return map[this.selectedSort] || ''
+		},
+		sortTabText() {
+			return this.sortDisplayLabel || '排序'
 		},
 		// “全部”是否处于激活态（所有筛选都是默认值）
 		isAllActive() {
@@ -1109,36 +1168,64 @@ export default {
 </script>
 
 <style scoped>
+.teacher-list-page {
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	background: #f5f5f5;
+	overflow: hidden;
+}
+
+.teacher-list-top {
+	flex-shrink: 0;
+	background: #f5f5f5;
+	z-index: 20;
+}
+
+.search-header {
+	flex-shrink: 0;
+}
+
 /* 顶部筛选栏（全部 / 科目 / 年级 / 排序） */
 .filter-tabs {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
 	padding: 10rpx 12rpx;
-	margin: 0 24rpx 8rpx;
+	margin: 0 24rpx 10rpx;
 	background-color: #FFFFFF;
-	border-radius: 24rpx;
+	border-radius: 20rpx;
+	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.04);
 	overflow: hidden;
-	box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
 }
 
 .filter-tab {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	flex: 1;
-	text-align: center;
-	font-size: 24rpx;
+	min-width: 0;
+	min-height: 56rpx;
+	font-size: 23rpx;
 	color: #666666;
-	padding: 10rpx 0;
+	padding: 0 6rpx;
 	position: relative;
+	border-radius: 12rpx;
+	background: transparent;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .filter-tab + .filter-tab {
 	border-left: 1rpx solid #F5F5F5;
 }
 
-.filter-tab-label {
-	font-size: 22rpx;
-	color: #999999;
-	margin-left: 4rpx;
+.filter-tab text {
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .filter-tab.active {
@@ -1192,12 +1279,14 @@ export default {
 
 /* 单列教师列表滚动区域 */
 .list-scroll-single {
-	height: calc(100vh - 200rpx);
+	flex: 1;
+	min-height: 0;
 	background: #F5F5F5;
+	padding-bottom: 140rpx;
 }
 
 .tabbar-spacer {
-	height: 140rpx;
+	height: 0;
 }
 
 /* 收藏按钮 */

@@ -74,6 +74,11 @@
       "bsonType": "string",
       "description": "来源活动ID（coupon-activities._id），用于统计和追踪发放流向",
       "title": "活动ID"
+    },
+    "invite_pair_key": {
+      "bsonType": "string",
+      "description": "邀请关系唯一标识，格式为 inviterId_inviteeId，用于保证同一邀请关系只发一次券",
+      "title": "邀请关系标识"
     }
   },
   "required": [

@@ -161,29 +161,81 @@ module.exports = {
         return error('课程尚未结束，请在课程结束后再确认')
       }
       
-      // 4. 获取平台费率配置（用于计算平台抽成）
-      const configDoc = await db.collection('system-config')
-        .where({ config_key: 'platform_fee_rate' })
+      // 4. 查询支付订单，获取原价和优惠金额（如果使用了优惠券）
+      const paymentOrderDoc = await db.collection('payment-orders')
+        .where({
+          appointment_id,
+          order_type: 'course_fee',
+          status: 'paid'
+        })
+        .orderBy('payment_time', 'desc')
+        .limit(1)
         .get()
       
-      const platformFeeRate = configDoc.data[0]?.config_value || 0.1
+      const paymentOrder = paymentOrderDoc.data && paymentOrderDoc.data.length > 0 ? paymentOrderDoc.data[0] : null
+      const originalAmount = paymentOrder ? Number(paymentOrder.original_amount || paymentOrder.total_amount || 0) : Number(appointment.total_amount || 0)
+      const discountAmount = paymentOrder ? Number(paymentOrder.discount_amount || 0) : 0
+      const hasCoupon = paymentOrder && paymentOrder.user_coupon_id ? true : false
+      
+      console.log('[confirmTrialSuccess] 支付订单信息:', {
+        appointment_id,
+        originalAmount,
+        discountAmount,
+        hasCoupon,
+        paymentOrder: paymentOrder ? {
+          order_no: paymentOrder.order_no,
+          original_amount: paymentOrder.original_amount,
+          discount_amount: paymentOrder.discount_amount,
+          user_coupon_id: paymentOrder.user_coupon_id
+        } : null
+      })
       
       // 5. 计算费用
-      // 试课成功后，平台抽取一节课的费用作为中介费（目前为 1 节课金额）
-      const durationHours = Number(appointment.duration || 2)
-      const hourlyRate = Number(appointment.hourly_rate || 0)
-      const totalAmount = Number(appointment.total_amount || 0)
-      const oneLessonFee = hourlyRate * durationHours
-      const platformFee = oneLessonFee
-      const teacherIncome = totalAmount - platformFee
+      // 试课结算规则：
+      // - 如果使用了优惠券：平台费 = 实际支付金额（优惠后金额），老师收入 = 原价 - 平台费
+      // - 如果未使用优惠券：平台费 = 原价，老师收入 = 0
+      const actualPaidAmount = paymentOrder ? Number(paymentOrder.amount || 0) : originalAmount
+      
+      let platformFee = 0
+      let teacherIncome = 0
+      
+      if (hasCoupon && discountAmount > 0) {
+        // 使用优惠券：平台费 = 实际支付金额（优惠后金额）
+        platformFee = Number(actualPaidAmount.toFixed(2))
+        // 老师收入 = 原价 - 平台费（平台补贴优惠金额）
+        teacherIncome = Number((originalAmount - platformFee).toFixed(2))
+        console.log('[confirmTrialSuccess] 使用优惠券结算:', {
+          originalAmount,
+          discountAmount,
+          actualPaidAmount,
+          platformFee,
+          platformSubsidy: discountAmount,
+          teacherIncome
+        })
+      } else {
+        // 未使用优惠券：平台费 = 原价，老师收入 = 0
+        platformFee = Number(originalAmount.toFixed(2))
+        teacherIncome = 0
+        console.log('[confirmTrialSuccess] 未使用优惠券结算:', {
+          originalAmount,
+          platformFee,
+          teacherIncome
+        })
+      }
+      
+      // 确保 teacherIncome 不为负数
+      if (teacherIncome < 0) {
+        teacherIncome = 0
+        console.warn('[confirmTrialSuccess] 教师收入计算为负数，调整为0')
+      }
       
       console.log('[confirmTrialSuccess] 试课结算计算结果:', {
         appointment_id,
         course_type: appointment.course_type,
-        durationHours,
-        hourlyRate,
-        totalAmount,
-        oneLessonFee,
+        originalAmount,
+        discountAmount,
+        hasCoupon,
+        actualPaidAmount,
         platformFee,
         teacherIncome
       })
@@ -409,37 +461,138 @@ module.exports = {
         return error('当前预约状态不允许完成')
       }
       
-      // 4. 更新预约状态
-      await db.collection('appointments').doc(appointment_id).update({
-        status: 'completed',
-        complete_time: Date.now(),
-        update_time: Date.now()
+      // 4. 查询支付订单，获取原价和优惠金额
+      const paymentOrderDoc = await db.collection('payment-orders')
+        .where({
+          appointment_id,
+          order_type: 'course_fee',
+          status: 'paid'
+        })
+        .orderBy('payment_time', 'desc')
+        .limit(1)
+        .get()
+      
+      const paymentOrder = paymentOrderDoc.data && paymentOrderDoc.data.length > 0 ? paymentOrderDoc.data[0] : null
+      const originalAmount = paymentOrder ? Number(paymentOrder.original_amount || paymentOrder.total_amount || 0) : Number(appointment.total_amount || 0)
+      const discountAmount = paymentOrder ? Number(paymentOrder.discount_amount || 0) : 0
+      const hasCoupon = paymentOrder && paymentOrder.user_coupon_id ? true : false
+      
+      console.log('[completeCourse] 支付订单信息:', {
+        appointment_id,
+        originalAmount,
+        discountAmount,
+        hasCoupon,
+        paymentOrder: paymentOrder ? {
+          order_no: paymentOrder.order_no,
+          original_amount: paymentOrder.original_amount,
+          discount_amount: paymentOrder.discount_amount,
+          user_coupon_id: paymentOrder.user_coupon_id
+        } : null
       })
       
-      // 5. 计算教师收入（如果预约中没有，则直接等于家长支付总金额，不再扣除平台手续费）
-      let teacherIncome = appointment.teacher_income
-      if (!teacherIncome || teacherIncome <= 0) {
-        const totalAmount = Number(appointment.total_amount || 0)
-        teacherIncome = totalAmount
-        // 更新预约中的teacher_income，并将平台服务费设为 0（不再扣费）
-        await db.collection('appointments').doc(appointment_id).update({
-          teacher_income: teacherIncome,
-          platform_fee: 0
+      // 5. 检查该老师-家长对是否已经收过中介费
+      // 通过检查是否有已完成的试课（试课成功时已收取中介费）
+      const dbCmd = db.command
+      const completedTrialDoc = await db.collection('appointments')
+        .where({
+          teacher_id: appointment.teacher_id,
+          parent_id: appointment.parent_id,
+          course_type: 'trial',
+          status: 'completed',
+          trial_result: 'success'
+        })
+        .orderBy('complete_time', 'desc')
+        .limit(1)
+        .get()
+      
+      const hasCollectedPlatformFee = completedTrialDoc.data && completedTrialDoc.data.length > 0
+      
+      console.log('[completeCourse] 中介费收取检查:', {
+        teacher_id: appointment.teacher_id,
+        parent_id: appointment.parent_id,
+        hasCollectedPlatformFee,
+        completedTrialId: completedTrialDoc.data && completedTrialDoc.data.length > 0 ? completedTrialDoc.data[0]._id : null
+      })
+      
+      // 6. 计算平台费和教师收入
+      // 规则：每个老师-家长对只收取一次中介费
+      // - 如果已经收过中介费：不再收取平台费
+      //   - 如果使用了优惠券：教师收入 = 原价（平台补贴优惠金额）
+      //   - 如果未使用优惠券：教师收入 = 原价（不再收取平台费）
+      // - 如果没有收过中介费（理论上不应该发生，因为必须先试课）：按试课逻辑处理
+      let platformFee = 0
+      let teacherIncome = 0
+      
+      if (hasCollectedPlatformFee) {
+        // 已经收过中介费，不再收取平台费
+        platformFee = 0
+        
+        if (hasCoupon && discountAmount > 0) {
+          // 使用优惠券：平台补贴优惠金额，教师获得原价
+          teacherIncome = originalAmount
+          console.log('[completeCourse] 已收过中介费，使用优惠券结算:', {
+            originalAmount,
+            discountAmount,
+            platformSubsidy: discountAmount,
+            teacherIncome,
+            platformFee
+          })
+        } else {
+          // 未使用优惠券：教师收入 = 原价（不再收取平台费）
+          teacherIncome = originalAmount
+          console.log('[completeCourse] 已收过中介费，未使用优惠券结算:', {
+            originalAmount,
+            teacherIncome,
+            platformFee
+          })
+        }
+      } else {
+        // 如果没有收过中介费（理论上不应该发生），按试课逻辑处理
+        // 平台费 = 原价（或实际支付金额，如果使用了优惠券）
+        const actualPaidAmount = paymentOrder ? Number(paymentOrder.amount || 0) : originalAmount
+        
+        if (hasCoupon && discountAmount > 0) {
+          // 使用优惠券：平台费 = 实际支付金额
+          platformFee = Number(actualPaidAmount.toFixed(2))
+          teacherIncome = Number((originalAmount - platformFee).toFixed(2))
+        } else {
+          // 未使用优惠券：平台费 = 原价
+          platformFee = Number(originalAmount.toFixed(2))
+          teacherIncome = 0
+        }
+        
+        console.warn('[completeCourse] 未找到已完成的试课记录，按试课逻辑处理:', {
+          originalAmount,
+          discountAmount,
+          hasCoupon,
+          platformFee,
+          teacherIncome
         })
       }
       
-      // 确保 teacherIncome 是数字类型
-      teacherIncome = Number(teacherIncome) || 0
-      console.log(`[完成课程] 计算教师收入: appointment.total_amount=${appointment.total_amount}, teacherIncome=${teacherIncome}`)
+      // 确保 teacherIncome 不为负数
+      if (teacherIncome < 0) {
+        teacherIncome = 0
+        console.warn('[completeCourse] 教师收入计算为负数，调整为0')
+      }
       
-      // 6. 更新教师钱包
+      // 7. 更新预约状态和结算字段
+      await db.collection('appointments').doc(appointment_id).update({
+        status: 'completed',
+        complete_time: Date.now(),
+        platform_fee: platformFee,
+        teacher_income: teacherIncome,
+        update_time: Date.now()
+      })
+      
+      // 8. 更新教师钱包
       if (teacherIncome > 0) {
         await updateTeacherWallet(appointment.teacher_id, teacherIncome, 0)
       } else {
-        console.warn(`[完成课程] 教师收入为0或无效，跳过钱包更新: teacherIncome=${teacherIncome}`)
+        console.warn(`[completeCourse] 教师收入为0或无效，跳过钱包更新: teacherIncome=${teacherIncome}`)
       }
       
-      // 7. 更新教师统计
+      // 9. 更新教师统计
       await db.collection('teacher-profiles')
         .where({ teacher_id: appointment.teacher_id })
         .update({
@@ -447,11 +600,20 @@ module.exports = {
           update_time: Date.now()
         })
       
-      console.log('正式课程已完成')
+      console.log('[completeCourse] 正式课程已完成，结算信息:', {
+        appointment_id,
+        originalAmount,
+        discountAmount,
+        hasCoupon,
+        platformFee,
+        teacherIncome
+      })
       
       return success({
         appointment_id,
         status: 'completed',
+        platform_fee: platformFee,
+        teacher_income: teacherIncome,
         can_review: true
       }, '课程已完成，可以评价教师了')
       
