@@ -127,12 +127,12 @@ const _sfc_main = {
    * 功能：初始化模拟数据开关，加载工作台数据
    */
   onLoad() {
-    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:260", "[首页] onLoad 被调用");
+    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:259", "[首页] onLoad 被调用");
     this.useMock = utils_mockData.useMockData() === true;
-    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:262", "[首页] useMock:", this.useMock);
+    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:261", "[首页] useMock:", this.useMock);
     this.loadData();
     common_vendor.index.$on("teacher-profile-updated", () => {
-      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:266", "[dashboard] 收到资料更新通知，刷新数据");
+      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:265", "[dashboard] 收到资料更新通知，刷新数据");
       this.loadData();
     });
   },
@@ -141,7 +141,7 @@ const _sfc_main = {
    * 功能：每次显示页面时重新加载数据（确保数据最新）
    */
   onShow() {
-    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:275", "[首页] ========== onShow 被调用 ==========");
+    common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:274", "[首页] ========== onShow 被调用 ==========");
     this.loadData();
   },
   onShareAppMessage() {
@@ -183,16 +183,16 @@ const _sfc_main = {
      *   - 修改数据来源：修改云函数调用
      */
     async loadData(fromPullDown = false) {
-      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:318", "[首页] loadData 被调用, fromPullDown:", fromPullDown, "loading:", this.loading);
+      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:317", "[首页] loadData 被调用, fromPullDown:", fromPullDown, "loading:", this.loading);
       if (this.loading) {
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:320", "[首页] 正在加载中，跳过本次调用");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:319", "[首页] 正在加载中，跳过本次调用");
         return;
       }
       this.loading = true;
-      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:324", "[首页] 开始加载数据...");
+      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:323", "[首页] 开始加载数据...");
       try {
         if (this.useMock) {
-          common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:327", "[首页] 使用模拟数据");
+          common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:326", "[首页] 使用模拟数据");
           await new Promise((resolve) => setTimeout(resolve, 200));
           this.profile = {
             display_name: "张老师",
@@ -221,24 +221,24 @@ const _sfc_main = {
           return;
         }
         const userInfo = common_vendor.index.getStorageSync("userInfo") || {};
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:357", "[首页] 用户信息:", {
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:356", "[首页] 用户信息:", {
           hasUid: !!userInfo.uid,
           role: userInfo.role,
           uid: userInfo.uid
         });
         if (!userInfo.uid || userInfo.role !== "teacher") {
-          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:364", "[首页] 用户未登录或不是教师角色");
+          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:363", "[首页] 用户未登录或不是教师角色");
           common_vendor.index.showToast({ title: "请先以教师身份登录", icon: "none" });
           return;
         }
         const dashboard = common_vendor.tr.importObject("teacher-dashboard", { customUI: true });
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:371", "[首页] 开始检查教师信息完善状态...");
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:372", "[首页] 调用 dashboard.checkProfileComplete()...");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:370", "[首页] 开始检查教师信息完善状态...");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:371", "[首页] 调用 dashboard.checkProfileComplete()...");
         const [overviewRes, profileCheckRes] = await Promise.all([
           dashboard.getOverview(),
           dashboard.checkProfileComplete()
         ]);
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:380", "[首页] 检查结果:", {
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:379", "[首页] 检查结果:", {
           overviewCode: overviewRes.code,
           overviewMessage: overviewRes.message,
           checkCode: profileCheckRes.code,
@@ -259,15 +259,15 @@ const _sfc_main = {
             missingFieldsText: profileCheckRes.data.missingFieldsText || []
           };
           if (!this.profileComplete.isComplete) {
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:406", "========================================");
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:407", "[首页] ⚠️ 教师信息未完善");
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:408", "缺失的字段:", this.profileComplete.missingFieldsText.join("、"));
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:409", "缺失字段数量:", this.profileComplete.missingFields.length);
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:410", "请前往编辑页面完善以下信息:");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:405", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:406", "[首页] ⚠️ 教师信息未完善");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:407", "缺失的字段:", this.profileComplete.missingFieldsText.join("、"));
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:408", "缺失字段数量:", this.profileComplete.missingFields.length);
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:409", "请前往编辑页面完善以下信息:");
             this.profileComplete.missingFieldsText.forEach((field, index) => {
-              common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:412", `  ${index + 1}. ${field}`);
+              common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:411", `  ${index + 1}. ${field}`);
             });
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:414", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:413", "========================================");
             common_vendor.index.showModal({
               title: "信息未完善",
               content: `请完善以下信息：
@@ -281,13 +281,13 @@ ${this.profileComplete.missingFieldsText.map((f, i) => `${i + 1}. ${f}`).join("\
               }
             });
           } else {
-            common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:429", "[首页] ✓ 教师信息已完善");
+            common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:428", "[首页] ✓ 教师信息已完善");
           }
         } else {
-          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:432", "[首页] 检查信息完善状态失败:", profileCheckRes.message);
+          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:431", "[首页] 检查信息完善状态失败:", profileCheckRes.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/index/index.vue:435", "教师工作台加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/index/index.vue:434", "教师工作台加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -382,9 +382,8 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   } : {}, {
     d: $data.profile.avatar || $data.defaultAvatar,
     e: common_vendor.t($data.profile.display_name || "教师"),
-    f: common_vendor.t($data.profile.title || "专业家教老师"),
-    g: common_vendor.t($options.formatCurrency($data.stats.monthIncome)),
-    h: common_vendor.f($options.statItems, (item, index, i0) => {
+    f: common_vendor.t($options.formatCurrency($data.stats.monthIncome)),
+    g: common_vendor.f($options.statItems, (item, index, i0) => {
       return {
         a: item.icon,
         b: common_vendor.t(item.value),
@@ -392,10 +391,10 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         d: index
       };
     }),
-    i: common_vendor.o((...args) => $options.goToAppointments && $options.goToAppointments(...args)),
-    j: $data.pendingAppointments.length
+    h: common_vendor.o((...args) => $options.goToAppointments && $options.goToAppointments(...args)),
+    i: $data.pendingAppointments.length
   }, $data.pendingAppointments.length ? {
-    k: common_vendor.f($data.pendingAppointments, (apt, k0, i0) => {
+    j: common_vendor.f($data.pendingAppointments, (apt, k0, i0) => {
       return {
         a: common_vendor.t(apt.appointment_date || "--"),
         b: common_vendor.t(apt.appointment_time || "--:--"),
@@ -408,7 +407,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    l: common_vendor.f($options.quickActions, (item, index, i0) => {
+    k: common_vendor.f($options.quickActions, (item, index, i0) => {
       return {
         a: item.icon,
         b: common_vendor.t(item.label),
@@ -416,7 +415,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         d: common_vendor.o(($event) => $options.goToPage(item.path), index)
       };
     }),
-    m: common_vendor.p({
+    l: common_vendor.p({
       current: "dashboard"
     })
   });

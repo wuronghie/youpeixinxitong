@@ -11,7 +11,6 @@
 				/>
 				<view class="ml-3 flex-1">
 					<text class="font-lg font-weight d-block mb-1">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
-					<text class="font-sm d-block mb-2" style="opacity: 0.85;">{{ teacherInfo.title || '专业教师' }}</text>
 					<view class="d-flex a-center flex-wrap">
 						<text class="font-sm mr-3">⭐ {{ formatRating(teacherInfo.rating) }}</text>
 						<text class="font-sm mr-3">¥{{ teacherInfo.hourly_rate || 100 }}/小时</text>

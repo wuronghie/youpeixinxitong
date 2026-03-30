@@ -7074,7 +7074,7 @@ function isConsoleWritable() {
 function initRuntimeSocketService() {
   const hosts = "192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
   const port = "8090";
-  const id = "mp-weixin_9Pd-gn";
+  const id = "mp-weixin_aurEDL";
   const lazy = typeof swan !== "undefined";
   let restoreError = lazy ? () => {
   } : initOnError();
@@ -8052,6 +8052,12 @@ const pages = [
       navigationBarTitleText: "用户协议",
       enableShareAppMessage: true,
       enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/common/webview",
+    style: {
+      navigationBarTitleText: "网页浏览"
     }
   },
   {

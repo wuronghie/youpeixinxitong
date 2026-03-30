@@ -131,8 +131,10 @@ export default {
 					page: this.page,
 					pageSize: this.pageSize
 				})
+				console.log('[teacher-wallet-income] getTransactions 返回:', res)
 				if (res.code === 0 && res.data) {
 					const fetched = res.data.list || []
+					console.log('[teacher-wallet-income] 本次获取记录数:', fetched.length, '当前总数:', this.list.length)
 					if (this.page === 1) {
 						this.list = fetched
 					} else {

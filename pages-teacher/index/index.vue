@@ -52,7 +52,6 @@
 					/>
 					<view class="teacher-details">
 						<view class="teacher-name">{{ profile.display_name || '教师' }}</view>
-						<view class="teacher-title">{{ profile.title || '专业家教老师' }}</view>
 					</view>
 				</view>
 				<view class="income-card">

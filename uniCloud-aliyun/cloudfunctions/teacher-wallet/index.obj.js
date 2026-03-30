@@ -39,6 +39,11 @@ function createDefaultWallet(teacher_id) {
   }
 }
 
+function roundCurrency(value) {
+  const num = Number(value) || 0
+  return Number(num.toFixed(2))
+}
+
 async function resolveTeacherId(context) {
   const token = context.getUniIdToken()
   if (!token) {
@@ -90,6 +95,135 @@ async function appendTransaction(db, teacher_id, transaction) {
   })
 }
 
+async function getLatestPaidCourseOrder(db, appointmentId) {
+  const dbCmd = db.command
+  const orderDoc = await db.collection('payment-orders')
+    .where({
+      appointment_id: appointmentId,
+      order_type: 'course_fee',
+      status: dbCmd.in(['paid', 'success'])
+    })
+    .orderBy('payment_time', 'desc')
+    .limit(1)
+    .get()
+  return orderDoc.data && orderDoc.data.length > 0 ? orderDoc.data[0] : null
+}
+
+function buildExpectedSettlement(appointment, paymentOrder) {
+  const originalAmount = roundCurrency(
+    paymentOrder
+      ? Number(paymentOrder.original_amount || paymentOrder.total_amount || appointment.total_amount || 0)
+      : Number(appointment.total_amount || 0)
+  )
+  const actualPaidAmount = roundCurrency(
+    paymentOrder
+      ? Number(paymentOrder.amount || 0)
+      : Number(appointment.total_amount || 0)
+  )
+  return {
+    teacherIncome: actualPaidAmount > 0 ? actualPaidAmount : originalAmount,
+    platformFee: 0
+  }
+}
+
+async function tryRepairLegacyWallet(db, teacher_id) {
+  const wallet = await ensureWalletExists(db, teacher_id)
+  const transactionCountRes = await db.collection(TRANSACTION_COLLECTION)
+    .where({ teacher_id })
+    .count()
+
+  const hasWalletData = Number(wallet.balance || 0) > 0 || Number(wallet.total_income || 0) > 0
+  const hasTransactions = (transactionCountRes.total || 0) > 0
+
+  if (hasWalletData || hasTransactions) {
+    return wallet
+  }
+
+  const completedAppointmentsRes = await db.collection('appointments')
+    .where({
+      teacher_id,
+      status: 'completed'
+    })
+    .orderBy('complete_time', 'asc')
+    .get()
+
+  const completedAppointments = completedAppointmentsRes.data || []
+  if (completedAppointments.length === 0) {
+    return wallet
+  }
+
+  const walletCollection = db.collection(WALLET_COLLECTION)
+  const transactionCollection = db.collection(TRANSACTION_COLLECTION)
+  const _ = db.command
+  let repairedAmount = 0
+  let repairedCount = 0
+
+  for (const appointment of completedAppointments) {
+    const paymentOrder = await getLatestPaidCourseOrder(db, appointment._id)
+    const settlement = buildExpectedSettlement(appointment, paymentOrder)
+    const teacherIncome = roundCurrency(settlement.teacherIncome)
+
+    if (teacherIncome <= 0) {
+      continue
+    }
+
+    const existingTransactionRes = await transactionCollection
+      .where({
+        teacher_id,
+        appointment_id: appointment._id,
+        type: 'income'
+      })
+      .limit(1)
+      .get()
+
+    if (existingTransactionRes.data && existingTransactionRes.data.length > 0) {
+      continue
+    }
+
+    const now = Date.now()
+    await walletCollection.doc(wallet._id).update({
+      balance: _.inc(teacherIncome),
+      total_income: _.inc(teacherIncome),
+      update_time: now
+    })
+
+    await appendTransaction(db, teacher_id, {
+      type: 'income',
+      title: appointment.course_type === 'trial' ? '试课收入' : '课程收入',
+      description: `预约 ${appointment._id} 完成，收入结算`,
+      amount: teacherIncome,
+      status: 'completed',
+      appointment_id: appointment._id,
+      source: 'legacy_wallet_repair'
+    })
+
+    await db.collection('appointments').doc(appointment._id).update({
+      teacher_income: teacherIncome,
+      platform_fee: settlement.platformFee,
+      wallet_settled: true,
+      wallet_settlement_time: now,
+      wallet_settlement_amount: teacherIncome,
+      update_time: now
+    })
+
+    repairedAmount = roundCurrency(repairedAmount + teacherIncome)
+    repairedCount += 1
+  }
+
+  if (repairedCount > 0) {
+    console.log('[teacher-wallet] 已修复历史钱包数据:', {
+      teacher_id,
+      repairedCount,
+      repairedAmount
+    })
+  }
+
+  const repairedWalletDoc = await db.collection(WALLET_COLLECTION).doc(wallet._id).get()
+  return repairedWalletDoc.data && repairedWalletDoc.data.length > 0
+    ? repairedWalletDoc.data[0]
+    : wallet
+}
+
 module.exports = {
   _before() {
     const clientInfo = this.getClientInfo()
@@ -105,7 +239,7 @@ module.exports = {
 
     try {
       const teacher_id = await resolveTeacherId(this)
-      const wallet = await ensureWalletExists(db, teacher_id)
+      const wallet = await tryRepairLegacyWallet(db, teacher_id)
 
       const transactionsRes = await db.collection(TRANSACTION_COLLECTION)
         .where({ teacher_id })
@@ -122,6 +256,13 @@ module.exports = {
         status: item.status || 'completed',
         create_time: item.create_time || Date.now()
       }))
+
+      console.log('[teacher-wallet][getWallet] 返回钱包概览与最近交易:', {
+        teacher_id,
+        balance: wallet.balance,
+        total_income: wallet.total_income,
+        transaction_count: transactions.length
+      })
 
       return success({
         wallet: {
@@ -151,6 +292,7 @@ module.exports = {
 
     try {
       const teacher_id = await resolveTeacherId(this)
+      await tryRepairLegacyWallet(db, teacher_id)
       const skip = Math.max(page - 1, 0) * pageSize
 
       const collection = db.collection(TRANSACTION_COLLECTION)

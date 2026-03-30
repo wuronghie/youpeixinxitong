@@ -196,9 +196,29 @@ module.exports = {
       }
       
       // 1. 验证必填参数
-      
-      if (!display_name || !subjects || !grades || !hourly_rate) {
-        return error('请填写完整的基本信息（姓名、科目、年级、时薪）')
+      const hasQualificationImage = Array.isArray(qualifications) && qualifications.some(item => item && item.image)
+      const experienceYears = Number(teaching_experience?.years || 0)
+
+      if (!display_name || !String(display_name).trim()) {
+        return error('请填写姓名')
+      }
+      if (!Array.isArray(subjects) || subjects.length === 0) {
+        return error('请至少选择一个教学科目')
+      }
+      if (!Array.isArray(grades) || grades.length === 0) {
+        return error('请至少选择一个适合年级')
+      }
+      if (!hourly_rate || Number(hourly_rate) <= 0) {
+        return error('请填写正确的课时费')
+      }
+      if (experienceYears <= 0) {
+        return error('请填写教龄')
+      }
+      if (!introduction || !String(introduction).trim()) {
+        return error('请填写自我介绍')
+      }
+      if (!hasQualificationImage) {
+        return error('请至少上传1张资质证书截图')
       }
       
       // 2. 查询教师资料是否存在

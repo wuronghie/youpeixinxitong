@@ -902,16 +902,16 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       headTitle: "退款申请"
     })
   }) : {}, {
-    H: $data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment"
-  }, $data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment" ? {
+    H: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
+  }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid ? {
     I: common_vendor.o((...args) => $options.handleReject && $options.handleReject(...args))
   } : {}, {
     J: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.deposit_paid
   }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.deposit_paid ? {
     K: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args))
   } : {}, {
-    L: $data.appointment.status === "pending_confirm" && $data.appointment.deposit_paid && $data.appointment.parent_paid
-  }, $data.appointment.status === "pending_confirm" && $data.appointment.deposit_paid && $data.appointment.parent_paid ? {
+    L: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
+  }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid ? {
     M: common_vendor.o((...args) => $options.handleConfirm && $options.handleConfirm(...args))
   } : {}, {
     N: $data.appointment.status === "confirmed" && ($data.appointment.deposit_paid === true || $data.appointment.deposit_paid === "true")

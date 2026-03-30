@@ -1,0 +1,15 @@
+
+.webview-page.data-v-b2eba2b3 {
+	height: 100vh;
+	background: #f5f5f5;
+}
+.empty-state.data-v-b2eba2b3 {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: calc(100vh - 88rpx);
+}
+.empty-text.data-v-b2eba2b3 {
+	font-size: 28rpx;
+	color: #999;
+}

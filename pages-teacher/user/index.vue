@@ -80,11 +80,7 @@
 				</card>
 
 				<!-- 教师资料 -->
-				<card headTitle="教师资料" class="mb-3" v-if="teacherProfile.title || (teacherProfile.subjects && teacherProfile.subjects.length > 0) || (teacherProfile.grades && teacherProfile.grades.length > 0) || teacherProfile.hourly_rate">
-					<view v-if="teacherProfile.title" class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">职称</text>
-						<text class="font-sm text-right">{{ teacherProfile.title }}</text>
-					</view>
+				<card headTitle="教师资料" class="mb-3" v-if="(teacherProfile.subjects && teacherProfile.subjects.length > 0) || (teacherProfile.grades && teacherProfile.grades.length > 0) || teacherProfile.hourly_rate">
 					<view v-if="teacherProfile.subjects && teacherProfile.subjects.length > 0" class="d-flex a-center j-sb py-2 border-bottom">
 						<text class="font-sm">主教科目</text>
 						<text class="font-sm text-right">{{ (teacherProfile.subjects || []).join('、') }}</text>
@@ -348,10 +344,15 @@ export default {
 					}
 					
 					// 判断资料是否完善：检查必填字段
-					const isProfileComplete = profile?.display_name && 
+					const hasQualificationImage = Array.isArray(profile?.qualifications) && profile.qualifications.some(item => item && item.image)
+					const isProfileComplete = profile?.display_name &&
 						profile?.subjects && profile.subjects.length > 0 &&
 						profile?.grades && profile.grades.length > 0 &&
-						profile?.hourly_rate && profile.hourly_rate > 0
+						profile?.hourly_rate && profile.hourly_rate > 0 &&
+						Number(profile?.teaching_experience?.years || 0) > 0 &&
+						profile?.introduction &&
+						String(profile.introduction).trim() &&
+						hasQualificationImage
 					
 					// 如果资料完善，显示"已认证"；否则根据 is_verified 判断
 					let verificationStatus = 'pending'

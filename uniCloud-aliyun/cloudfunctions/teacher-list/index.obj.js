@@ -70,21 +70,6 @@ module.exports = {
       const dbCmd = db.command
       const collection = db.collection('teacher-profiles')
       
-      console.log('[teacher-list.getList] params:', JSON.stringify({
-        page,
-        pageSize,
-        subject,
-        grade,
-        school,
-        experience,
-        minPrice,
-        maxPrice,
-        location,
-        tags,
-        sortBy,
-        keyword
-      }))
-      
       const conditions = [
         { is_verified: true },
         { available: true }
@@ -175,7 +160,6 @@ module.exports = {
           keywordConditions.push({ specialties: reg })
           keywordConditions.push({ 'teaching_experience.description': reg })
         }
-        console.log('[teacher-list.getList] keyword regexp:', sanitizedKeyword, 'conditions length:', keywordConditions.length)
       }
       
       // 确定排序字段
@@ -203,15 +187,17 @@ module.exports = {
       }
 
       const finalWhere = dbCmd.and(finalConditions)
-      console.log('[teacher-list.getList] finalWhere conditions:', JSON.stringify(finalConditions))
 
       let listData = []
       let total = 0
 
+      // 关键词搜索时限制扫描条数，避免全表拉取消耗过大
+      const KEYWORD_SCAN_LIMIT = 300
       if (sanitizedKeyword && keywordConditions.length) {
         const rawResult = await collection
           .where(dbCmd.and(conditions))
           .orderBy(orderField, orderType)
+          .limit(KEYWORD_SCAN_LIMIT)
           .get()
         const allData = rawResult.data || []
         const regex = new RegExp(sanitizedKeyword, 'i')
@@ -275,9 +261,6 @@ module.exports = {
         }
       }
 
-      console.log('[teacher-list.getList] list count:', listData.length)
-      console.log('[teacher-list.getList] total count:', total)
-
       // 为每个教师计算试课统计数据
       if (listData.length > 0) {
         const teacherIds = listData.map(t => t.teacher_id || t._id).filter(Boolean)
@@ -297,7 +280,12 @@ module.exports = {
             teacherIds.forEach(teacherId => {
               const teacherTrials = trialAppointments.data.filter(a => a.teacher_id === teacherId)
               const trialCount = teacherTrials.length
-              const trialSuccessCount = teacherTrials.filter(a => a.status === 'completed' && a.trial_result === 'success').length
+              const trialSuccessCount = teacherTrials.filter(a => {
+                const isCompleted = a.status === 'completed'
+                // 兼容历史数据：早期已完成试课可能没有写入 trial_result，也视为成功
+                const isSuccess = !a.trial_result || a.trial_result === 'success'
+                return isCompleted && isSuccess
+              }).length
               const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
               
               trialStatsMap[teacherId] = {
@@ -395,43 +383,42 @@ module.exports = {
       
       // 从profile中获取teacher_id（关联的uni-id-users的用户ID）
       const userId = profile.teacher_id || teacherId
-      
-      // 获取教师用户信息
-      const userResult = await db.collection('uni-id-users')
-        .doc(userId)
-        .field({
-          nickname: true,
-          avatar: true
-        })
-        .get()
+      const dbCmd = db.command
+
+      // 并行请求：用户信息、评价、课表、试课统计，减少串行等待与总耗时
+      const [userResult, reviewsResult, scheduleResult, trialAppointments] = await Promise.all([
+        db.collection('uni-id-users')
+          .doc(userId)
+          .field({ nickname: true, avatar: true })
+          .get(),
+        db.collection('reviews')
+          .where({ teacher_id: userId })
+          .orderBy('create_time', 'desc')
+          .limit(5)
+          .get(),
+        db.collection('teacher-schedule')
+          .where({ teacher_id: userId })
+          .get(),
+        db.collection('appointments')
+          .where({
+            teacher_id: userId,
+            course_type: 'trial',
+            status: dbCmd.in(['completed', 'refunded', 'cancelled'])
+          })
+          .field({ status: true, trial_result: true })
+          .get()
+      ])
       
       const userInfo = userResult.data && userResult.data.length > 0 ? userResult.data[0] : {}
       
-      // 获取最新评价（最多5条）
-      const reviewsResult = await db.collection('reviews')
-        .where({ teacher_id: userId })
-        .orderBy('create_time', 'desc')
-        .limit(5)
-        .get()
-      
-      // 获取教师时间表
-      const scheduleResult = await db.collection('teacher-schedule')
-        .where({ teacher_id: userId })
-        .get()
-      
-      // 计算试课统计数据（从 appointments 表实时计算）
-      const dbCmd = db.command
-      const trialAppointments = await db.collection('appointments')
-        .where({
-          teacher_id: userId,
-          course_type: 'trial',
-          status: dbCmd.in(['completed', 'refunded', 'cancelled'])
-        })
-        .get()
-      
       const trialCount = trialAppointments.data ? trialAppointments.data.length : 0
-      const trialSuccessCount = trialAppointments.data 
-        ? trialAppointments.data.filter(a => a.status === 'completed' && a.trial_result === 'success').length 
+      const trialSuccessCount = trialAppointments.data
+        ? trialAppointments.data.filter(a => {
+            const isCompleted = a.status === 'completed'
+            // 兼容历史数据：早期已完成试课可能没有写入 trial_result，也视为成功
+            const isSuccess = !a.trial_result || a.trial_result === 'success'
+            return isCompleted && isSuccess
+          }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
       

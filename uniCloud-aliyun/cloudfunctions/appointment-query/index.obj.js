@@ -72,8 +72,6 @@ module.exports = {
         return error('token验证失败，请重新登录')
       }
       
-      console.log('查询教师待确认预约，teacher_id:', teacher_id)
-      
       // 查询教师的预约（待确认或已确认）
       const appointmentDoc = await db.collection('appointments')
         .where({
@@ -82,8 +80,6 @@ module.exports = {
         })
         .orderBy('create_time', 'desc')
         .get()
-      
-      console.log('查询结果:', appointmentDoc.data)
       
       if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
         return error('没有找到待确认的预约')
@@ -598,7 +594,13 @@ module.exports = {
         return error('无权操作该预约')
       }
       
-      if (!['confirmed', 'in_progress'].includes(appointment.status)) {
+      // 允许 confirmed / in_progress；对于已支付但仍处于 pending_confirm 的情况，前端已放开按钮，这里也一并允许，具体业务安全由后续结算逻辑控制
+      if (!['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)) {
+        console.warn('[confirmCompletion] 当前预约状态不可确认完成:', {
+          appointment_id,
+          status: appointment.status,
+          parent_paid: appointment.parent_paid
+        })
         return error('当前预约状态不可确认完成')
       }
       
@@ -606,7 +608,9 @@ module.exports = {
         appointment_id,
         course_type: appointment.course_type,
         status: appointment.status,
-        total_amount: appointment.total_amount
+        total_amount: appointment.total_amount,
+        teacher_id: appointment.teacher_id,
+        parent_id: appointment.parent_id
       })
       
       // 根据课程类型调用不同的结算逻辑：
@@ -622,15 +626,23 @@ module.exports = {
         completeResult = await appointmentComplete.completeCourse({ appointment_id })
       }
       
-      if (completeResult.code !== 0) {
+      console.log('[confirmCompletion] 结算返回结果:', {
+        appointment_id,
+        course_type: appointment.course_type,
+        result_code: completeResult && completeResult.code,
+        result_message: completeResult && completeResult.message,
+        result_data: completeResult && completeResult.data
+      })
+      
+      if (!completeResult || completeResult.code !== 0) {
         console.error('[confirmCompletion] 结算失败:', completeResult)
-        return error(completeResult.message || '确认完成失败')
+        return error((completeResult && completeResult.message) || '确认完成失败')
       }
       
       const now = Date.now()
       
       // 更新订单状态
-      await db.collection('payment-orders')
+      const orderUpdateRes = await db.collection('payment-orders')
         .where({
           appointment_id,
           order_type: 'course_fee'
@@ -641,19 +653,33 @@ module.exports = {
           update_time: now
         })
       
+      console.log('[confirmCompletion] 更新课程费订单状态结果:', {
+        appointment_id,
+        modified: orderUpdateRes && orderUpdateRes.updated
+      })
+      
       // 更新会话状态
-      await db.collection('chat-conversations')
+      const convUpdateRes = await db.collection('chat-conversations')
         .where({ appointment_id })
         .update({
           status: 'completed',
           update_time: now
         })
       
-      return success({
+      console.log('[confirmCompletion] 更新聊天会话状态结果:', {
+        appointment_id,
+        modified: convUpdateRes && convUpdateRes.updated
+      })
+      
+      const responseData = {
         appointment_id,
         status: 'completed',
         complete_time: now
-      }, '课程已确认完成，教师收入已结算')
+      }
+      
+      console.log('[confirmCompletion] 课程完成流程结束:', responseData)
+      
+      return success(responseData, '课程已确认完成，教师收入已结算')
       
     } catch (e) {
       console.error('确认课程完成失败:', e)
@@ -1032,24 +1058,50 @@ module.exports = {
       }
       
       if (!teacher_id) {
+        console.warn('[appointment-query][confirmAppointment] token解析失败，无法获取teacher_id')
         return error('token验证失败，请重新登录')
       }
+      
+      console.log('[appointment-query][confirmAppointment] 入参与教师信息:', {
+        appointment_id,
+        teacher_id
+      })
       
       // 2. 查询预约
       const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
       
       if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
+        console.warn('[appointment-query][confirmAppointment] 预约不存在:', { appointment_id })
         return error('预约不存在')
       }
       
       const appointment = appointmentDoc.data[0]
       
+      console.log('[appointment-query][confirmAppointment] 读取到预约信息:', {
+        appointment_id,
+        teacher_id: appointment.teacher_id,
+        parent_id: appointment.parent_id,
+        status: appointment.status,
+        deposit_paid: appointment.deposit_paid,
+        parent_paid: appointment.parent_paid
+      })
+      
       // 3. 验证权限和状态
       if (appointment.teacher_id !== teacher_id) {
+        console.warn('[appointment-query][confirmAppointment] 教师无权操作该预约:', {
+          appointment_id,
+          appointment_teacher_id: appointment.teacher_id,
+          current_teacher_id: teacher_id
+        })
         return error('只能操作自己的预约')
       }
       
-      if (appointment.status !== 'pending_confirm') {
+      // 支持 pending_confirm 和 pending_payment 两种状态（兼容老数据）
+      if (!['pending_confirm', 'pending_payment'].includes(appointment.status)) {
+        console.warn('[appointment-query][confirmAppointment] 当前预约状态不允许确认:', {
+          appointment_id,
+          status: appointment.status
+        })
         return error('当前预约状态不允许确认')
       }
       
@@ -1136,14 +1188,15 @@ module.exports = {
       }
       
       if (!depositPaid) {
+        console.warn('[appointment-query][confirmAppointment] 教师尚未为该家长支付保证金，拒绝确认:', {
+          appointment_id,
+          teacher_id,
+          parent_id: appointment.parent_id
+        })
         return error('请先支付保证金')
       }
       
-      if (!appointment.parent_paid) {
-        return error('家长尚未支付课程费用')
-      }
-      
-      // 4. 更新预约状态
+      // 4. 更新预约状态为已确认（家长随后才能支付课程费）
       const now = Date.now()
       await db.collection('appointments').doc(appointment_id).update({
         status: 'confirmed',
@@ -1152,7 +1205,14 @@ module.exports = {
         update_time: now
       })
       
-      return success({ appointment_id }, '预约已确认')
+      console.log('[appointment-query][confirmAppointment] 预约已确认:', {
+        appointment_id,
+        teacher_id,
+        parent_id: appointment.parent_id,
+        new_status: 'confirmed'
+      })
+      
+      return success({ appointment_id, status: 'confirmed' }, '预约已确认')
       
     } catch (e) {
       console.error('确认预约失败:', e)

@@ -1,42 +1,44 @@
 <template>
-	<view style="background: #F5F5F5;">
+	<view class="profile-edit-page">
 		<scroll-view scroll-y class="scroll" :scroll-into-view="scrollIntoView" scroll-with-animation>
-			<view class="px-2 py-3">
+			<view class="page-content px-3 py-3">
 				<!-- 提示卡片 -->
-				<view class="card bg-warning mb-3 p-3">
+				<view class="notice-card mb-3 p-3">
 					<view class="d-flex a-center mb-2">
 						<view class="icon-warning mr-2" style="width: 40rpx; height: 40rpx;"></view>
-						<text class="font-md font-weight text-warning">重要提示</text>
+						<text class="font-md font-weight notice-title">重要提示</text>
 					</view>
-					<text class="font-sm text-warning d-block">请认真填写您的资料信息，审核期间无法被家长搜索到。审核通过后，您的资料将展示给家长，请确保信息真实有效。</text>
+					<text class="font-sm notice-text d-block">请认真填写您的资料信息，审核期间无法被家长搜索到。审核通过后，您的资料将展示给家长，请确保信息真实有效。</text>
 				</view>
 
 				<!-- 头像和基本信息 -->
-				<card class="mb-3" :class="{ 'error-highlight': errors.name }">
-					<view class="d-flex a-center mb-3 p-3">
-						<view class="d-flex flex-column a-center mr-3" @click="chooseAvatar">
-							<image class="rounded-circle mb-2" :src="formData.avatar || defaultAvatar" mode="aspectFill" style="width: 140rpx;height: 140rpx;border: 4rpx solid rgba(102, 126, 234, 0.2);"></image>
-							<text class="main-text-color font-sm">{{ avatarUploading ? '上传中...' : '点击更换头像' }}</text>
+				<card class="mb-3 profile-card" :class="{ 'error-highlight': errors.name }">
+					<view class="profile-hero p-3">
+						<view class="avatar-picker d-flex flex-column a-center mr-4" @click="chooseAvatar">
+							<view class="avatar-ring rounded-circle d-flex a-center j-center">
+								<image class="rounded-circle" :src="formData.avatar || defaultAvatar" mode="aspectFill" style="width: 140rpx;height: 140rpx;"></image>
+							</view>
+							<text class="main-text-color font-sm mt-2">{{ avatarUploading ? '上传中...' : '点击更换头像' }}</text>
+							<text class="font-xs text-light-muted mt-1">默认优先使用微信头像</text>
 						</view>
 						<view class="flex-1">
-							<view class="d-flex a-center j-sb py-3 border-bottom form-item" :class="{ 'error-item': errors.name }" id="field-name">
+							<view class="font-lg font-weight mb-1 main-text-color">教师主页信息</view>
+							<text class="font-sm text-light-muted d-block mb-3">家长会先看到你的头像、姓名、科目与介绍，建议尽量完整填写。</text>
+							<view class="d-flex a-center j-sb py-3 form-item" :class="{ 'error-item': errors.name }" id="field-name">
 								<view class="d-flex a-center">
 									<text class="font-md required-label">姓名</text>
 									<text class="required-star">*</text>
 								</view>
 								<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.name }" v-model.trim="formData.name" placeholder="请输入真实姓名" placeholder-class="text-light-muted" @input="clearError('name')" />
 							</view>
-							<view class="d-flex a-center j-sb py-3 form-item">
-								<text class="font-md">职称</text>
-								<input class="text-right font-sm flex-1 ml-3 form-input" v-model.trim="formData.title" placeholder="如：高级教师、金牌讲师" placeholder-class="text-light-muted" />
-							</view>
 						</view>
 					</view>
 				</card>
 
 				<!-- 教学信息 -->
-				<card headTitle="教学信息" class="mb-3" :class="{ 'error-highlight': errors.subjects || errors.grades || errors.hourly_rate }">
+				<card headTitle="教学信息" class="mb-3 section-card" :class="{ 'error-highlight': errors.subjects || errors.grades || errors.hourly_rate || errors.experience_years }">
 					<view class="p-3">
+						<text class="section-tip d-block mb-3">选择你擅长的科目、年级，并补充课时费与教龄，方便家长快速判断是否匹配。</text>
 						<view class="mb-4" :class="{ 'error-item': errors.subjects }" id="field-subjects">
 							<view class="d-flex a-center mb-3">
 								<text class="font-md required-label">教学科目</text>
@@ -86,30 +88,43 @@
 							</view>
 						</view>
 						<text v-if="errors.hourly_rate" class="error-text ml-3">{{ errors.hourly_rate }}</text>
-						<view class="d-flex a-center j-sb py-3 border-top form-item">
-							<text class="font-md">教龄 (年)</text>
-							<input class="text-right font-sm flex-1 ml-3 form-input" type="number" v-model.number="formData.experience_years" placeholder="请输入教龄" placeholder-class="text-light-muted" />
+						<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.experience_years }" id="field-experience-years">
+							<view class="d-flex a-center">
+								<text class="font-md required-label">教龄 (年)</text>
+								<text class="required-star">*</text>
+							</view>
+							<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.experience_years }" type="number" v-model.number="formData.experience_years" placeholder="请输入教龄" placeholder-class="text-light-muted" @input="clearError('experience_years')" />
 						</view>
+						<text v-if="errors.experience_years" class="error-text ml-3">{{ errors.experience_years }}</text>
 					</view>
 				</card>
 
 				<!-- 自我介绍 -->
-				<card headTitle="自我介绍" class="mb-3">
-					<view class="p-3">
+				<card class="mb-3 section-card" :class="{ 'error-highlight': errors.introduction }">
+					<view slot="title" class="d-flex a-center">
+						<text class="font-md required-label">自我介绍</text>
+						<text class="required-star">*</text>
+					</view>
+					<view class="p-3" id="field-introduction">
+						<text class="section-tip d-block mb-3">建议突出教学经验、提分案例、擅长学生类型和授课风格，内容越具体越容易获得家长信任。</text>
 						<textarea
 							class="form-textarea bg-light-secondary rounded px-3 py-2 font-sm"
+							:class="{ 'error-input': errors.introduction }"
 							v-model.trim="formData.introduction"
 							maxlength="600"
 							placeholder="从教学经验、教学特色、擅长领域等角度介绍自己，建议不少于60字"
 							placeholder-class="text-light-muted"
 							style="min-height: 220rpx;"
+							@input="clearError('introduction')"
 						/>
+						<text v-if="errors.introduction" class="error-text mt-2 d-block">{{ errors.introduction }}</text>
 					</view>
 				</card>
 
 				<!-- 教育背景 -->
-				<card headTitle="教育背景" class="mb-3">
+				<card headTitle="教育背景" class="mb-3 section-card">
 					<view class="p-3">
+						<text class="section-tip d-block mb-3">院校、学历和专业会展示在教师主页，建议如实填写，提升资料可信度。</text>
 						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-school">
 							<text class="font-md">所在院校</text>
 							<picker :range="schoolOptions" range-key="label" @change="onSchoolChange">
@@ -140,7 +155,7 @@
 				</card>
 
 				<!-- 附加标签 -->
-				<card headTitle="附加标签" class="mb-3">
+				<card headTitle="附加标签" class="mb-3 section-card">
 					<view class="p-3">
 						<text class="font-sm text-light-muted d-block mb-3">选择您的教学特色标签（可多选）</text>
 						<view class="d-flex flex-wrap">
@@ -158,11 +173,12 @@
 				</card>
 
 				<!-- 教学地区 -->
-				<card headTitle="教学地区" class="mb-3">
+				<card headTitle="教学地区" class="mb-3 section-card">
 					<view slot="right" class="main-text-color font-sm" @click="addTeachingArea">+ 添加地区</view>
 					<view class="p-3">
+						<text class="section-tip d-block mb-3">选择常驻或可授课地点，家长端会展示你的教学地址并计算距离。</text>
 						<view v-if="formData.teaching_areas.length" class="d-flex flex-column">
-							<view v-for="(area, index) in formData.teaching_areas" :key="index" class="bg-light-secondary rounded px-3 py-3 mb-3">
+							<view v-for="(area, index) in formData.teaching_areas" :key="index" class="teaching-area-card rounded px-3 py-3 mb-3">
 								<view class="d-flex a-center j-sb mb-2">
 									<text class="font-sm text-light-muted">教学地址</text>
 									<view class="d-flex a-center" @click="handleChooseLocation(index)">
@@ -190,20 +206,37 @@
 				</card>
 
 				<!-- 资质证书 -->
-				<card headTitle="资质证书" class="mb-3">
+				<card class="mb-3 section-card" :class="{ 'error-highlight': errors.qualifications }">
+					<view slot="title" class="d-flex a-center">
+						<text class="font-md required-label">资质证书</text>
+						<text class="required-star">*</text>
+					</view>
 					<view slot="right" class="main-text-color font-sm" @click="addQualification">+ 添加证书</view>
-					<view class="p-3">
+					<view class="p-3" id="field-qualifications">
+						<view class="verification-guide rounded px-3 py-3 mb-3">
+							<text class="font-sm text-light-muted d-block mb-2">请先前往官方查询页面核验，再截图上传相关材料。至少上传 1 张截图。</text>
+							<view class="d-flex flex-wrap">
+								<view
+									v-for="link in verificationLinks"
+									:key="link.url"
+									class="verify-link-btn rounded px-3 py-2 mr-2 mb-2 font-sm"
+									@click="openVerificationLink(link)"
+								>
+									{{ link.title }}
+								</view>
+							</view>
+						</view>
 						<view v-if="formData.qualifications.length" class="d-flex flex-column">
-							<view v-for="(q, index) in formData.qualifications" :key="index" class="bg-light-secondary rounded px-3 py-3 mb-3">
+							<view v-for="(q, index) in formData.qualifications" :key="index" class="qualification-card rounded px-3 py-3 mb-3">
 								<input class="font-sm mb-2 form-input" v-model.trim="q.name" placeholder="证书名称，例如：教师资格证" placeholder-class="text-light-muted" />
 								<input class="font-sm mb-2 form-input" v-model.trim="q.number" placeholder="证书编号（可选）" placeholder-class="text-light-muted" />
 								<view class="mb-2">
-									<text class="font-sm text-light-muted d-block mb-2">证书图片</text>
-									<view class="bg-white rounded border border-light-muted" style="min-height: 200rpx; position: relative;" @click="uploadQualificationImage(index)">
+									<text class="font-sm text-light-muted d-block mb-2">证书截图</text>
+									<view class="upload-box bg-white rounded border border-light-muted" style="min-height: 200rpx; position: relative;" @click="uploadQualificationImage(index)">
 										<image v-if="q.image" class="rounded" :src="q.image" mode="aspectFit" style="width: 100%; min-height: 200rpx; max-height: 400rpx;"></image>
 										<view v-else class="d-flex flex-column a-center j-center" style="min-height: 200rpx;">
 											<view class="icon-camera" style="width: 48rpx; height: 48rpx; color: #ddd;"></view>
-											<text class="font-sm text-light-muted mt-2">上传图片</text>
+											<text class="font-sm text-light-muted mt-2">上传截图</text>
 										</view>
 										<view v-if="q.image" class="position-absolute top-0 right-0 bg-black rounded px-2 py-1" style="opacity: 0.6; z-index: 10;" @click.stop="removeQualificationImage(index)">
 											<text class="text-white font-xs">删除</text>
@@ -213,14 +246,39 @@
 								<text class="text-danger font-sm" @click="removeQualification(index)">删除证书</text>
 							</view>
 						</view>
-						<view v-else class="text-center text-light-muted font-sm py-3">尚未添加证书信息</view>
+						<view v-else class="text-center text-light-muted font-sm py-3">请至少添加 1 条资质材料并上传截图</view>
+						<text v-if="errors.qualifications" class="error-text d-block mt-2">{{ errors.qualifications }}</text>
+					</view>
+				</card>
+
+				<!-- 管理员说明 -->
+				<card class="mb-3 section-card">
+					<view slot="title" class="font-md font-weight">联系管理员</view>
+					<view class="p-3">
+						<text class="font-sm text-light-muted d-block mb-3" style="line-height: 1.8;">
+							如在资料完善、资质上传或审核过程中遇到问题，可添加管理员微信沟通。添加时请备注“教师入驻 + 姓名”，方便尽快处理。
+						</text>
+						<view class="admin-card rounded px-3 py-3 d-flex a-center j-sb" @click="copyAdminWechat">
+							<view class="d-flex a-center">
+								<view class="admin-avatar rounded-circle d-flex a-center j-center mr-3">
+									<text class="font-md text-white font-weight">管</text>
+								</view>
+								<view>
+									<text class="font-md font-weight d-block mb-1">平台管理员</text>
+									<text class="font-sm text-light-muted d-block">微信号：{{ adminWechat }}</text>
+								</view>
+							</view>
+							<view class="copy-btn rounded px-3 py-2">
+								<text class="font-sm">复制微信号</text>
+							</view>
+						</view>
 					</view>
 				</card>
 			</view>
 		</scroll-view>
 
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100; box-shadow: 0 -2rpx 10rpx rgba(0,0,0,0.05);">
-			<button class="w-100 main-bg-color text-white rounded px-3 py-2 font-md" :loading="saving" @click="saveProfile">保存资料</button>
+		<view class="action-bar position-fixed bottom-0 left-0 right-0 d-flex a-center px-3 py-3">
+			<button class="save-btn w-100 text-white rounded px-3 py-2 font-md" :loading="saving" @click="saveProfile">保存资料</button>
 		</view>
 	</view>
 </template>
@@ -248,7 +306,6 @@ export default {
 				avatar: '',
 				avatarFileId: '',
 				name: '',
-				title: '',
 				introduction: '',
 				subjects: [],
 				grades: [],
@@ -276,7 +333,7 @@ export default {
 				{ label: '其他', value: '其他' }
 			],
 			gradeOptions: ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '初一', '初二', '初三', '高一', '高二', '高三'],
-			degreeOptions: ['高中', '大专', '本科', '硕士', '博士'],
+			degreeOptions: ['高中', '大专', '本科', '本科在读', '硕士', '硕士研究生在读', '博士', '博士研究生在读'],
 			// 所在院校选项
 			schoolOptions: [
 				{ label: '四川大学', value: '四川大学' },
@@ -305,11 +362,17 @@ export default {
 				{ label: '擅长提分（中高考）', value: '擅长提分（中高考）' },
 				{ label: '耐心教基础薄弱生', value: '耐心教基础薄弱生' }
 			],
+			verificationLinks: [
+				{ title: '学籍查询', url: 'https://my.chsi.com.cn/archive/index.action' },
+				{ title: '学历查询', url: 'https://www.chsi.com.cn/xlcx/index.jsp' },
+				{ title: '教师资格证查询', url: 'https://sso1.jszg.edu.cn/sso/websitelogin.html' }
+			],
 			useMock: false,
 			saving: false,
 			defaultAvatar,
 			avatarUploading: false,
-			qualificationUploading: false
+			qualificationUploading: false,
+			adminWechat: 'chen18148503231'
 		}
 	},
 	onLoad() {
@@ -325,11 +388,11 @@ export default {
 					// 兼容旧数据：如果 school 字段为空但 education.school 有值，则使用 education.school
 					const schoolValue = teacher.school || teacher.education?.school || ''
 					
+					const defaultAvatarData = this.resolveAvatarData(teacher.avatar || '', {})
 					this.formData = {
-						avatar: teacher.avatar || '',
-						avatarFileId: teacher.avatar || '',
+						avatar: defaultAvatarData.avatar,
+						avatarFileId: defaultAvatarData.avatarFileId,
 						name: teacher.display_name || teacher.name || '',
-						title: teacher.title || '',
 						introduction: teacher.introduction || '',
 						subjects: teacher.subjects || [],
 						grades: teacher.grades || [],
@@ -391,6 +454,19 @@ export default {
 						missingFields.push('hourly_rate')
 						missingFieldsText.push('课时费')
 					}
+					if (!p.teaching_experience?.years || Number(p.teaching_experience.years) <= 0) {
+						missingFields.push('experience_years')
+						missingFieldsText.push('教龄')
+					}
+					if (!p.introduction || !String(p.introduction).trim()) {
+						missingFields.push('introduction')
+						missingFieldsText.push('自我介绍')
+					}
+					const qualificationHasImage = Array.isArray(p.qualifications) && p.qualifications.some(item => item && item.image)
+					if (!qualificationHasImage) {
+						missingFields.push('qualifications')
+						missingFieldsText.push('资质证书截图')
+					}
 					
 					if (missingFields.length > 0) {
 						console.warn('========================================')
@@ -406,8 +482,9 @@ export default {
 					} else {
 						console.log('[编辑页面] ✓ 所有必填字段已填写')
 					}
-					const avatarFileId = p.avatar || ''
-					let avatarUrl = avatarFileId
+					const resolvedAvatar = this.resolveAvatarData(p.avatar || '', userInfo)
+					let avatarUrl = resolvedAvatar.avatar
+					const avatarFileId = resolvedAvatar.avatarFileId
 					if (avatarFileId && !avatarFileId.startsWith('http')) {
 						avatarUrl = await this.getTempFileURL(avatarFileId)
 					}
@@ -419,7 +496,6 @@ export default {
 						avatar: avatarUrl,
 						avatarFileId,
 						name: p.display_name || p.name || '',
-						title: p.title || '',
 						introduction: p.introduction || '',
 						subjects: p.subjects || [],
 						grades: p.grades || [],
@@ -442,6 +518,25 @@ export default {
 				}
 			} catch (error) {
 				console.error('加载教师资料失败:', error)
+			}
+		},
+		resolveAvatarData(profileAvatar, userInfo = {}) {
+			const wxAvatar = userInfo.avatar || userInfo.wx_avatarUrl || ''
+			if (profileAvatar) {
+				return {
+					avatar: profileAvatar,
+					avatarFileId: profileAvatar
+				}
+			}
+			if (wxAvatar) {
+				return {
+					avatar: wxAvatar,
+					avatarFileId: ''
+				}
+			}
+			return {
+				avatar: '',
+				avatarFileId: ''
 			}
 		},
 		chooseAvatar() {
@@ -727,9 +822,28 @@ export default {
 		},
 		addQualification() {
 			this.formData.qualifications.push({ name: '', number: '', image: '', image_fileId: '' })
+			this.clearError('qualifications')
 		},
 		removeQualification(index) {
 			this.formData.qualifications.splice(index, 1)
+			this.clearError('qualifications')
+		},
+		openVerificationLink(link) {
+			if (!link || !link.url) return
+			uni.navigateTo({
+				url: `/pages/common/webview?title=${encodeURIComponent(link.title)}&url=${encodeURIComponent(link.url)}`
+			})
+		},
+		copyAdminWechat() {
+			uni.setClipboardData({
+				data: this.adminWechat,
+				success: () => {
+					uni.showToast({
+						title: '微信号已复制',
+						icon: 'success'
+					})
+				}
+			})
 		},
 		uploadQualificationImage(index) {
 			uni.chooseImage({
@@ -740,6 +854,7 @@ export default {
 					if (this.useMock) {
 						this.formData.qualifications[index].image = localPath
 						this.formData.qualifications[index].image_fileId = localPath
+						this.clearError('qualifications')
 						return
 					}
 					await this.uploadQualificationImageFile(localPath, index)
@@ -764,6 +879,7 @@ export default {
 					const tempUrl = await this.getTempFileURL(uploadRes.fileID)
 					this.formData.qualifications[index].image = tempUrl
 					this.formData.qualifications[index].image_fileId = uploadRes.fileID
+					this.clearError('qualifications')
 					uni.showToast({ title: '上传成功', icon: 'success' })
 				} else {
 					uni.showToast({ title: '上传失败', icon: 'none' })
@@ -778,6 +894,10 @@ export default {
 		removeQualificationImage(index) {
 			this.formData.qualifications[index].image = ''
 			this.formData.qualifications[index].image_fileId = ''
+			this.clearError('qualifications')
+		},
+		hasQualificationImage() {
+			return Array.isArray(this.formData.qualifications) && this.formData.qualifications.some(q => q && (q.image || q.image_fileId))
 		},
 		clearError(field) {
 			if (this.errors[field]) {
@@ -825,6 +945,27 @@ export default {
 				this.errors.hourly_rate = '请填写正确的课时费'
 				missingFields.push('课时费')
 				if (!firstErrorField) firstErrorField = 'field-hourly_rate'
+				isValid = false
+			}
+
+			if (!this.formData.experience_years || Number(this.formData.experience_years) <= 0) {
+				this.errors.experience_years = '请填写教龄'
+				missingFields.push('教龄')
+				if (!firstErrorField) firstErrorField = 'field-experience-years'
+				isValid = false
+			}
+
+			if (!this.formData.introduction || !this.formData.introduction.trim()) {
+				this.errors.introduction = '请填写自我介绍'
+				missingFields.push('自我介绍')
+				if (!firstErrorField) firstErrorField = 'field-introduction'
+				isValid = false
+			}
+
+			if (!this.hasQualificationImage()) {
+				this.errors.qualifications = '请至少上传 1 张资质证书截图'
+				missingFields.push('资质证书截图')
+				if (!firstErrorField) firstErrorField = 'field-qualifications'
 				isValid = false
 			}
 
@@ -941,10 +1082,63 @@ export default {
 </script>
 
 <style scoped>
+.profile-edit-page {
+	background: linear-gradient(180deg, #f7f9fc 0%, #f3f5f9 100%);
+	min-height: 100vh;
+}
+
+.page-content {
+	padding-bottom: 220rpx;
+}
+
 .scroll {
 	flex: 1;
 	height: calc(100vh - 200rpx);
 	padding-bottom: 160rpx;
+}
+
+.profile-card,
+.section-card {
+	border-radius: 28rpx;
+	overflow: hidden;
+}
+
+.notice-card {
+	background: linear-gradient(135deg, #fff8ea 0%, #fff3d8 100%);
+	border: 2rpx solid #ffe3a8;
+	border-radius: 24rpx;
+	box-shadow: 0 10rpx 24rpx rgba(255, 187, 51, 0.08);
+}
+
+.notice-title {
+	color: #b7791f;
+}
+
+.notice-text {
+	color: #9a6b13;
+	line-height: 1.7;
+}
+
+.profile-hero {
+	display: flex;
+	align-items: center;
+}
+
+.avatar-picker {
+	min-width: 180rpx;
+}
+
+.avatar-ring {
+	width: 156rpx;
+	height: 156rpx;
+	padding: 8rpx;
+	background: linear-gradient(135deg, rgba(79, 123, 255, 0.2) 0%, rgba(110, 168, 255, 0.12) 100%);
+	box-shadow: 0 12rpx 28rpx rgba(79, 123, 255, 0.12);
+}
+
+.section-tip {
+	color: #8b96a9;
+	line-height: 1.7;
 }
 
 /* 必填项标注 */
@@ -963,6 +1157,7 @@ export default {
 .form-item {
 	min-height: 88rpx;
 	transition: all 0.3s;
+	border-radius: 18rpx;
 }
 .form-input {
 	border: none;
@@ -977,6 +1172,46 @@ export default {
 	outline: none;
 	resize: none;
 	width: 100%;
+	min-height: 240rpx;
+	line-height: 1.7;
+	box-sizing: border-box;
+}
+.verification-guide {
+	background: linear-gradient(135deg, #f6f9ff 0%, #eef3ff 100%);
+	border: 2rpx solid #dbe6ff;
+}
+.verify-link-btn {
+	background: #ffffff;
+	color: #4f7bff;
+	border: 2rpx solid #d7e3ff;
+	box-shadow: 0 6rpx 16rpx rgba(79, 123, 255, 0.08);
+}
+.teaching-area-card,
+.qualification-card {
+	background: linear-gradient(180deg, #fafbff 0%, #f5f7fc 100%);
+	border: 2rpx solid #edf1f7;
+}
+.upload-box {
+	border-style: dashed;
+	border-width: 2rpx;
+	border-color: #dbe3f0 !important;
+	box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, 0.65);
+}
+.admin-card {
+	background: linear-gradient(135deg, #f7f9ff 0%, #eef3ff 100%);
+	border: 2rpx solid #dbe6ff;
+	box-shadow: 0 10rpx 24rpx rgba(79, 123, 255, 0.08);
+}
+.admin-avatar {
+	width: 88rpx;
+	height: 88rpx;
+	background: linear-gradient(135deg, #4f7bff 0%, #6ea8ff 100%);
+}
+.copy-btn {
+	background: #ffffff;
+	color: #4f7bff;
+	border: 2rpx solid #cfe0ff;
+	box-shadow: 0 6rpx 16rpx rgba(79, 123, 255, 0.08);
 }
 
 /* 选择器样式 */
@@ -1007,11 +1242,12 @@ export default {
 .error-highlight {
 	border: 2rpx solid #ffebee;
 	background-color: #fff5f5;
+	box-shadow: 0 10rpx 22rpx rgba(255, 71, 87, 0.08);
 }
 .error-item {
 	background-color: #fff5f5;
-	border-radius: 8rpx;
-	padding: 8rpx;
+	border-radius: 18rpx;
+	padding: 10rpx 14rpx;
 }
 .error-text {
 	color: #ff4757;
@@ -1058,10 +1294,27 @@ export default {
 .map-preview-container {
 	width: 100%;
 	height: 300rpx;
-	border-radius: 12rpx;
+	border-radius: 20rpx;
 	overflow: hidden;
 	background-color: #F5F5F5;
 	margin-top: 16rpx;
+	box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.08);
+}
+
+.action-bar {
+	z-index: 100;
+	background: rgba(255, 255, 255, 0.92);
+	backdrop-filter: blur(18rpx);
+	border-top: 1rpx solid rgba(226, 232, 240, 0.9);
+	box-shadow: 0 -10rpx 30rpx rgba(15, 23, 42, 0.06);
+	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
+
+.save-btn {
+	background: linear-gradient(135deg, #4f7bff 0%, #3f8cff 100%);
+	height: 88rpx;
+	line-height: 88rpx;
+	box-shadow: 0 16rpx 30rpx rgba(79, 123, 255, 0.25);
 }
 
 .icon-camera {

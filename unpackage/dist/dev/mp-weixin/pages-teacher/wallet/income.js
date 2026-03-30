@@ -76,8 +76,10 @@ const _sfc_main = {
           page: this.page,
           pageSize: this.pageSize
         });
+        common_vendor.index.__f__("log", "at pages-teacher/wallet/income.vue:134", "[teacher-wallet-income] getTransactions 返回:", res);
         if (res.code === 0 && res.data) {
           const fetched = res.data.list || [];
+          common_vendor.index.__f__("log", "at pages-teacher/wallet/income.vue:137", "[teacher-wallet-income] 本次获取记录数:", fetched.length, "当前总数:", this.list.length);
           if (this.page === 1) {
             this.list = fetched;
           } else {
@@ -93,7 +95,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取交易记录失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/income.vue:151", "获取交易记录失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/income.vue:153", "获取交易记录失败:", error);
         common_vendor.index.showToast({ title: "获取交易记录失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;

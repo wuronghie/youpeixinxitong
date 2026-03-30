@@ -12,7 +12,6 @@
 							{{ stats.averageRating || '0.0' }}
 						</text>
 					</view>
-					<text class="font-sm d-block mb-2" style="opacity: 0.85;">{{ profile.title || '专业家教教师' }}</text>
 					<view v-if="(profile.subjects || []).length" class="d-flex flex-wrap">
 						<text v-for="subject in profile.subjects" :key="subject" class="stat-tag rounded px-2 py-1 font-xs mr-1 mb-1 text-white">{{ subject }}</text>
 					</view>

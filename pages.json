@@ -34,6 +34,12 @@
 			}
 		},
 		{
+			"path": "pages/common/webview",
+			"style": {
+				"navigationBarTitleText": "网页浏览"
+			}
+		},
+		{
 			"path": "pages/teacher/list",
 			"style": {
 				"navigationBarTitleText": "找教师",

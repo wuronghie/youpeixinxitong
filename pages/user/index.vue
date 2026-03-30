@@ -34,10 +34,24 @@
 			
 			<view class="d-flex a-center position-absolute left-0 right-0" style="bottom: 50rpx;">
 				<image :src="displayAvatar" style="height: 145rpx;width: 145rpx;border: 5rpx solid;" class="rounded-circle border-light ml-4"></image>
-				<view class="ml-2 text-white font-md" @click="goToPage('/pages/common/register')">
-					{{ displayName }}
+				<view class="ml-2 text-white">
+					<view class="font-md mb-1" @click="handleHeaderClick">
+						{{ displayName }}
+					</view>
+					<view v-if="!isLoggedIn" class="guest-login-btn rounded px-3 py-1 d-inline-flex a-center" @click="goLogin">
+						<text class="font-sm">点击登录</text>
+					</view>
+					<view v-else class="font-sm" style="opacity: 0.88;" @click="goToPage('/pages/common/register')">
+						查看或完善资料
+					</view>
 				</view>
 			</view>
+		</view>
+
+		<view v-if="!isLoggedIn" class="bg-white mx-2 mt-3 rounded px-3 py-3 guest-card">
+			<view class="font-md font-weight mb-2">游客浏览中</view>
+			<text class="font-sm text-light-muted d-block mb-3">当前可先浏览教师列表、教师详情等内容。登录后可使用预约、收藏、消息、优惠券和个人资料功能。</text>
+			<button class="main-bg-color text-white rounded px-3 py-2 font-md" @click="goLogin">立即登录</button>
 		</view>
 		
 		<!-- 图标分类 -->
@@ -184,7 +198,7 @@
 
 <script>
 import { mockUserInfo, useMockData } from '@/utils/mockData.js'
-import { ensureLoggedIn, clearStoredAuth, setStoredUserInfo } from '@/utils/auth.js'
+import { clearStoredAuth, setStoredUserInfo } from '@/utils/auth.js'
 import ParentTabBar from '@/components/ParentTabBar.vue'
 import card from '@/components/common/card.vue'
 import divider from '@/components/common/divider.vue'
@@ -234,6 +248,9 @@ export default {
 		}
 	},
 	computed: {
+		isLoggedIn() {
+			return !!(this.userInfo && this.userInfo.uid)
+		},
 		/**
 		 * 显示头像
 		 * 优先级：profile.avatar > userInfo.avatar > 默认头像
@@ -254,7 +271,7 @@ export default {
 				this.profile?.parent_info?.real_name ||
 				this.profile?.nickname ||
 				this.userInfo?.nickname ||
-				'微信用户'
+				(this.isLoggedIn ? '微信用户' : '游客')
 			)
 		},
 		/**
@@ -320,7 +337,8 @@ export default {
 	 * 功能：检查登录状态，如果已登录则初始化页面数据
 	 */
 	onShow() {
-		if (!ensureLoggedIn('parent')) {
+		if (!this.hasValidParentSession()) {
+			this.resetGuestState()
 			return
 		}
 		// 延迟加载数据，避免阻塞页面渲染
@@ -354,6 +372,50 @@ export default {
 		this.initPage(true)
 	},
 	methods: {
+		hasValidParentSession() {
+			const token = uni.getStorageSync('uni_id_token')
+			const stored = uni.getStorageSync('userInfo') || {}
+			return !!(token && stored.uid && stored.role === 'parent')
+		},
+		resetGuestState() {
+			this.userInfo = {}
+			this.profile = null
+			this.myInviteCode = ''
+			this.overview = {
+				appointmentStats: {
+					total: 0,
+					pending_payment: 0,
+					pending_confirm: 0,
+					confirmed: 0,
+					in_progress: 0,
+					completed: 0,
+					cancelled: 0
+				},
+				orderStats: {
+					pending_payment: 0,
+					refund_processing: 0
+				},
+				unreadMessages: 0
+			}
+		},
+		goLogin() {
+			uni.navigateTo({ url: '/pages/login/index' })
+		},
+		handleHeaderClick() {
+			if (!this.isLoggedIn) {
+				this.goLogin()
+				return
+			}
+			this.goToPage('/pages/common/register')
+		},
+		ensureLoginBeforeAction() {
+			if (this.isLoggedIn) return true
+			uni.showToast({ title: '请先登录后使用', icon: 'none' })
+			setTimeout(() => {
+				this.goLogin()
+			}, 300)
+			return false
+		},
 		/**
 		 * 格式化徽章数值
 		 * @param {Number} count - 数量
@@ -504,6 +566,7 @@ export default {
 		 * 功能：跳转到预约列表页，并传递状态参数进行筛选
 		 */
 		openAppointment(item) {
+			if (!this.ensureLoginBeforeAction()) return
 			if (item.index) {
 				uni.navigateTo({
 					url: `/pages/appointment/list?status=${item.index}`
@@ -517,6 +580,7 @@ export default {
 		 */
 		goToPage(url) {
 			if (!url) return
+			if (!this.ensureLoginBeforeAction()) return
 			uni.navigateTo({ url })
 		},
 		/**
@@ -540,6 +604,7 @@ export default {
 		 * - 如果还没有：先调用云函数生成，再复制
 		 */
 		async copyInviteCode() {
+			if (!this.ensureLoginBeforeAction()) return
 			try {
 				if (!this.myInviteCode && !this.useMock) {
 					const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
@@ -572,6 +637,7 @@ export default {
 		 * - 后端已限制：每个账号只能绑定一次邀请人（acceptInvite 内部判断 inviter_uid）
 		 */
 		async openInviteInput() {
+			if (!this.ensureLoginBeforeAction()) return
 			if (this.useMock) {
 				uni.showToast({ title: '演示模式下不支持填写邀请码', icon: 'none' })
 				return
@@ -720,5 +786,14 @@ export default {
 .icp-text {
 	font-size: 22rpx;
 	color: #aaaaaa;
+}
+
+.guest-card {
+	box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
+}
+
+.guest-login-btn {
+	background: rgba(255, 255, 255, 0.18);
+	border: 1rpx solid rgba(255, 255, 255, 0.35);
 }
 </style>

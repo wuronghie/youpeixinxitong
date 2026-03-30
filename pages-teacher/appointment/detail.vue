@@ -66,10 +66,10 @@
 						<text class="font-sm text-success text-right">¥1（已支付）</text>
 					</view>
 					<view v-if="(appointment.type === 'trial' || appointment.course_type === 'trial')" class="bg-warning rounded px-3 py-2 mt-2">
-						<text class="font-sm text-dark">试课说明：试课成功后平台收取实际支付金额作为中介费（如使用优惠券，则收取优惠后金额）</text>
+						<text class="font-sm text-dark">试课说明：平台收取一节试课完整费用作为中介费（仅该家长与您首次试课成功时收取），本单试课收入为 0；确认完成后会记录流水。</text>
 					</view>
 					<view v-if="(appointment.type === 'regular' || appointment.course_type === 'regular')" class="bg-info rounded px-3 py-2 mt-2">
-						<text class="font-sm text-dark">正式课程说明：每个老师-家长对只收取一次中介费（在试课时收取），后续正式课程不再收取平台费</text>
+						<text class="font-sm text-dark">正式课程说明：试课成功一次后平台不收费；若家长使用优惠券由平台承担，您将获得完整课程金额。家长确认完成后结算到钱包并生成收入流水。</text>
 					</view>
 				</card>
 
@@ -91,7 +91,7 @@
 		<!-- 操作按钮 -->
 		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
 			<button 
-				v-if="appointment.status === 'pending_confirm' || appointment.status === 'pending_payment'"
+				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
 				class="flex-1 border border-light-muted text-light-muted rounded px-3 py-2 font-sm mr-2"
 				@click="handleReject"
 			>
@@ -105,7 +105,7 @@
 				支付保证金（¥1）
 			</button>
 			<button 
-				v-if="appointment.status === 'pending_confirm' && appointment.deposit_paid && appointment.parent_paid"
+				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
 				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
 				@click="handleConfirm"
 			>

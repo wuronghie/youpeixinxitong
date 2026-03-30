@@ -112,10 +112,10 @@
 			</view>
 			<view class="mt-2 pt-2 border-top">
 				<text class="font-sm text-light-muted" v-if="appointment.course_type === 'trial'">
-					试课费用为2小时价格。如使用优惠券，平台收取优惠后金额作为中介费；如未使用优惠券，平台收取全部费用作为中介费。如不满意可申请退款，将退还1小时费用（50%）。
+					平台收取一节试课完整费用作为中介费（仅首次试课成功收取）；如使用优惠券由平台承担。确认完成后进入教师钱包。如不满意可申请退款，将按规则退还部分费用。
 				</text>
 				<text class="font-sm text-light-muted" v-else>
-					正式课程费用将在课程确认后扣除。每个老师-家长对只收取一次中介费（在试课时收取），后续正式课程不再收取平台费。
+					您与该老师试课成功一次后，后续正式课平台不收费。优惠券由平台承担，老师获得完整课程金额；家长确认课程完成后结算到教师钱包并生成收支流水。
 				</text>
 			</view>
 		</card>
@@ -170,9 +170,9 @@
 					发表评价
 				</button>
 				
-				<!-- 次要操作按钮（边框） -->
+				<!-- 次要操作按钮（边框）：仅在未支付且待确认时显示“联系老师” -->
 				<button 
-					v-if="appointment.status === 'pending_confirm' && !canPayCourse" 
+					v-if="appointment.status === 'pending_confirm' && !canPayCourse && !appointment.parent_paid" 
 					class="action-btn action-btn-outline" 
 					@click="contactTeacher"
 				>
@@ -256,7 +256,7 @@ export default {
 		canConfirmCompletion() {
 			// 可以确认课程完成的条件：
 			// 1. 已支付课程费
-			// 2. 预约状态为 confirmed 或 in_progress
+			// 2. 预约状态为 confirmed 或 in_progress（兼容部分场景下 pending_confirm，交由后端再次校验）
 			// 3. 尚未评价（避免已评价后再次确认）
 			if (!this.appointment || !this.appointment.parent_paid) {
 				return false
@@ -264,14 +264,16 @@ export default {
 			if (this.appointment.has_review) {
 				return false
 			}
-			const allowStatuses = ['confirmed', 'in_progress']
+			// 允许 pending_confirm，是为了兼容部分状态未及时更新的场景，实际权限由后端再次校验
+			const allowStatuses = ['pending_confirm', 'confirmed', 'in_progress']
 			return allowStatuses.includes(this.appointment.status)
 		},
 		canPayCourse() {
 			if (!this.appointment || this.appointment.parent_paid) {
 				return false
 			}
-			const allowStatuses = ['pending_payment', 'pending_confirm', 'confirmed']
+			// 只有老师已确认（confirmed）后，家长才能支付课程费
+			const allowStatuses = ['confirmed']
 			return allowStatuses.includes(this.appointment.status)
 		},
 		// 是否有可用优惠券（根据列表和金额动态判断）
@@ -478,8 +480,12 @@ export default {
 			if (typeof address === 'string') {
 				return this.removeDuplicateAddress(address)
 			}
-			// 如果address是对象
+			// 如果address是对象（家长预约时多为 { name, latitude, longitude }）
 			if (typeof address === 'object') {
+				// 家长预约的地址常用 name 表示完整地址
+				if (address.name && String(address.name).trim()) {
+					return this.removeDuplicateAddress(String(address.name).trim())
+				}
 				// 优先使用完整地址字段
 				if (address.full || address.address) {
 					const fullAddr = address.full || address.address
@@ -969,42 +975,15 @@ export default {
 			}
 		},
 		async contactTeacher() {
-			// 检查是否已有会话
+			// 1. 已有会话，直接跳转到聊天页面
 			if (this.appointment?.conversation_id) {
-				// 已有会话，检查是否有消息（判断是否是第一次联系）
-				try {
-					const db = uniCloud.database()
-					const messageRes = await db.collection('chat-messages')
-						.where({
-							conversation_id: this.appointment.conversation_id
-						})
-						.count()
-					
-					const hasMessages = messageRes.total > 0
-					
-					if (hasMessages) {
-						// 已有消息，直接跳转到聊天页面
-						uni.navigateTo({ 
-							url: `/pages/chat/conversation?conversationId=${this.appointment.conversation_id}` 
-						})
-					} else {
-						// 没有消息，这是第一次联系，跳转到发送孩子信息页面
-						// 或者跳转到聊天页面，让聊天页面处理首次联系逻辑
-						uni.navigateTo({ 
-							url: `/pages/chat/conversation?conversationId=${this.appointment.conversation_id}&isFirstContact=true` 
-						})
-					}
-				} catch (error) {
-					console.error('检查消息失败:', error)
-					// 检查失败，直接跳转
-					uni.navigateTo({ 
-						url: `/pages/chat/conversation?conversationId=${this.appointment.conversation_id}` 
-					})
-				}
+				uni.navigateTo({ 
+					url: `/pages/chat/conversation?conversationId=${this.appointment.conversation_id}` 
+				})
 				return
 			}
 			
-			// 没有会话，尝试获取或创建会话
+			// 2. 没有会话，尝试通过云对象获取或创建会话
 			try {
 				uni.showLoading({ title: '正在加载...', mask: true })
 				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
@@ -1012,37 +991,12 @@ export default {
 				uni.hideLoading()
 				
 				if (res.code === 0 && res.data?.conversation_id) {
-					// 获取到会话，检查是否有消息
-					try {
-						const db = uniCloud.database()
-						const messageRes = await db.collection('chat-messages')
-							.where({
-								conversation_id: res.data.conversation_id
-							})
-							.count()
-						
-						const hasMessages = messageRes.total > 0
-						
-						if (hasMessages) {
-							// 已有消息，直接跳转
-							uni.navigateTo({ 
-								url: `/pages/chat/conversation?conversationId=${res.data.conversation_id}` 
-							})
-						} else {
-							// 没有消息，第一次联系
-							uni.navigateTo({ 
-								url: `/pages/chat/conversation?conversationId=${res.data.conversation_id}&isFirstContact=true` 
-							})
-						}
-					} catch (error) {
-						console.error('检查消息失败:', error)
-						// 检查失败，直接跳转
-						uni.navigateTo({ 
-							url: `/pages/chat/conversation?conversationId=${res.data.conversation_id}` 
-						})
-					}
+					// 获取到会话，直接跳转到聊天页面
+					uni.navigateTo({ 
+						url: `/pages/chat/conversation?conversationId=${res.data.conversation_id}` 
+					})
 				} else {
-					// 获取会话失败
+					// 获取会话失败，给出提示
 					uni.showModal({
 						title: '提示',
 						content: res.message || '无法联系老师，请先支付课程费用',
@@ -1052,9 +1006,10 @@ export default {
 			} catch (error) {
 				uni.hideLoading()
 				console.error('获取会话失败:', error)
-				// 如果获取失败，仍然尝试通过 appointmentId 跳转
-				uni.navigateTo({ 
-					url: `/pages/chat/conversation?appointmentId=${this.appointmentId}` 
+				// 获取会话失败时，退回到预约详情本身，不再直接访问数据库
+				uni.showToast({
+					title: '无法加载聊天会话，请稍后重试',
+					icon: 'none'
 				})
 			}
 		},

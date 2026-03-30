@@ -52,8 +52,19 @@ async function resolveUserId(context) {
 }
 
 async function handlePaySuccess(db, order, options = {}) {
+  console.log('[payment-create][handlePaySuccess] 开始处理支付成功回调:', {
+    order_id: order && order._id,
+    order_no: order && order.order_no,
+    order_type: order && order.order_type,
+    appointment_id: order && order.appointment_id,
+    options
+  })
+
   const appointmentDoc = await db.collection('appointments').doc(order.appointment_id).get()
   if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
+    console.error('[payment-create][handlePaySuccess] 关联预约不存在:', {
+      appointment_id: order.appointment_id
+    })
     throw new Error('关联预约不存在')
   }
   const appointment = appointmentDoc.data[0]
@@ -71,21 +82,33 @@ async function handlePaySuccess(db, order, options = {}) {
     update_time: now
   })
 
-    // 如果使用了优惠券，标记优惠券为已使用
-    if (order.user_coupon_id) {
-      try {
-        await db.collection('user-coupons')
-          .doc(order.user_coupon_id)
-          .update({
-            status: 'used',
-            order_id: order._id,
-            use_time: payment_time,
-            update_time: now
-          })
-      } catch (couponErr) {
-        console.error('[payment-create] 标记优惠券已使用失败:', couponErr)
-      }
+  console.log('[payment-create][handlePaySuccess] 支付订单状态已更新为 paid:', {
+    order_id: order._id,
+    order_no: order.order_no,
+    order_type: order.order_type,
+    payment_time,
+    channel
+  })
+
+  // 如果使用了优惠券，标记优惠券为已使用
+  if (order.user_coupon_id) {
+    try {
+      await db.collection('user-coupons')
+        .doc(order.user_coupon_id)
+        .update({
+          status: 'used',
+          order_id: order._id,
+          use_time: payment_time,
+          update_time: now
+        })
+      console.log('[payment-create][handlePaySuccess] 已标记优惠券为已使用:', {
+        user_coupon_id: order.user_coupon_id,
+        order_id: order._id
+      })
+    } catch (couponErr) {
+      console.error('[payment-create][handlePaySuccess] 标记优惠券已使用失败:', couponErr)
     }
+  }
 
   if (order.order_type === 'course_fee') {
     const nextStatus = appointment.deposit_paid || appointment.status === 'confirmed'
@@ -98,6 +121,12 @@ async function handlePaySuccess(db, order, options = {}) {
       parent_payment_time: payment_time,
       parent_payment_order_id: order._id,
       update_time: now
+    })
+    
+    console.log('[payment-create][handlePaySuccess] 已更新预约为家长已支付课程费:', {
+      appointment_id: order.appointment_id,
+      nextStatus,
+      parent_paid: true
     })
     
     // 支付课程费后，更新会话状态（会话应该在联系老师或试课邀请时已创建）
@@ -119,10 +148,16 @@ async function handlePaySuccess(db, order, options = {}) {
           conversation_id: conversationId,
           update_time: now
         })
+        console.log('[payment-create][handlePaySuccess] 已回填预约的 conversation_id:', {
+          appointment_id: order.appointment_id,
+          conversation_id: conversationId
+        })
       }
     } else {
       // 如果会话不存在，记录警告（不应该发生，因为会话应该在联系老师或试课邀请时创建）
-      console.warn('[payment-create] 支付课程费时会话不存在，appointment_id:', order.appointment_id)
+      console.warn('[payment-create][handlePaySuccess] 支付课程费时会话不存在:', {
+        appointment_id: order.appointment_id
+      })
       // 不自动创建会话，因为根据新流程，会话应该在联系老师或试课邀请时创建
     }
     
@@ -142,6 +177,12 @@ async function handlePaySuccess(db, order, options = {}) {
       update_time: now
       // 不设置 confirm_time，等老师确认预约时再设置
     })
+    
+    console.log('[payment-create][handlePaySuccess] 已更新预约为教师已支付保证金:', {
+      appointment_id: order.appointment_id,
+      nextStatus,
+      deposit_paid: true
+    })
 
     // 支付保证金后，更新会话状态（会话应该在联系请求时已创建）
     const conversationDoc = await db.collection('chat-conversations')
@@ -156,9 +197,16 @@ async function handlePaySuccess(db, order, options = {}) {
         teacher_deposit_paid: true,
         update_time: now
       })
+      
+      console.log('[payment-create][handlePaySuccess] 已更新会话为教师已支付保证金:', {
+        conversation_id: conversationId,
+        appointment_id: order.appointment_id
+      })
     } else {
       // 如果会话不存在，记录警告（不应该发生，因为会话应该在联系请求时创建）
-      console.warn('[payment-create] 支付保证金时会话不存在，appointment_id:', order.appointment_id)
+      console.warn('[payment-create][handlePaySuccess] 支付保证金时会话不存在:', {
+        appointment_id: order.appointment_id
+      })
       // 不自动创建会话，因为根据新流程，会话应该在联系老师时创建
     }
     return { appointment_status: nextStatus }

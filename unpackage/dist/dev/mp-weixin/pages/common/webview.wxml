@@ -1,0 +1,1 @@
+<view class="webview-page data-v-b2eba2b3"><web-view wx:if="{{a}}" class="data-v-b2eba2b3" src="{{b}}"></web-view><view wx:else class="empty-state data-v-b2eba2b3"><text class="empty-text data-v-b2eba2b3">链接无效，无法打开页面</text></view></view>

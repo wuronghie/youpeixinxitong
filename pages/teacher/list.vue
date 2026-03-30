@@ -249,7 +249,12 @@
 										<text class="text-warning font-sm mr-1">⭐</text>
 										<text class="font-sm text-danger font-weight mr-2">{{ getPositiveRate(teacher) }}%好评</text>
 										<text v-if="teacher.trial_count > 0" class="font-sm text-light-muted mr-2">试课{{ teacher.trial_count }}次</text>
+										<text v-if="(teacher.trial_success_count || 0) > 0" class="font-sm text-success mr-2">试课成功{{ teacher.trial_success_count }}次</text>
 										<text v-if="teacher.trial_success_rate > 0" class="font-sm text-success">成功率{{ formatPercent(teacher.trial_success_rate) }}</text>
+									</view>
+									<view v-if="getTeacherAddress(teacher)" class="d-flex a-center flex-wrap mt-1">
+										<text class="font-xs text-light-muted">📍 {{ getTeacherAddress(teacher) }}</text>
+										<text v-if="getTeacherDistance(teacher) != null" class="font-xs text-light-muted ml-2">约 {{ getTeacherDistance(teacher) }} km</text>
 									</view>
 								</view>
 							</view>
@@ -354,6 +359,8 @@ export default {
 			favoriteLoading: false,
 			// 是否使用模拟数据（开发测试用）
 			useMock: false,
+			// 用户位置（用于计算与教师距离）
+			userLocation: null,
 			// 滚动位置（用于下拉刷新判断）
 			scrollTop: 0,
 			// 是否可以刷新（滚动位置在顶部时才能刷新）
@@ -586,6 +593,7 @@ export default {
 		console.log('[teacher-list] 年级筛选选项:', this.gradeFilters)
 		console.log('[teacher-list] 年级筛选选项数量:', this.gradeFilters.length)
 		// 延迟加载数据，避免阻塞页面渲染
+		this.fetchUserLocation()
 		this.$nextTick(() => {
 			setTimeout(() => {
 		this.loadTeachers(true)
@@ -1058,6 +1066,58 @@ export default {
 			if (rating >= 3.5) return 90
 			if (rating >= 3.0) return 85
 			return 80
+		},
+		/** 获取用户位置（用于距离计算） */
+		async fetchUserLocation() {
+			try {
+				const res = await uni.getLocation({ type: 'gcj02' })
+				if (res.latitude != null && res.longitude != null) {
+					this.userLocation = { lat: res.latitude, lon: res.longitude }
+				}
+			} catch (e) {
+				// 用户拒绝或失败时不提示，距离不显示即可
+			}
+		},
+		/**
+		 * 教师教学地址（取第一个教学区域）
+		 * @param {Object} teacher - 教师对象（含 teaching_areas）
+		 * @returns {String}
+		 */
+		getTeacherAddress(teacher) {
+			const areas = teacher.teaching_areas || []
+			if (!areas.length) return ''
+			const area = areas[0]
+			if (area.name && String(area.name).trim()) return String(area.name).trim()
+			const parts = [area.province, area.city, area.district, area.address].filter(Boolean)
+			return parts.join(' ') || ''
+		},
+		/**
+		 * 与教师的距离（km），无位置或教师无坐标时返回 null
+		 * @param {Object} teacher - 教师对象（含 teaching_areas，项可有 latitude/longitude）
+		 * @returns {String|null} 如 "3.2"，或 null
+		 */
+		getTeacherDistance(teacher) {
+			if (!this.userLocation || this.userLocation.lat == null || this.userLocation.lon == null) return null
+			const areas = teacher.teaching_areas || []
+			const withCoord = areas.find(a => a.latitude != null && a.longitude != null)
+			if (!withCoord) return null
+			const km = this.haversineKm(
+				this.userLocation.lat,
+				this.userLocation.lon,
+				parseFloat(withCoord.latitude),
+				parseFloat(withCoord.longitude)
+			)
+			return km == null ? null : km.toFixed(1)
+		},
+		/** 两点经纬度距离（km），Haversine */
+		haversineKm(lat1, lon1, lat2, lon2) {
+			if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null
+			const R = 6371
+			const dLat = (lat2 - lat1) * Math.PI / 180
+			const dLon = (lon2 - lon1) * Math.PI / 180
+			const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+			const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+			return R * c
 		},
 		/**
 		 * 格式化年级显示

@@ -27,8 +27,7 @@
 			</view>
 			
 			<!-- 角色选择标题 -->
-			<view class="font-big mb-4">请选择登录身份</view>
-			<view class="text-light-muted font mb-4">不同角色将进入对应的功能工作台</view>
+			<view class="font-big mb-4">请选择身份</view>
 			
 			<!-- 角色选择卡片 -->
 			<view class="mb-4">
@@ -58,12 +57,6 @@
 				</view>
 			</view>
 			
-			<!-- 功能说明 -->
-			<view class="bg-light p-3 rounded mb-4">
-				<view class="text-muted font mb-1">• 家长可快捷预约试课、管理订单</view>
-				<view class="text-muted font">• 教师可完善资料、管理预约与钱包</view>
-			</view>
-			
 			<!-- 登录按钮 -->
 			<view 
 				class="py-2 w-100 d-flex a-center j-center main-bg-color text-white rounded font-md mb-3" 
@@ -74,7 +67,11 @@
 				<text v-if="isLogging">登录中...</text>
 				<text v-else>微信一键登录</text>
 			</view>
-			
+
+			<view class="skip-login-btn py-2 w-100 d-flex a-center j-center rounded font-md mb-3" @click="skipLogin">
+				<text>先逛逛，暂不登录</text>
+			</view>
+
 			<!-- 协议：需用户主动勾选同意 -->
 			<view class="agreement-row">
 				<checkbox-group @change="onAgreementChange">
@@ -305,6 +302,9 @@ export default {
 		openAgreement(type) {
 			const url = type === 'service' ? '/pages/common/agreement?type=service' : '/pages/common/agreement?type=privacy'
 			uni.navigateTo({ url })
+		},
+		skipLogin() {
+			uni.reLaunch({ url: '/pages/teacher/list' })
 		}
 	}
 }
@@ -335,6 +335,12 @@ export default {
 
 .agreement-row {
 	margin-top: 16rpx;
+}
+
+.skip-login-btn {
+	background: #f5f7fb;
+	color: #4f7bff;
+	border: 2rpx solid #dce7ff;
 }
 
 .icp-footer {

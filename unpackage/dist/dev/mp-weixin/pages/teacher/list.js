@@ -47,6 +47,8 @@ const _sfc_main = {
       favoriteLoading: false,
       // 是否使用模拟数据（开发测试用）
       useMock: false,
+      // 用户位置（用于计算与教师距离）
+      userLocation: null,
       // 滚动位置（用于下拉刷新判断）
       scrollTop: 0,
       // 是否可以刷新（滚动位置在顶部时才能刷新）
@@ -296,8 +298,9 @@ const _sfc_main = {
    */
   onLoad() {
     this.useMock = utils_mockData.useMockData() === true;
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:586", "[teacher-list] 年级筛选选项:", this.gradeFilters);
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:587", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:593", "[teacher-list] 年级筛选选项:", this.gradeFilters);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:594", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
+    this.fetchUserLocation();
     this.$nextTick(() => {
       setTimeout(() => {
         this.loadTeachers(true);
@@ -372,7 +375,7 @@ const _sfc_main = {
      * 功能：重新加载第一页数据
      */
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/teacher/list.vue:663", "[teacher-list] 下拉刷新：重新加载教师列表");
+      common_vendor.index.__f__("log", "at pages/teacher/list.vue:671", "[teacher-list] 下拉刷新：重新加载教师列表");
       await this.loadTeachers(true);
     },
     /**
@@ -464,7 +467,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:759", "加载教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:767", "加载教师失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -638,7 +641,7 @@ const _sfc_main = {
           this.favoriteIds = [];
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:926", "获取收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:934", "获取收藏状态失败:", error);
       } finally {
         this.applyFavoriteStatus();
       }
@@ -714,7 +717,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1004", "操作收藏失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1012", "操作收藏失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       }
     },
@@ -777,6 +780,62 @@ const _sfc_main = {
       if (rating >= 3)
         return 85;
       return 80;
+    },
+    /** 获取用户位置（用于距离计算） */
+    async fetchUserLocation() {
+      try {
+        const res = await common_vendor.index.getLocation({ type: "gcj02" });
+        if (res.latitude != null && res.longitude != null) {
+          this.userLocation = { lat: res.latitude, lon: res.longitude };
+        }
+      } catch (e) {
+      }
+    },
+    /**
+     * 教师教学地址（取第一个教学区域）
+     * @param {Object} teacher - 教师对象（含 teaching_areas）
+     * @returns {String}
+     */
+    getTeacherAddress(teacher) {
+      const areas = teacher.teaching_areas || [];
+      if (!areas.length)
+        return "";
+      const area = areas[0];
+      if (area.name && String(area.name).trim())
+        return String(area.name).trim();
+      const parts = [area.province, area.city, area.district, area.address].filter(Boolean);
+      return parts.join(" ") || "";
+    },
+    /**
+     * 与教师的距离（km），无位置或教师无坐标时返回 null
+     * @param {Object} teacher - 教师对象（含 teaching_areas，项可有 latitude/longitude）
+     * @returns {String|null} 如 "3.2"，或 null
+     */
+    getTeacherDistance(teacher) {
+      if (!this.userLocation || this.userLocation.lat == null || this.userLocation.lon == null)
+        return null;
+      const areas = teacher.teaching_areas || [];
+      const withCoord = areas.find((a) => a.latitude != null && a.longitude != null);
+      if (!withCoord)
+        return null;
+      const km = this.haversineKm(
+        this.userLocation.lat,
+        this.userLocation.lon,
+        parseFloat(withCoord.latitude),
+        parseFloat(withCoord.longitude)
+      );
+      return km == null ? null : km.toFixed(1);
+    },
+    /** 两点经纬度距离（km），Haversine */
+    haversineKm(lat1, lon1, lat2, lon2) {
+      if (lat1 == null || lon1 == null || lat2 == null || lon2 == null)
+        return null;
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     },
     /**
      * 格式化年级显示
@@ -1000,24 +1059,35 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       }, teacher.trial_count > 0 ? {
         i: common_vendor.t(teacher.trial_count)
       } : {}, {
-        j: teacher.trial_success_rate > 0
+        j: (teacher.trial_success_count || 0) > 0
+      }, (teacher.trial_success_count || 0) > 0 ? {
+        k: common_vendor.t(teacher.trial_success_count)
+      } : {}, {
+        l: teacher.trial_success_rate > 0
       }, teacher.trial_success_rate > 0 ? {
-        k: common_vendor.t($options.formatPercent(teacher.trial_success_rate))
+        m: common_vendor.t($options.formatPercent(teacher.trial_success_rate))
       } : {}, {
-        l: (teacher.subjects || []).length
-      }, (teacher.subjects || []).length ? common_vendor.e({
-        m: common_vendor.t((teacher.subjects || []).slice(0, 2).join("、")),
-        n: (teacher.subjects || []).length > 2
-      }, (teacher.subjects || []).length > 2 ? {
-        o: common_vendor.t(teacher.subjects.length)
+        n: $options.getTeacherAddress(teacher)
+      }, $options.getTeacherAddress(teacher) ? common_vendor.e({
+        o: common_vendor.t($options.getTeacherAddress(teacher)),
+        p: $options.getTeacherDistance(teacher) != null
+      }, $options.getTeacherDistance(teacher) != null ? {
+        q: common_vendor.t($options.getTeacherDistance(teacher))
       } : {}) : {}, {
-        p: (teacher.grades || []).length
-      }, (teacher.grades || []).length ? {
-        q: common_vendor.t($options.formatGrades(teacher.grades))
-      } : {}, {
         r: (teacher.subjects || []).length
+      }, (teacher.subjects || []).length ? common_vendor.e({
+        s: common_vendor.t((teacher.subjects || []).slice(0, 2).join("、")),
+        t: (teacher.subjects || []).length > 2
+      }, (teacher.subjects || []).length > 2 ? {
+        v: common_vendor.t(teacher.subjects.length)
+      } : {}) : {}, {
+        w: (teacher.grades || []).length
+      }, (teacher.grades || []).length ? {
+        x: common_vendor.t($options.formatGrades(teacher.grades))
+      } : {}, {
+        y: (teacher.subjects || []).length
       }, (teacher.subjects || []).length ? {
-        s: common_vendor.f((teacher.subjects || []).slice(0, 4), (subject, index, i1) => {
+        z: common_vendor.f((teacher.subjects || []).slice(0, 4), (subject, index, i1) => {
           return {
             a: common_vendor.t(subject),
             b: subject,
@@ -1025,17 +1095,17 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
           };
         })
       } : {}, {
-        t: common_vendor.t(teacher.hourly_rate || 100),
-        v: $options.getTeachingMethod(teacher)
+        A: common_vendor.t(teacher.hourly_rate || 100),
+        B: $options.getTeachingMethod(teacher)
       }, $options.getTeachingMethod(teacher) ? {
-        w: common_vendor.t($options.getTeachingMethod(teacher))
+        C: common_vendor.t($options.getTeachingMethod(teacher))
       } : {}, {
-        x: $options.getSpecialty(teacher)
+        D: $options.getSpecialty(teacher)
       }, $options.getSpecialty(teacher) ? {
-        y: common_vendor.t($options.getSpecialty(teacher))
+        E: common_vendor.t($options.getSpecialty(teacher))
       } : {}, {
-        z: teacher._id,
-        A: common_vendor.o(($event) => $options.goToDetail(teacher), teacher._id)
+        F: teacher._id,
+        G: common_vendor.o(($event) => $options.goToDetail(teacher), teacher._id)
       });
     }),
     R: !$data.teacherList.length && !$data.isLoading

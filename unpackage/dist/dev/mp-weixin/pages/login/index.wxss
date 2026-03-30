@@ -20,6 +20,11 @@
 .agreement-row.data-v-d08ef7d4 {
 	margin-top: 16rpx;
 }
+.skip-login-btn.data-v-d08ef7d4 {
+	background: #f5f7fb;
+	color: #4f7bff;
+	border: 2rpx solid #dce7ff;
+}
 .icp-footer.data-v-d08ef7d4 {
 	margin-top: 24rpx;
 	display: flex;

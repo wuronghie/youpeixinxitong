@@ -30,7 +30,7 @@
 
 				<!-- 最近交易 -->
 				<card headTitle="最近交易" class="mb-3">
-					<view slot="right" class="main-text-color font-sm" @click="goToIncome">查看全部 ></view>
+					<view slot="right" class="main-text-color font-sm d-flex a-center" @click="goToIncome">查看全部<text class="iconfont icon-you ml-1"></text></view>
 					<view v-if="recentTransactions.length" class="d-flex flex-column">
 						<view v-for="item in recentTransactions" :key="item._id" class="d-flex a-center j-sb py-3 border-bottom">
 							<view class="flex-1">

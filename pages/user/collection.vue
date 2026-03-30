@@ -64,7 +64,6 @@
 										<text class="teacher-name">{{ teacher.teacher_name }}</text>
 										<text v-if="teacher.is_verified" class="verified-badge">认证</text>
 									</view>
-									<text class="teacher-title">{{ teacher.title || '专业教师' }}</text>
 									<view class="rating-row">
 										<text class="rating-text">⭐ {{ teacher.rating || '5.0' }}</text>
 										<text class="price-text">¥{{ teacher.hourly_rate || 0 }}/时</text>

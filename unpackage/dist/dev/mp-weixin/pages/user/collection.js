@@ -26,7 +26,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/user/collection.vue:153", "[user-collection] 下拉刷新：重新加载收藏列表");
+      common_vendor.index.__f__("log", "at pages/user/collection.vue:152", "[user-collection] 下拉刷新：重新加载收藏列表");
       await this.refreshList();
     },
     async refreshList() {
@@ -53,7 +53,7 @@ const _sfc_main = {
       try {
         await this.loadCollection();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/collection.vue:179", "刷新失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/collection.vue:178", "刷新失败:", error);
         common_vendor.index.showToast({ title: "刷新失败，请稍后再试", icon: "none" });
       } finally {
         this.refresherTriggered = false;
@@ -98,7 +98,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/collection.vue:227", "加载收藏列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/collection.vue:226", "加载收藏列表失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       }
     },
@@ -128,7 +128,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "操作失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages/user/collection.vue:255", "取消收藏失败:", error);
+            common_vendor.index.__f__("error", "at pages/user/collection.vue:254", "取消收藏失败:", error);
             common_vendor.index.showToast({ title: "取消失败，请稍后再试", icon: "none" });
           }
         }
@@ -193,33 +193,32 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         b: common_vendor.t(teacher.teacher_name),
         c: teacher.is_verified
       }, teacher.is_verified ? {} : {}, {
-        d: common_vendor.t(teacher.title || "专业教师"),
-        e: common_vendor.t(teacher.rating || "5.0"),
-        f: common_vendor.t(teacher.hourly_rate || 0),
-        g: teacher.order_count
+        d: common_vendor.t(teacher.rating || "5.0"),
+        e: common_vendor.t(teacher.hourly_rate || 0),
+        f: teacher.order_count
       }, teacher.order_count ? {
-        h: common_vendor.t(teacher.order_count)
+        g: common_vendor.t(teacher.order_count)
       } : {}, {
-        i: teacher.subjects && teacher.subjects.length > 0
+        h: teacher.subjects && teacher.subjects.length > 0
       }, teacher.subjects && teacher.subjects.length > 0 ? common_vendor.e({
-        j: common_vendor.f(teacher.subjects.slice(0, 4), (subject, index, i1) => {
+        i: common_vendor.f(teacher.subjects.slice(0, 4), (subject, index, i1) => {
           return {
             a: common_vendor.t(subject),
             b: subject
           };
         }),
-        k: teacher.subjects.length > 4
+        j: teacher.subjects.length > 4
       }, teacher.subjects.length > 4 ? {
-        l: common_vendor.t(teacher.subjects.length)
+        k: common_vendor.t(teacher.subjects.length)
       } : {}) : {}, {
-        m: common_vendor.t($options.formatDate(teacher.create_time)),
-        n: teacher.can_contact
+        l: common_vendor.t($options.formatDate(teacher.create_time)),
+        m: teacher.can_contact
       }, teacher.can_contact ? {
-        o: common_vendor.o(($event) => $options.goChat(teacher), teacher.teacher_id)
+        n: common_vendor.o(($event) => $options.goChat(teacher), teacher.teacher_id)
       } : {}, {
-        p: common_vendor.o(($event) => $options.removeCollection(teacher.teacher_id), teacher.teacher_id),
-        q: teacher.teacher_id,
-        r: common_vendor.o(($event) => $options.goToDetail(teacher.teacher_id), teacher.teacher_id)
+        o: common_vendor.o(($event) => $options.removeCollection(teacher.teacher_id), teacher.teacher_id),
+        p: teacher.teacher_id,
+        q: common_vendor.o(($event) => $options.goToDetail(teacher.teacher_id), teacher.teacher_id)
       });
     }),
     h: !$data.loading && $data.collectionList.length === 0

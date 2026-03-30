@@ -109,16 +109,16 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "请先阅读并勾选同意《用户协议》和《隐私政策》", icon: "none" });
         return;
       }
-      common_vendor.index.__f__("log", "at pages/login/index.vue:217", "[login] 使用角色:", this.selectedRole);
+      common_vendor.index.__f__("log", "at pages/login/index.vue:214", "[login] 使用角色:", this.selectedRole);
       this.isLogging = true;
       try {
         const loginRes = await new Promise((resolve, reject) => {
           common_vendor.index.login({ provider: "weixin", success: resolve, fail: reject });
         });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:223", "[login] 获取到微信code:", loginRes.code);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:220", "[login] 获取到微信code:", loginRes.code);
         const userLogin = common_vendor.tr.importObject("user-login", { customUI: true });
         const res = await userLogin.login({ code: loginRes.code, role: this.selectedRole });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:227", "[login] 云函数返回:", res);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:224", "[login] 云函数返回:", res);
         if (res.code === 0) {
           let { token, userInfo } = res.data;
           if (token) {
@@ -134,7 +134,7 @@ const _sfc_main = {
             const freshInfo = await utils_auth.fetchRemoteUserInfo({ token });
             userInfo = freshInfo || userInfo;
           } catch (fetchError) {
-            common_vendor.index.__f__("warn", "at pages/login/index.vue:245", "获取最新用户信息失败，使用登录返回的数据", fetchError);
+            common_vendor.index.__f__("warn", "at pages/login/index.vue:242", "获取最新用户信息失败，使用登录返回的数据", fetchError);
           }
           if (userInfo && userInfo.role) {
             if (userInfo.role === "parent") {
@@ -145,12 +145,12 @@ const _sfc_main = {
                   await inviteCenter.acceptInvite({ invite_code: pendingCode });
                   common_vendor.index.removeStorageSync("pending_invite_code");
                 } catch (inviteErr) {
-                  common_vendor.index.__f__("error", "at pages/login/index.vue:257", "[login] 处理邀请关系失败:", inviteErr);
+                  common_vendor.index.__f__("error", "at pages/login/index.vue:254", "[login] 处理邀请关系失败:", inviteErr);
                 }
               }
             }
             const profileCheck = await utils_auth.checkProfileComplete(userInfo);
-            common_vendor.index.__f__("log", "at pages/login/index.vue:264", "[login] 信息检查结果:", profileCheck);
+            common_vendor.index.__f__("log", "at pages/login/index.vue:261", "[login] 信息检查结果:", profileCheck);
             utils_auth.redirectByRole(userInfo.role);
             if (!profileCheck.isComplete) {
               setTimeout(() => {
@@ -174,7 +174,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "登录失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/login/index.vue:293", "登录失败:", error);
+        common_vendor.index.__f__("error", "at pages/login/index.vue:290", "登录失败:", error);
         common_vendor.index.showToast({ title: "登录失败，请稍后再试", icon: "none" });
       } finally {
         this.isLogging = false;
@@ -188,6 +188,9 @@ const _sfc_main = {
     openAgreement(type) {
       const url = type === "service" ? "/pages/common/agreement?type=service" : "/pages/common/agreement?type=privacy";
       common_vendor.index.navigateTo({ url });
+    },
+    skipLogin() {
+      common_vendor.index.reLaunch({ url: "/pages/teacher/list" });
     }
   }
 };
@@ -212,10 +215,11 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   }, $data.isLogging ? {} : {}, {
     d: common_vendor.n(!$data.selectedRole || $data.isLogging ? "bg-light-secondary text-muted" : ""),
     e: common_vendor.o((...args) => $options.handleLogin && $options.handleLogin(...args)),
-    f: $data.hasAgreed,
-    g: common_vendor.o(($event) => $options.openAgreement("service")),
-    h: common_vendor.o(($event) => $options.openAgreement("privacy")),
-    i: common_vendor.o((...args) => $options.onAgreementChange && $options.onAgreementChange(...args))
+    f: common_vendor.o((...args) => $options.skipLogin && $options.skipLogin(...args)),
+    g: $data.hasAgreed,
+    h: common_vendor.o(($event) => $options.openAgreement("service")),
+    i: common_vendor.o(($event) => $options.openAgreement("privacy")),
+    j: common_vendor.o((...args) => $options.onAgreementChange && $options.onAgreementChange(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-d08ef7d4"]]);

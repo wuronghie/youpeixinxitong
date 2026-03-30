@@ -256,8 +256,8 @@ module.exports = {
         console.warn('[云函数] 教师资料不存在')
         return success({
           isComplete: false,
-          missingFields: ['display_name', 'subjects', 'grades', 'hourly_rate'],
-          missingFieldsText: ['姓名', '教学科目', '适合年级', '课时费']
+          missingFields: ['display_name', 'subjects', 'grades', 'hourly_rate', 'experience_years', 'introduction', 'qualifications'],
+          missingFieldsText: ['姓名', '教学科目', '适合年级', '课时费', '教龄', '自我介绍', '资质证书截图']
         }, '教师资料不存在')
       }
 
@@ -292,6 +292,22 @@ module.exports = {
         missingFieldsText.push('课时费')
       }
 
+      if (!profile.teaching_experience?.years || Number(profile.teaching_experience.years) <= 0) {
+        missingFields.push('experience_years')
+        missingFieldsText.push('教龄')
+      }
+
+      if (!profile.introduction || !String(profile.introduction).trim()) {
+        missingFields.push('introduction')
+        missingFieldsText.push('自我介绍')
+      }
+
+      const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some(item => item && item.image)
+      if (!hasQualificationImage) {
+        missingFields.push('qualifications')
+        missingFieldsText.push('资质证书截图')
+      }
+
       const isComplete = missingFields.length === 0
 
       // 打印详细的缺失信息日志 - 使用 console.warn 使其更明显
@@ -321,6 +337,17 @@ module.exports = {
               break
             case 'hourly_rate':
               currentValue = profile.hourly_rate || '0'
+              break
+            case 'experience_years':
+              currentValue = profile.teaching_experience?.years || '0'
+              break
+            case 'introduction':
+              currentValue = profile.introduction ? '已填写' : '空'
+              break
+            case 'qualifications':
+              currentValue = Array.isArray(profile.qualifications)
+                ? `有效截图数: ${profile.qualifications.filter(item => item && item.image).length}`
+                : '不是数组'
               break
           }
           console.warn(`  - ${fieldName} (${field}): ${currentValue}`)

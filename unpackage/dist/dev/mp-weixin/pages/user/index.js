@@ -58,6 +58,9 @@ const _sfc_main = {
     };
   },
   computed: {
+    isLoggedIn() {
+      return !!(this.userInfo && this.userInfo.uid);
+    },
     /**
      * 显示头像
      * 优先级：profile.avatar > userInfo.avatar > 默认头像
@@ -72,7 +75,7 @@ const _sfc_main = {
      */
     displayName() {
       var _a, _b, _c, _d;
-      return ((_b = (_a = this.profile) == null ? void 0 : _a.parent_info) == null ? void 0 : _b.real_name) || ((_c = this.profile) == null ? void 0 : _c.nickname) || ((_d = this.userInfo) == null ? void 0 : _d.nickname) || "微信用户";
+      return ((_b = (_a = this.profile) == null ? void 0 : _a.parent_info) == null ? void 0 : _b.real_name) || ((_c = this.profile) == null ? void 0 : _c.nickname) || ((_d = this.userInfo) == null ? void 0 : _d.nickname) || (this.isLoggedIn ? "微信用户" : "游客");
     },
     /**
      * 头部统计数据
@@ -137,7 +140,8 @@ const _sfc_main = {
    * 功能：检查登录状态，如果已登录则初始化页面数据
    */
   onShow() {
-    if (!utils_auth.ensureLoggedIn("parent")) {
+    if (!this.hasValidParentSession()) {
+      this.resetGuestState();
       return;
     }
     this.$nextTick(() => {
@@ -170,6 +174,51 @@ const _sfc_main = {
     this.initPage(true);
   },
   methods: {
+    hasValidParentSession() {
+      const token = common_vendor.index.getStorageSync("uni_id_token");
+      const stored = common_vendor.index.getStorageSync("userInfo") || {};
+      return !!(token && stored.uid && stored.role === "parent");
+    },
+    resetGuestState() {
+      this.userInfo = {};
+      this.profile = null;
+      this.myInviteCode = "";
+      this.overview = {
+        appointmentStats: {
+          total: 0,
+          pending_payment: 0,
+          pending_confirm: 0,
+          confirmed: 0,
+          in_progress: 0,
+          completed: 0,
+          cancelled: 0
+        },
+        orderStats: {
+          pending_payment: 0,
+          refund_processing: 0
+        },
+        unreadMessages: 0
+      };
+    },
+    goLogin() {
+      common_vendor.index.navigateTo({ url: "/pages/login/index" });
+    },
+    handleHeaderClick() {
+      if (!this.isLoggedIn) {
+        this.goLogin();
+        return;
+      }
+      this.goToPage("/pages/common/register");
+    },
+    ensureLoginBeforeAction() {
+      if (this.isLoggedIn)
+        return true;
+      common_vendor.index.showToast({ title: "请先登录后使用", icon: "none" });
+      setTimeout(() => {
+        this.goLogin();
+      }, 300);
+      return false;
+    },
     /**
      * 格式化徽章数值
      * @param {Number} count - 数量
@@ -192,7 +241,7 @@ const _sfc_main = {
       try {
         await Promise.all([this.loadUserProfile(), this.loadOverview()]);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:378", "初始化家长个人中心失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:440", "初始化家长个人中心失败:", error);
       } finally {
         if (fromPullDown) {
           common_vendor.index.stopPullDownRefresh();
@@ -214,7 +263,7 @@ const _sfc_main = {
           this.myInviteCode = res.data.invite_code;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:400", "加载邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:462", "加载邀请码失败:", error);
       }
     },
     /**
@@ -261,7 +310,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:447", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:509", "加载用户信息失败:", error);
       }
     },
     /**
@@ -312,7 +361,7 @@ const _sfc_main = {
           });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:498", "加载概览数据失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:560", "加载概览数据失败:", error);
       }
     },
     /**
@@ -321,6 +370,8 @@ const _sfc_main = {
      * 功能：跳转到预约列表页，并传递状态参数进行筛选
      */
     openAppointment(item) {
+      if (!this.ensureLoginBeforeAction())
+        return;
       if (item.index) {
         common_vendor.index.navigateTo({
           url: `/pages/appointment/list?status=${item.index}`
@@ -334,6 +385,8 @@ const _sfc_main = {
      */
     goToPage(url) {
       if (!url)
+        return;
+      if (!this.ensureLoginBeforeAction())
         return;
       common_vendor.index.navigateTo({ url });
     },
@@ -358,6 +411,8 @@ const _sfc_main = {
      * - 如果还没有：先调用云函数生成，再复制
      */
     async copyInviteCode() {
+      if (!this.ensureLoginBeforeAction())
+        return;
       try {
         if (!this.myInviteCode && !this.useMock) {
           const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
@@ -381,7 +436,7 @@ const _sfc_main = {
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:566", "生成或复制邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:631", "生成或复制邀请码失败:", error);
         common_vendor.index.showToast({ title: "生成邀请码失败，请稍后重试", icon: "none" });
       }
     },
@@ -390,6 +445,8 @@ const _sfc_main = {
      * - 后端已限制：每个账号只能绑定一次邀请人（acceptInvite 内部判断 inviter_uid）
      */
     async openInviteInput() {
+      if (!this.ensureLoginBeforeAction())
+        return;
       if (this.useMock) {
         common_vendor.index.showToast({ title: "演示模式下不支持填写邀请码", icon: "none" });
         return;
@@ -417,23 +474,23 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages/user/index.vue:603", "[user-index] 开始绑定邀请码:", {
+        common_vendor.index.__f__("log", "at pages/user/index.vue:669", "[user-index] 开始绑定邀请码:", {
           inviteCode,
           userInfo: common_vendor.index.getStorageSync("userInfo") || {}
         });
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
-        common_vendor.index.__f__("log", "at pages/user/index.vue:611", "[user-index] 绑定邀请码返回结果:", res);
+        common_vendor.index.__f__("log", "at pages/user/index.vue:677", "[user-index] 绑定邀请码返回结果:", res);
         if (res.code === 0) {
           common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
           setTimeout(() => {
-            common_vendor.index.__f__("log", "at pages/user/index.vue:617", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
+            common_vendor.index.__f__("log", "at pages/user/index.vue:683", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
           }, 300);
         } else {
           common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:623", "填写邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:689", "填写邀请码失败:", error);
         common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
@@ -487,7 +544,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/user/index.vue:680", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages/user/index.vue:746", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"
@@ -510,9 +567,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     a: common_vendor.o(($event) => $options.goToPage("/pages/chat/list")),
     b: $options.displayAvatar,
     c: common_vendor.t($options.displayName),
-    d: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
-    e: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
-    f: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
+    d: common_vendor.o((...args) => $options.handleHeaderClick && $options.handleHeaderClick(...args)),
+    e: !$options.isLoggedIn
+  }, !$options.isLoggedIn ? {
+    f: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+  } : {
+    g: common_vendor.o(($event) => $options.goToPage("/pages/common/register"))
+  }, {
+    h: !$options.isLoggedIn
+  }, !$options.isLoggedIn ? {
+    i: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+  } : {}, {
+    j: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
+    k: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
       return common_vendor.e({
         a: common_vendor.n(item.icon),
         b: common_vendor.t(item.name),
@@ -524,24 +591,24 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         f: common_vendor.o(($event) => $options.openAppointment(item), index)
       });
     }),
-    g: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
-    h: $data.myInviteCode
+    l: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
+    m: $data.myInviteCode
   }, $data.myInviteCode ? {} : {}, {
-    i: common_vendor.t($data.myInviteCode || "--"),
-    j: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
-    k: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
-    l: common_vendor.o(($event) => $options.goToPage("/pages/user/collection")),
-    m: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
-    n: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
-    o: $data.overview.unreadMessages > 0
+    n: common_vendor.t($data.myInviteCode || "--"),
+    o: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
+    p: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
+    q: common_vendor.o(($event) => $options.goToPage("/pages/user/collection")),
+    r: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
+    s: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
+    t: $data.overview.unreadMessages > 0
   }, $data.overview.unreadMessages > 0 ? {
-    p: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
+    v: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
   } : {}, {
-    q: common_vendor.o(($event) => $options.goToPage("/pages/user/messages")),
-    r: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
-    s: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
-    t: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
-    v: common_vendor.p({
+    w: common_vendor.o(($event) => $options.goToPage("/pages/user/messages")),
+    x: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
+    y: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
+    z: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
+    A: common_vendor.p({
       current: "user"
     })
   });

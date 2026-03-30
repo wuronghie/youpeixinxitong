@@ -24,48 +24,55 @@
  *   - 修改评价展示：修改 recentReviews 的展示方式
 -->
 <template>
-	<view>
+	<view class="teacher-detail-page">
 		<!-- 头部区域：教师基本信息、评分、价格、收藏按钮 -->
-		<view class="main-bg-color py-4 px-3 position-relative">
-			<view class="d-flex a-center position-relative">
-				<image 
-					class="rounded-circle border-light" 
-					:src="teacherInfo.avatar || defaultAvatarUrl" 
-					mode="aspectFill"
-					style="width: 150rpx;height: 150rpx;border: 4rpx solid rgba(255,255,255,0.3);"
-				/>
-				<view class="ml-3 flex-1 text-white">
-					<view class="d-flex a-center mb-1">
-						<text class="font-lg font-weight">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
-						<text v-if="teacherInfo.is_verified" class="ml-2 stat-tag rounded px-2 py-1 font-sm text-white">认证</text>
+		<view class="detail-hero position-relative">
+			<view class="hero-overlay"></view>
+			<view class="hero-card position-relative">
+				<view class="d-flex a-center position-relative">
+					<view class="avatar-shell rounded-circle d-flex a-center j-center">
+						<image 
+							class="rounded-circle border-light" 
+							:src="teacherInfo.avatar || defaultAvatarUrl" 
+							mode="aspectFill"
+							style="width: 150rpx;height: 150rpx;border: 4rpx solid rgba(255,255,255,0.3);"
+						/>
 					</view>
-					<text class="font-sm mb-2" style="opacity: 0.85;">{{ teacherInfo.title || '专业教师' }}</text>
-					<view class="d-flex a-center">
-						<view class="d-flex flex-column mr-3">
-							<text class="font-md font-weight">{{ formatRating(teacherInfo.rating) }}</text>
-							<text class="font-sm" style="opacity: 0.75;">综合评分</text>
+					<view class="ml-3 flex-1 text-white">
+						<view class="d-flex a-center mb-1 flex-wrap">
+							<text class="font-lg font-weight">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
+							<text v-if="teacherInfo.is_verified" class="ml-2 stat-tag rounded px-2 py-1 font-sm text-white">认证</text>
 						</view>
-						<view class="d-flex flex-column mr-3">
-							<text class="font-md font-weight">¥{{ teacherInfo.hourly_rate || 100 }}</text>
-							<text class="font-sm" style="opacity: 0.75;">课时费/小时</text>
-						</view>
-						<view class="d-flex flex-column">
-							<text class="font-md font-weight">{{ formatExperience() }}</text>
-							<text class="font-sm" style="opacity: 0.75;">教学经验</text>
+						<text v-if="teacherInfo.school || teacherInfo.experience" class="font-sm d-block mb-2 hero-subtitle">
+							{{ [teacherInfo.school, teacherInfo.experience].filter(Boolean).join(' · ') }}
+						</text>
+						<view class="hero-metrics">
+							<view class="hero-metric-item">
+								<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating) }}</text>
+								<text class="font-sm hero-metric-label">综合评分</text>
+							</view>
+							<view class="hero-metric-item">
+								<text class="font-lg font-weight d-block">¥{{ teacherInfo.hourly_rate || 100 }}</text>
+								<text class="font-sm hero-metric-label">课时费/小时</text>
+							</view>
+							<view class="hero-metric-item">
+								<text class="font-lg font-weight d-block">{{ formatExperience() }}</text>
+								<text class="font-sm hero-metric-label">教学经验</text>
+							</view>
 						</view>
 					</view>
-				</view>
-				<!-- 收藏按钮 -->
-				<view
-					class="position-absolute"
-					style="top: 0;right: 0;"
-					@click.stop="toggleFavorite"
-				>
-					<image 
-						:src="isFavorited ? favoriteFilledUrl : favoriteEmptyUrl"
-						mode="aspectFit"
-						style="width: 50rpx; height: 50rpx;"
-					/>
+					<!-- 收藏按钮 -->
+					<view
+						class="favorite-btn position-absolute d-flex a-center j-center"
+						style="top: 0;right: 0;"
+						@click.stop="toggleFavorite"
+					>
+						<image 
+							:src="isFavorited ? favoriteFilledUrl : favoriteEmptyUrl"
+							mode="aspectFit"
+							style="width: 50rpx; height: 50rpx;"
+						/>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -77,15 +84,15 @@
 			@refresherrefresh="onRefresh"
 			class="scroll"
 		>
-			<view class="px-2 py-3">
+			<view class="page-content px-3 py-3">
 				<!-- 擅长科目 -->
-				<card v-if="(teacherInfo.subjects || []).length">
+				<card v-if="(teacherInfo.subjects || []).length" class="detail-card">
 					<view slot="title" class="font-md font-weight">擅长科目</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="subject in teacherInfo.subjects" 
 							:key="subject" 
-							class="bg-light-secondary text-primary rounded px-3 py-1 font-sm mr-2 mb-2"
+							class="detail-tag rounded px-3 py-1 font-sm mr-2 mb-2"
 						>
 							{{ subject }}
 						</text>
@@ -93,13 +100,13 @@
 				</card>
 
 				<!-- 适合年级 -->
-				<card v-if="gradeText" class="mt-3">
+				<card v-if="gradeText" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">适合年级</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="grade in gradeText" 
 							:key="grade" 
-							class="border border-light-secondary rounded px-3 py-1 font-sm mr-2 mb-2"
+							class="detail-outline-tag rounded px-3 py-1 font-sm mr-2 mb-2"
 						>
 							{{ grade }}
 						</text>
@@ -107,56 +114,83 @@
 				</card>
 
 				<!-- 教学亮点 -->
-				<card class="mt-3">
+				<card class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">教学亮点</view>
-					<view class="d-flex a-center j-sb mb-3">
-						<view class="flex-1 text-center">
+					<view class="highlight-grid mb-3">
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating) }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">综合评分</text>
 						</view>
-						<view class="flex-1 text-center">
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ teacherInfo.trial_count || 0 }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">试课次数</text>
 						</view>
-						<view class="flex-1 text-center">
+						<view class="highlight-item text-center">
+							<text class="font-lg font-weight d-block">{{ teacherInfo.trial_success_count != null ? teacherInfo.trial_success_count : 0 }}</text>
+							<text class="font-sm text-light-muted d-block mt-1">试课成功数</text>
+						</view>
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ formatPercent(teacherInfo.trial_success_rate) }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">试课成功率</text>
 						</view>
 					</view>
-					<view class="d-flex a-center j-sb mb-3 border-top pt-3">
-						<view class="flex-1 text-center">
+					<view class="highlight-grid secondary-grid mb-3">
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ teacherInfo.total_students || 0 }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">累计学生</text>
 						</view>
-						<view class="flex-1 text-center">
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ teacherInfo.total_courses || teacherInfo.total_hours || 0 }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">完成课程</text>
 						</view>
-						<view class="flex-1 text-center">
+						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ teacherInfo.review_count || (recentReviews.length) }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">家长评价</text>
 						</view>
 					</view>
-					<text class="font text-secondary">{{ teacherInfo.introduction || '老师正在完善介绍，欢迎预约体验课程。' }}</text>
+					<view class="intro-box">
+						<text class="font text-secondary intro-text">{{ teacherInfo.introduction || '老师正在完善介绍，欢迎预约体验课程。' }}</text>
+					</view>
+				</card>
+
+				<!-- 教学地址与距离 -->
+				<card v-if="teacherAddressText || teacherDistanceText" class="mt-3 detail-card">
+					<view slot="title" class="font-md font-weight">教学地址</view>
+					<view class="info-list">
+						<view v-if="teacherAddressText" class="info-row">
+							<text class="info-label">教学地址</text>
+							<text class="info-value text-right">📍 {{ teacherAddressText }}</text>
+						</view>
+						<view v-if="teacherDistanceText" class="info-row no-border">
+							<text class="info-label">与我距离</text>
+							<text class="info-value text-primary">约 {{ teacherDistanceText }} km</text>
+						</view>
+					</view>
 				</card>
 
 				<!-- 所在院校和资历 -->
-				<card v-if="teacherInfo.school || teacherInfo.experience" class="mt-3">
+				<card v-if="teacherInfo.school || teacherInfo.experience" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">基本信息</view>
-					<view class="d-flex flex-column">
-						<text v-if="teacherInfo.school" class="font mb-2">所在院校：{{ teacherInfo.school }}</text>
-						<text v-if="teacherInfo.experience" class="font">教师资历：{{ teacherInfo.experience }}</text>
+					<view class="info-list">
+						<view v-if="teacherInfo.school" class="info-row">
+							<text class="info-label">所在院校</text>
+							<text class="info-value">{{ teacherInfo.school }}</text>
+						</view>
+						<view v-if="teacherInfo.experience" class="info-row no-border">
+							<text class="info-label">教师资历</text>
+							<text class="info-value">{{ teacherInfo.experience }}</text>
+						</view>
 					</view>
 				</card>
 
 				<!-- 附加标签 -->
-				<card v-if="(teacherInfo.tags || []).length" class="mt-3">
+				<card v-if="(teacherInfo.tags || []).length" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">教学特色</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="tag in teacherInfo.tags" 
 							:key="tag" 
-							class="bg-light-secondary text-primary rounded px-3 py-1 font-sm mr-2 mb-2"
+							class="detail-tag rounded px-3 py-1 font-sm mr-2 mb-2"
 						>
 							{{ tag }}
 						</text>
@@ -164,23 +198,32 @@
 				</card>
 
 				<!-- 教育背景 -->
-				<card v-if="teacherInfo.education && (teacherInfo.education.degree || teacherInfo.education.major || teacherInfo.education.graduation_year)" class="mt-3">
+				<card v-if="teacherInfo.education && (teacherInfo.education.degree || teacherInfo.education.major || teacherInfo.education.graduation_year)" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">教育背景</view>
-					<view class="d-flex flex-column">
-						<text v-if="teacherInfo.education.degree" class="font mb-2">学历：{{ teacherInfo.education.degree }}</text>
-						<text v-if="teacherInfo.education.major" class="font mb-2">专业：{{ teacherInfo.education.major }}</text>
-						<text v-if="teacherInfo.education.graduation_year" class="font">毕业年份：{{ teacherInfo.education.graduation_year }}</text>
+					<view class="info-list">
+						<view v-if="teacherInfo.education.degree" class="info-row">
+							<text class="info-label">学历</text>
+							<text class="info-value">{{ teacherInfo.education.degree }}</text>
+						</view>
+						<view v-if="teacherInfo.education.major" class="info-row">
+							<text class="info-label">专业</text>
+							<text class="info-value">{{ teacherInfo.education.major }}</text>
+						</view>
+						<view v-if="teacherInfo.education.graduation_year" class="info-row no-border">
+							<text class="info-label">毕业年份</text>
+							<text class="info-value">{{ teacherInfo.education.graduation_year }}</text>
+						</view>
 					</view>
 				</card>
 
 				<!-- 资质证书 -->
-				<card v-if="(teacherInfo.qualifications || []).length" class="mt-3">
+				<card v-if="(teacherInfo.qualifications || []).length" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">资质证书</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="(item, index) in teacherInfo.qualifications" 
 							:key="index" 
-							class="bg-light-secondary text-primary rounded px-3 py-1 font-sm mr-2 mb-2"
+							class="detail-tag rounded px-3 py-1 font-sm mr-2 mb-2"
 						>
 							{{ item.name || '证书' }}
 						</text>
@@ -188,13 +231,13 @@
 				</card>
 
 				<!-- 可预约时间 -->
-				<card v-if="scheduleSummary.length" class="mt-3">
+				<card v-if="scheduleSummary.length" class="mt-3 detail-card">
 					<view slot="title" class="font-md font-weight">可预约时间</view>
 					<view class="d-flex flex-column">
 						<view 
 							v-for="slot in scheduleSummary" 
 							:key="slot.day" 
-							class="d-flex a-center j-sb bg-light-secondary rounded px-3 py-2 mb-2"
+							class="schedule-item d-flex a-center j-sb rounded px-3 py-2 mb-2"
 						>
 							<text class="font">{{ slot.day }}</text>
 							<text class="font text-primary">{{ slot.time }}</text>
@@ -203,12 +246,12 @@
 				</card>
 
 				<!-- 家长评价 -->
-				<card v-if="recentReviews.length" class="mt-3">
+				<card v-if="recentReviews.length" class="mt-3 detail-card">
 					<view slot="title" class="d-flex a-center j-sb w-100">
 						<text class="font-md font-weight">家长评价</text>
 						<text class="text-primary font-sm" @click="goToReviews">查看全部</text>
 					</view>
-					<view v-for="review in recentReviews" :key="review._id" class="bg-light-secondary rounded p-3 mb-2">
+					<view v-for="review in recentReviews" :key="review._id" class="review-card rounded p-3 mb-2">
 						<view class="d-flex a-center j-sb mb-2">
 							<text class="font-sm">{{ review.parent_name || '家长' }}</text>
 							<text class="font-sm text-light-muted">{{ formatTime(review.create_time) }}</text>
@@ -228,14 +271,14 @@
 		</scroll-view>
 
 		<!-- 底部操作栏 -->
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
+		<view class="action-bar position-fixed bottom-0 left-0 right-0 d-flex a-center px-3 py-3" style="z-index: 100;">
 			<view class="flex-1">
 				<text class="font-sm text-light-muted d-block">课程费用</text>
 				<text class="main-text-color font-md font-weight d-block">¥{{ teacherInfo.hourly_rate || 100 }}/小时</text>
 			</view>
 			<view class="d-flex a-center">
 				<button 
-					class="border border-primary text-primary rounded px-4 py-2 font-md mr-2" 
+					class="secondary-action-btn border border-primary text-primary rounded px-4 py-2 font-md mr-2" 
 					:disabled="isLoading || loadError || isContacting" 
 					@click="handleContactTeacher"
 					style="min-width: 160rpx;"
@@ -244,7 +287,7 @@
 				</button>
 				<button 
 					v-if="canMakeAppointment"
-					class="main-bg-color text-white rounded px-4 py-2 font-md font-weight" 
+					class="primary-action-btn main-bg-color text-white rounded px-4 py-2 font-md font-weight" 
 					:disabled="isLoading || loadError" 
 					@click="goToAppointment"
 					style="min-width: 160rpx;"
@@ -285,6 +328,7 @@ export default {
 			isContacting: false,
 			hasContacted: false, // 是否已联系过老师
 			hasTrialSuccess: false, // 是否已完成试课并成功
+			userLocation: null, // 用户位置（用于距离）
 			// 默认头像URL（从CDN）
 			defaultAvatarUrl: getDefaultAvatarUrl(),
 			// 收藏图标URL（从CDN）
@@ -321,6 +365,27 @@ export default {
 			// 规则调整：只要已完成该老师的试课并且结果为成功，就允许预约正式课程
 			// 不再强制要求 hasContacted 为 true，避免会话检测异常导致无法预约
 			return this.hasTrialSuccess
+		},
+		teacherAddressText() {
+			const areas = this.teacherInfo.teaching_areas || []
+			if (!areas.length) return ''
+			const area = areas[0]
+			if (area.name && String(area.name).trim()) return String(area.name).trim()
+			const parts = [area.province, area.city, area.district, area.address].filter(Boolean)
+			return parts.join(' ') || ''
+		},
+		teacherDistanceText() {
+			if (!this.userLocation || this.userLocation.lat == null || this.userLocation.lon == null) return ''
+			const areas = this.teacherInfo.teaching_areas || []
+			const withCoord = areas.find(a => a.latitude != null && a.longitude != null)
+			if (!withCoord) return ''
+			const km = this.haversineKm(
+				this.userLocation.lat,
+				this.userLocation.lon,
+				parseFloat(withCoord.latitude),
+				parseFloat(withCoord.longitude)
+			)
+			return km != null ? km.toFixed(1) : ''
 		}
 	},
 	onLoad(options) {
@@ -333,6 +398,7 @@ export default {
 			setTimeout(() => uni.navigateBack(), 1500)
 			return
 		}
+		this.fetchUserLocation()
 		this.loadDetail()
 	},
 	onShareAppMessage() {
@@ -735,6 +801,23 @@ export default {
 			if (!rating && rating !== 0) return '5.0'
 			return Number(rating).toFixed(1)
 		},
+		async fetchUserLocation() {
+			try {
+				const res = await uni.getLocation({ type: 'gcj02' })
+				if (res.latitude != null && res.longitude != null) {
+					this.userLocation = { lat: res.latitude, lon: res.longitude }
+				}
+			} catch (e) {}
+		},
+		haversineKm(lat1, lon1, lat2, lon2) {
+			if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null
+			const R = 6371
+			const dLat = (lat2 - lat1) * Math.PI / 180
+			const dLon = (lon2 - lon1) * Math.PI / 180
+			const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2
+			const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+			return R * c
+		},
 		formatExperience() {
 			const years = this.teacherInfo?.teaching_experience?.years || this.teacherInfo?.experience_years
 			const num = Number(years)
@@ -850,10 +933,186 @@ export default {
 </script>
 
 <style scoped>
+.teacher-detail-page {
+	background: linear-gradient(180deg, #f7f9fc 0%, #f3f6fb 100%);
+	min-height: 100vh;
+}
+
 .scroll {
 	flex: 1;
 	height: calc(100vh - 500rpx);
-	padding-bottom: 160rpx;
+	padding-bottom: 200rpx;
+}
+
+.page-content {
+	padding-bottom: 190rpx;
+}
+
+.detail-hero {
+	padding: 32rpx 24rpx 12rpx;
+	background: linear-gradient(135deg, #4f7bff 0%, #3b8cff 55%, #61a7ff 100%);
+}
+
+.hero-overlay {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	background: radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 40%);
+}
+
+.hero-card {
+	padding: 28rpx;
+	border-radius: 32rpx;
+	background: rgba(255, 255, 255, 0.12);
+	backdrop-filter: blur(16rpx);
+	box-shadow: 0 20rpx 40rpx rgba(27, 72, 168, 0.18);
+}
+
+.avatar-shell {
+	width: 170rpx;
+	height: 170rpx;
+	padding: 8rpx;
+	background: rgba(255,255,255,0.14);
+	box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.12);
+}
+
+.hero-subtitle {
+	opacity: 0.9;
+	line-height: 1.5;
+}
+
+.hero-metrics {
+	display: flex;
+	margin-top: 8rpx;
+}
+
+.hero-metric-item {
+	flex: 1;
+}
+
+.hero-metric-label {
+	opacity: 0.76;
+}
+
+.favorite-btn {
+	width: 76rpx;
+	height: 76rpx;
+	border-radius: 999rpx;
+	background: rgba(255,255,255,0.16);
+	backdrop-filter: blur(12rpx);
+	box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.12);
+}
+
+.detail-card {
+	border-radius: 28rpx;
+	overflow: hidden;
+	box-shadow: 0 10rpx 26rpx rgba(15, 23, 42, 0.05);
+}
+
+.detail-tag {
+	background: linear-gradient(135deg, #eef4ff 0%, #f5f8ff 100%);
+	color: #3f7cff;
+	border: 1rpx solid #dce8ff;
+}
+
+.detail-outline-tag {
+	background: #fff;
+	color: #51627a;
+	border: 1rpx solid #dfe6f2;
+}
+
+.highlight-grid {
+	display: flex;
+	flex-wrap: wrap;
+	margin: 0 -9rpx;
+}
+
+.secondary-grid {
+	padding-top: 18rpx;
+	border-top: 1rpx solid #edf2f7;
+}
+
+.highlight-item {
+	width: calc(25% - 18rpx);
+	margin: 0 9rpx 18rpx;
+	padding: 24rpx 12rpx;
+	border-radius: 24rpx;
+	background: linear-gradient(180deg, #fafcff 0%, #f5f8fc 100%);
+	border: 1rpx solid #edf2f7;
+}
+
+.secondary-grid .highlight-item {
+	width: calc(33.3333% - 18rpx);
+}
+
+.intro-box {
+	padding: 22rpx 24rpx;
+	border-radius: 24rpx;
+	background: linear-gradient(180deg, #fafcff 0%, #f7f9fd 100%);
+}
+
+.intro-text {
+	line-height: 1.8;
+}
+
+.info-list {
+	border-radius: 24rpx;
+	background: linear-gradient(180deg, #fbfcff 0%, #f7f9fd 100%);
+	border: 1rpx solid #edf2f7;
+	overflow: hidden;
+}
+
+.info-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	padding: 24rpx;
+	border-bottom: 1rpx solid #edf2f7;
+}
+
+.info-row.no-border {
+	border-bottom: none;
+}
+
+.info-label {
+	font-size: 28rpx;
+	color: #8a97ab;
+	min-width: 132rpx;
+}
+
+.info-value {
+	flex: 1;
+	font-size: 28rpx;
+	color: #334155;
+	line-height: 1.7;
+}
+
+.schedule-item {
+	background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+	border: 1rpx solid #dfe8ff;
+}
+
+.review-card {
+	background: linear-gradient(180deg, #fafcff 0%, #f6f8fb 100%);
+	border: 1rpx solid #edf2f7;
+}
+
+.action-bar {
+	background: rgba(255,255,255,0.94);
+	backdrop-filter: blur(18rpx);
+	border-top: 1rpx solid rgba(226, 232, 240, 0.92);
+	box-shadow: 0 -10rpx 30rpx rgba(15, 23, 42, 0.06);
+	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
+
+.secondary-action-btn {
+	background: #fff;
+}
+
+.primary-action-btn {
+	box-shadow: 0 14rpx 24rpx rgba(79, 123, 255, 0.18);
 }
 
 /* 统计标签样式 */

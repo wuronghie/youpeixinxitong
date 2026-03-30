@@ -60,7 +60,7 @@ const _sfc_main = {
      *   2. 如果有token，尝试获取最新用户信息
      *   3. 检查用户资料是否完善
      *   4. 根据用户角色跳转到对应页面
-     *   5. 如果未登录，跳转到登录页
+     *   5. 如果未登录，跳转到登录页（登录页可自行选择跳过）
      */
     async bootstrap() {
       if (this.isBootstrapping || this.hasBootstrapped) {

@@ -4,6 +4,7 @@
     "pages/login/index",
     "pages/common/register",
     "pages/common/agreement",
+    "pages/common/webview",
     "pages/teacher/list",
     "pages/teacher/detail",
     "pages/appointment/create",

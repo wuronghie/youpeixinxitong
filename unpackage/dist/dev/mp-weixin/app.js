@@ -6,6 +6,7 @@ if (!Math) {
   "./pages/login/index.js";
   "./pages/common/register.js";
   "./pages/common/agreement.js";
+  "./pages/common/webview.js";
   "./pages/teacher/list.js";
   "./pages/teacher/detail.js";
   "./pages/appointment/create.js";
