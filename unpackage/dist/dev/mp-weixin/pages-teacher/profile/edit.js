@@ -525,8 +525,24 @@ const _sfc_main = {
     openVerificationLink(link) {
       if (!link || !link.url)
         return;
-      common_vendor.index.navigateTo({
-        url: `/pages/common/webview?title=${encodeURIComponent(link.title)}&url=${encodeURIComponent(link.url)}`
+      common_vendor.index.showModal({
+        title: link.title || "官方查询",
+        content: "该官方页面在小程序发布版中可能无法直接打开。点击“复制链接”后，请粘贴到手机浏览器中打开，查询完成后再返回上传截图。",
+        confirmText: "复制链接",
+        cancelText: "取消",
+        success: (res) => {
+          if (!res.confirm)
+            return;
+          common_vendor.index.setClipboardData({
+            data: link.url,
+            success: () => {
+              common_vendor.index.showToast({
+                title: "链接已复制",
+                icon: "success"
+              });
+            }
+          });
+        }
       });
     },
     copyAdminWechat() {
@@ -582,7 +598,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:888", "上传证书图片失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:903", "上传证书图片失败:", error);
         common_vendor.index.showToast({ title: "上传失败", icon: "none" });
       } finally {
         this.qualificationUploading = false;
@@ -662,17 +678,17 @@ const _sfc_main = {
         isValid = false;
       }
       if (!isValid) {
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:976", "========================================");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:977", "[表单验证] ❌ 验证失败，以下字段未填写:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:991", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:992", "[表单验证] ❌ 验证失败，以下字段未填写:");
         missingFields.forEach((field, index) => {
-          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:979", `  ${index + 1}. ${field}`);
+          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:994", `  ${index + 1}. ${field}`);
         });
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:981", "当前表单值:");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:982", "  - 姓名:", this.formData.name || "未填写");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:983", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:984", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:985", "  - 课时费:", this.formData.hourly_rate || "0");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:986", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:996", "当前表单值:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:997", "  - 姓名:", this.formData.name || "未填写");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:998", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:999", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1000", "  - 课时费:", this.formData.hourly_rate || "0");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1001", "========================================");
         if (firstErrorField) {
           this.scrollToError(firstErrorField);
         }
@@ -685,7 +701,7 @@ const _sfc_main = {
           });
         }
       } else {
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1001", "[表单验证] ✓ 所有必填字段验证通过");
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1016", "[表单验证] ✓ 所有必填字段验证通过");
       }
       return isValid;
     },
@@ -751,7 +767,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1074", "保存教师资料失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1089", "保存教师资料失败:", error);
         common_vendor.index.showToast({ title: "保存失败，请稍后重试", icon: "none" });
       } finally {
         this.saving = false;

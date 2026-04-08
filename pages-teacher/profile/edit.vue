@@ -830,8 +830,23 @@ export default {
 		},
 		openVerificationLink(link) {
 			if (!link || !link.url) return
-			uni.navigateTo({
-				url: `/pages/common/webview?title=${encodeURIComponent(link.title)}&url=${encodeURIComponent(link.url)}`
+			uni.showModal({
+				title: link.title || '官方查询',
+				content: '该官方页面在小程序发布版中可能无法直接打开。点击“复制链接”后，请粘贴到手机浏览器中打开，查询完成后再返回上传截图。',
+				confirmText: '复制链接',
+				cancelText: '取消',
+				success: (res) => {
+					if (!res.confirm) return
+					uni.setClipboardData({
+						data: link.url,
+						success: () => {
+							uni.showToast({
+								title: '链接已复制',
+								icon: 'success'
+							})
+						}
+					})
+				}
 			})
 		},
 		copyAdminWechat() {
