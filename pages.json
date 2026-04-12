@@ -80,6 +80,22 @@
 			}
 		},
 		{
+			"path": "pages/recruitment/list",
+			"style": {
+				"navigationBarTitleText": "我的招募",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
+			"path": "pages/recruitment/edit",
+			"style": {
+				"navigationBarTitleText": "发布招募",
+				"enableShareAppMessage": true,
+				"enableShareTimeline": true
+			}
+		},
+		{
 			"path": "pages/order/list",
 			"style": {
 				"navigationBarTitleText": "订单列表",
@@ -302,6 +318,22 @@
 					"path": "review/list",
 					"style": {
 						"navigationBarTitleText": "评价管理",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "recruitment/list",
+					"style": {
+						"navigationBarTitleText": "招募广场",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
+					"path": "recruitment/detail",
+					"style": {
+						"navigationBarTitleText": "招募详情",
 						"enableShareAppMessage": true,
 						"enableShareTimeline": true
 					}

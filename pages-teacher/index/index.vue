@@ -23,23 +23,6 @@
 -->
 <template>
 	<view class="page-container">
-		<!-- 信息完善提示 -->
-		<view v-if="profileComplete && !profileComplete.isComplete && profileComplete.missingFieldsText && profileComplete.missingFieldsText.length > 0" class="profile-warning-card">
-			<view class="warning-header">
-				<text class="iconfont icon-jinggao warning-icon"></text>
-				<text class="warning-title">请完善教师信息</text>
-			</view>
-			<view class="warning-content">
-				<text class="warning-text">以下信息尚未完善：</text>
-				<view class="missing-fields">
-					<text v-for="(field, index) in profileComplete.missingFieldsText" :key="index" class="missing-field-tag">
-						{{ field }}
-					</text>
-				</view>
-			</view>
-			<button class="warning-button" @click="goToEditProfile">立即完善</button>
-		</view>
-		
 		<!-- 头部区域：显示教师信息和本月收入 -->
 		<view class="header-section">
 			<view class="header-bg"></view>
@@ -239,6 +222,11 @@ export default {
 					icon: getIconUrl('star.png')
 				},
 				{
+					label: '招募广场',
+					path: '/pages-teacher/recruitment/list',
+					icon: getIconUrl('chat.png')
+				},
+				{
 					label: '家长沟通',
 					path: '/pages-teacher/chat/list',
 					icon: getIconUrl('chat.png')
@@ -411,19 +399,6 @@ export default {
 							console.warn(`  ${index + 1}. ${field}`)
 						})
 						console.warn('========================================')
-						
-						// 同时在页面上显示提示（如果用户看不到控制台）
-						uni.showModal({
-							title: '信息未完善',
-							content: `请完善以下信息：\n${this.profileComplete.missingFieldsText.map((f, i) => `${i + 1}. ${f}`).join('\n')}`,
-							showCancel: false,
-							confirmText: '去完善',
-							success: (res) => {
-								if (res.confirm) {
-									this.goToEditProfile()
-								}
-							}
-						})
 					} else {
 						console.log('[首页] ✓ 教师信息已完善')
 					}
@@ -1124,67 +1099,4 @@ export default {
 	border-top: 3rpx solid currentColor;
 }
 
-/* 信息完善提示卡片 */
-.profile-warning-card {
-	background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-	border-left: 6rpx solid #f39c12;
-	margin: 20rpx;
-	padding: 24rpx;
-	border-radius: 12rpx;
-	box-shadow: 0 4rpx 12rpx rgba(243, 156, 18, 0.15);
-}
-
-.warning-header {
-	display: flex;
-	align-items: center;
-	margin-bottom: 16rpx;
-}
-
-.warning-icon {
-	font-size: 40rpx;
-	color: #f39c12;
-	margin-right: 12rpx;
-}
-
-.warning-title {
-	font-size: 32rpx;
-	font-weight: bold;
-	color: #d68910;
-}
-
-.warning-content {
-	margin-bottom: 20rpx;
-}
-
-.warning-text {
-	font-size: 28rpx;
-	color: #856404;
-	display: block;
-	margin-bottom: 12rpx;
-}
-
-.missing-fields {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12rpx;
-}
-
-.missing-field-tag {
-	background: #fff;
-	color: #d68910;
-	padding: 8rpx 16rpx;
-	border-radius: 8rpx;
-	font-size: 24rpx;
-	border: 2rpx solid #f39c12;
-}
-
-.warning-button {
-	background: #f39c12;
-	color: #fff;
-	border: none;
-	border-radius: 8rpx;
-	padding: 16rpx 32rpx;
-	font-size: 28rpx;
-	width: 100%;
-}
 </style>

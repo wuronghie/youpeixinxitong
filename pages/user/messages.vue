@@ -132,6 +132,7 @@ const defaultTabs = [
 	{ label: '全部', value: 'all', unread: 0 },
 	{ label: '系统', value: 'system', unread: 0 },
 	{ label: '预约', value: 'appointment', unread: 0 },
+	{ label: '招募', value: 'recruitment', unread: 0 },
 	{ label: '交易', value: 'payment', unread: 0 },
 	{ label: '评价', value: 'review', unread: 0 },
 	{ label: '退款', value: 'refund', unread: 0 }
@@ -303,6 +304,7 @@ export default {
 			const map = {
 				system: '🔔',
 				appointment: '📅',
+				recruitment: '📣',
 				payment: '💰',
 				review: '⭐',
 				refund: '💵'
@@ -313,6 +315,7 @@ export default {
 			const map = {
 				system: '系统通知',
 				appointment: '预约提醒',
+				recruitment: '招募动态',
 				payment: '交易信息',
 				review: '评价管理',
 				refund: '退款进度'

@@ -12,6 +12,8 @@ if (!Math) {
   "./pages/appointment/create.js";
   "./pages/appointment/list.js";
   "./pages/appointment/detail.js";
+  "./pages/recruitment/list.js";
+  "./pages/recruitment/edit.js";
   "./pages/order/list.js";
   "./pages/order/detail.js";
   "./pages/order/refund.js";
@@ -40,6 +42,8 @@ if (!Math) {
   "./pages-teacher/wallet/income.js";
   "./pages-teacher/wallet/withdraw.js";
   "./pages-teacher/review/list.js";
+  "./pages-teacher/recruitment/list.js";
+  "./pages-teacher/recruitment/detail.js";
   "./pages-teacher/chat/list.js";
   "./pages-teacher/chat/conversation.js";
   "./pages-teacher/user/index.js";

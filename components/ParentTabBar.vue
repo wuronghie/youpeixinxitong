@@ -4,15 +4,27 @@
       v-for="item in navItems"
       :key="item.key"
       class="tabbar-item"
-      :class="{ active: item.key === current }"
+      :class="{ active: item.key === current, 'tabbar-item-center': item.center }"
       @click="handleClick(item)"
     >
-      <image
-        :src="item.key === current ? item.activeIcon : item.icon"
-        class="icon"
-        mode="aspectFit"
-      ></image>
-      <text class="label">{{ item.label }}</text>
+      <view v-if="item.center" class="center-entry">
+        <view class="center-circle">
+          <image
+            :src="item.key === current ? item.activeIcon : item.icon"
+            class="icon center-icon"
+            mode="aspectFit"
+          ></image>
+        </view>
+        <text class="label center-label">{{ item.label }}</text>
+      </view>
+      <template v-else>
+        <image
+          :src="item.key === current ? item.activeIcon : item.icon"
+          class="icon"
+          mode="aspectFit"
+        ></image>
+        <text class="label">{{ item.label }}</text>
+      </template>
     </view>
   </view>
 </template>
@@ -44,6 +56,14 @@ export default {
 						icon: getIconUrl('calendar.png'),
 						activeIcon: getIconUrl('calendar-active.png'),
 						path: '/pages/appointment/list'
+					},
+					{
+						key: 'recruitment',
+						label: '招募',
+						icon: getIconUrl('chat.png'),
+						activeIcon: getIconUrl('chat-active.png'),
+						path: '/pages/recruitment/list',
+						center: true
 					},
 					{
 						key: 'chat',
@@ -127,6 +147,10 @@ export default {
   transition: all 0.2s ease;
 }
 
+.tabbar-item-center {
+  position: relative;
+}
+
 .tabbar-item .icon {
   width: 32rpx;
   height: 32rpx;
@@ -141,6 +165,36 @@ export default {
 .tabbar-item.active .icon {
   transform: scale(1.08);
   opacity: 1;
+}
+
+.center-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-18rpx);
+}
+
+.center-circle {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1rpx solid #eef0f5;
+  box-shadow: 0 8rpx 18rpx rgba(36, 46, 70, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.center-icon {
+  width: 34rpx !important;
+  height: 34rpx !important;
+  margin-bottom: 0 !important;
+}
+
+.center-label {
+  margin-top: 6rpx;
 }
 </style>
 

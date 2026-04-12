@@ -27,6 +27,14 @@ const _sfc_main = {
           path: "/pages-teacher/appointment/list"
         },
         {
+          key: "recruitment",
+          label: "招募",
+          icon: utils_imageConfig.getIconUrl("chat.png"),
+          activeIcon: utils_imageConfig.getIconUrl("chat-active.png"),
+          path: "/pages-teacher/recruitment/list",
+          center: true
+        },
+        {
           key: "chat",
           label: "消息",
           icon: utils_imageConfig.getIconUrl("chat.png"),
@@ -58,11 +66,11 @@ const _sfc_main = {
         common_vendor.index.redirectTo({
           url: item.path,
           fail: (err) => {
-            common_vendor.index.__f__("warn", "at components/TeacherTabBar.vue:87", "redirectTo 失败，尝试使用 navigateTo:", err);
+            common_vendor.index.__f__("warn", "at components/TeacherTabBar.vue:107", "redirectTo 失败，尝试使用 navigateTo:", err);
             common_vendor.index.navigateTo({
               url: item.path,
               fail: (navErr) => {
-                common_vendor.index.__f__("error", "at components/TeacherTabBar.vue:92", "页面导航失败:", navErr);
+                common_vendor.index.__f__("error", "at components/TeacherTabBar.vue:112", "页面导航失败:", navErr);
               }
             });
           }
@@ -74,13 +82,20 @@ const _sfc_main = {
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return {
     a: common_vendor.f($data.navItems, (item, k0, i0) => {
-      return {
-        a: item.key === $props.current ? item.activeIcon : item.icon,
-        b: common_vendor.t(item.label),
-        c: item.key,
-        d: item.key === $props.current ? 1 : "",
-        e: common_vendor.o(($event) => $options.handleClick(item), item.key)
-      };
+      return common_vendor.e({
+        a: item.center
+      }, item.center ? {
+        b: item.key === $props.current ? item.activeIcon : item.icon,
+        c: common_vendor.t(item.label)
+      } : {
+        d: item.key === $props.current ? item.activeIcon : item.icon,
+        e: common_vendor.t(item.label)
+      }, {
+        f: item.key,
+        g: item.key === $props.current ? 1 : "",
+        h: item.center ? 1 : "",
+        i: common_vendor.o(($event) => $options.handleClick(item), item.key)
+      });
     })
   };
 }

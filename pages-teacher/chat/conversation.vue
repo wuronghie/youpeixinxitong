@@ -159,6 +159,7 @@ export default {
 			currentUserInfo: {},
 			otherUserInfo: {},
 			conversationInfo: {},
+			inviteSource: '',
 			payingDeposit: false,
 			invitingTrial: false, // 是否正在发送试课邀请
 			hasTrialSuccess: false, // 与当前家长是否已有试课成功记录
@@ -212,12 +213,15 @@ export default {
 			const parentId = this.conversationInfo.parent_id || this.otherUserInfo?.user_id
 			// 如果已经有试课成功记录，则不再显示邀请试课按钮
 			if (this.hasTrialSuccess) return false
+			// 会话里已经发过试课邀请卡片时，不再重复显示
+			if (this.messages.some(msg => this.isTrialInviteMessage(msg))) return false
 			return !!parentId
 		}
 	},
 	onLoad(options) {
 		this.conversationId = options.conversationId || ''
 		this.appointmentId = options.appointmentId || ''
+		this.inviteSource = options.inviteSource || ''
 		this.useMock = useMockData() === true
 
 		const userInfo = uni.getStorageSync('userInfo')
@@ -225,7 +229,7 @@ export default {
 			this.currentUserRole = userInfo.role || 'teacher'
 			this.currentUserInfo = {
 				nickname: userInfo.nickname || '我',
-				avatar: userInfo.avatar || defaultAvatarUrl
+				avatar: userInfo.avatar || this.defaultAvatarUrl
 			}
 		}
 
@@ -629,26 +633,30 @@ export default {
 			
 			try {
 				this.invitingTrial = true
-				
-				// 获取家长ID（从会话信息中获取）
-				const parentId = this.conversationInfo.parent_id
-				if (!parentId) {
-					uni.showToast({ title: '未找到家长信息', icon: 'none' })
-					this.invitingTrial = false
-					return
+
+				let inviteId = this.appointmentId || this.conversationInfo?.appointment_id || ''
+				if (!inviteId || this.inviteSource !== 'recruitment') {
+					// 获取家长ID（从会话信息中获取）
+					const parentId = this.conversationInfo.parent_id
+					if (!parentId) {
+						uni.showToast({ title: '未找到家长信息', icon: 'none' })
+						this.invitingTrial = false
+						return
+					}
+					
+					// 非招募入口沿用原逻辑，创建新的试课邀请
+					const appointmentCreate = uniCloud.importObject('appointment-create', { customUI: true })
+					const inviteRes = await appointmentCreate.inviteTrial({ parent_id: parentId })
+					
+					if (inviteRes.code !== 0) {
+						uni.showToast({ title: inviteRes.message || '发送邀请失败', icon: 'none' })
+						this.invitingTrial = false
+						return
+					}
+					
+					inviteId = inviteRes.data?.appointment_id || inviteRes.data?.invite_id
 				}
-				
-				// 调用云函数创建试课邀请
-				const appointmentCreate = uniCloud.importObject('appointment-create', { customUI: true })
-				const inviteRes = await appointmentCreate.inviteTrial({ parent_id: parentId })
-				
-				if (inviteRes.code !== 0) {
-					uni.showToast({ title: inviteRes.message || '发送邀请失败', icon: 'none' })
-					this.invitingTrial = false
-					return
-				}
-				
-				const inviteId = inviteRes.data?.appointment_id || inviteRes.data?.invite_id
+
 				if (!inviteId) {
 					uni.showToast({ title: '邀请创建失败', icon: 'none' })
 					this.invitingTrial = false
@@ -671,6 +679,7 @@ export default {
 				this.invitingTrial = false
 				
 				if (sendRes.code === 0) {
+					this.appointmentId = inviteId
 					uni.showToast({ title: '邀请已发送', icon: 'success' })
 					// 刷新消息列表以显示邀请卡片
 					setTimeout(() => {

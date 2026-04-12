@@ -7074,7 +7074,7 @@ function isConsoleWritable() {
 function initRuntimeSocketService() {
   const hosts = "192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
   const port = "8090";
-  const id = "mp-weixin_aurEDL";
+  const id = "mp-weixin_C3diwi";
   const lazy = typeof swan !== "undefined";
   let restoreError = lazy ? () => {
   } : initOnError();
@@ -8101,6 +8101,22 @@ const pages = [
     }
   },
   {
+    path: "pages/recruitment/list",
+    style: {
+      navigationBarTitleText: "我的招募",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
+    path: "pages/recruitment/edit",
+    style: {
+      navigationBarTitleText: "发布招募",
+      enableShareAppMessage: true,
+      enableShareTimeline: true
+    }
+  },
+  {
     path: "pages/order/list",
     style: {
       navigationBarTitleText: "订单列表",
@@ -8323,6 +8339,22 @@ const subPackages = [
         path: "review/list",
         style: {
           navigationBarTitleText: "评价管理",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "recruitment/list",
+        style: {
+          navigationBarTitleText: "招募广场",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
+        path: "recruitment/detail",
+        style: {
+          navigationBarTitleText: "招募详情",
           enableShareAppMessage: true,
           enableShareTimeline: true
         }

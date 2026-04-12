@@ -168,7 +168,9 @@ async function handlePaySuccess(db, order, options = {}) {
     // 支付保证金后，不自动确认预约，保持当前状态（pending_confirm 或 contact_request）
     // 需要老师手动点击"确认预约"按钮才会变为 confirmed
     const currentStatus = appointment.status
-    const nextStatus = currentStatus === 'contact_request' ? 'contact_request' : 'pending_confirm'
+    let nextStatus = 'pending_confirm'
+    if (currentStatus === 'contact_request') nextStatus = 'contact_request'
+    else if (currentStatus === 'trial_invited') nextStatus = 'trial_invited'
     
     await db.collection('appointments').doc(order.appointment_id).update({
       status: nextStatus,
@@ -209,6 +211,16 @@ async function handlePaySuccess(db, order, options = {}) {
       })
       // 不自动创建会话，因为根据新流程，会话应该在联系老师时创建
     }
+
+    try {
+      await db.collection('recruitment-responses').where({ appointment_id: order.appointment_id }).update({
+        deposit_paid: true,
+        update_time: now
+      })
+    } catch (respErr) {
+      console.warn('[payment-create][handlePaySuccess] 更新招募响应记录失败:', respErr)
+    }
+
     return { appointment_status: nextStatus }
   }
 
@@ -423,7 +435,7 @@ module.exports = {
         
         // 保证金支付：允许在联系请求、待确认、待支付状态下支付
         // 联系请求（contact_request）状态下也可以支付保证金来开启聊天
-        const allowedStatuses = ['contact_request', 'pending_confirm', 'pending_payment']
+        const allowedStatuses = ['contact_request', 'trial_invited', 'pending_confirm', 'pending_payment']
         if (!allowedStatuses.includes(appointment.status)) {
           return error('当前预约状态不允许支付保证金')
         }

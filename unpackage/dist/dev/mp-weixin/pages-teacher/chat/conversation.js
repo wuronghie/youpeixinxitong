@@ -23,6 +23,7 @@ const _sfc_main = {
       currentUserInfo: {},
       otherUserInfo: {},
       conversationInfo: {},
+      inviteSource: "",
       payingDeposit: false,
       invitingTrial: false,
       // 是否正在发送试课邀请
@@ -85,19 +86,22 @@ const _sfc_main = {
       const parentId = this.conversationInfo.parent_id || ((_a = this.otherUserInfo) == null ? void 0 : _a.user_id);
       if (this.hasTrialSuccess)
         return false;
+      if (this.messages.some((msg) => this.isTrialInviteMessage(msg)))
+        return false;
       return !!parentId;
     }
   },
   onLoad(options) {
     this.conversationId = options.conversationId || "";
     this.appointmentId = options.appointmentId || "";
+    this.inviteSource = options.inviteSource || "";
     this.useMock = utils_mockData.useMockData() === true;
     const userInfo = common_vendor.index.getStorageSync("userInfo");
     if (userInfo) {
       this.currentUserRole = userInfo.role || "teacher";
       this.currentUserInfo = {
         nickname: userInfo.nickname || "我",
-        avatar: userInfo.avatar || defaultAvatarUrl
+        avatar: userInfo.avatar || this.defaultAvatarUrl
       };
     }
     this.initConversation();
@@ -112,7 +116,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:247", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:251", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
       await this.refreshMessages();
     },
     async initConversation() {
@@ -132,7 +136,7 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: res.message || "获取会话失败", icon: "none" });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:268", "获取会话失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:272", "获取会话失败:", error);
               common_vendor.index.showToast({ title: "获取会话失败", icon: "none" });
             }
           } else {
@@ -184,7 +188,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:317", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:321", "加载用户信息失败:", error);
       }
     },
     // 检查与当前会话家长是否已有试课成功记录，用于控制“邀请试课”按钮显示
@@ -207,12 +211,12 @@ const _sfc_main = {
         const res = await appointmentQuery.checkTrialStatusForParent({ parent_id: parentId });
         if (res.code === 0 && res.data) {
           this.hasTrialSuccess = !!res.data.hasTrialSuccess;
-          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:340", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
+          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:344", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
         } else {
           this.hasTrialSuccess = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:345", "[teacher-chat-conversation] 检查试课状态失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:349", "[teacher-chat-conversation] 检查试课状态失败:", error);
         this.hasTrialSuccess = false;
       }
     },
@@ -275,7 +279,7 @@ const _sfc_main = {
           await chatSend.markRead({ conversation_id: this.conversationId });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:424", "加载新消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:428", "加载新消息失败:", error);
         if (this.messages.length === 0) {
           await this.refreshMessages();
         }
@@ -342,7 +346,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "消息加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:498", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:502", "加载消息失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -389,7 +393,7 @@ const _sfc_main = {
           this.rollbackTempMessage(tempMsg.message_id, res.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:547", "发送消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:551", "发送消息失败:", error);
         this.rollbackTempMessage(tempMsg.message_id);
       } finally {
         this.sending = false;
@@ -471,25 +475,28 @@ const _sfc_main = {
      * 功能：调用云函数创建试课邀请，并发送邀请卡片消息
      */
     async handleInviteTrial() {
-      var _a, _b;
+      var _a, _b, _c;
       if (this.invitingTrial || !this.conversationId)
         return;
       try {
         this.invitingTrial = true;
-        const parentId = this.conversationInfo.parent_id;
-        if (!parentId) {
-          common_vendor.index.showToast({ title: "未找到家长信息", icon: "none" });
-          this.invitingTrial = false;
-          return;
+        let inviteId = this.appointmentId || ((_a = this.conversationInfo) == null ? void 0 : _a.appointment_id) || "";
+        if (!inviteId || this.inviteSource !== "recruitment") {
+          const parentId = this.conversationInfo.parent_id;
+          if (!parentId) {
+            common_vendor.index.showToast({ title: "未找到家长信息", icon: "none" });
+            this.invitingTrial = false;
+            return;
+          }
+          const appointmentCreate = common_vendor.tr.importObject("appointment-create", { customUI: true });
+          const inviteRes = await appointmentCreate.inviteTrial({ parent_id: parentId });
+          if (inviteRes.code !== 0) {
+            common_vendor.index.showToast({ title: inviteRes.message || "发送邀请失败", icon: "none" });
+            this.invitingTrial = false;
+            return;
+          }
+          inviteId = ((_b = inviteRes.data) == null ? void 0 : _b.appointment_id) || ((_c = inviteRes.data) == null ? void 0 : _c.invite_id);
         }
-        const appointmentCreate = common_vendor.tr.importObject("appointment-create", { customUI: true });
-        const inviteRes = await appointmentCreate.inviteTrial({ parent_id: parentId });
-        if (inviteRes.code !== 0) {
-          common_vendor.index.showToast({ title: inviteRes.message || "发送邀请失败", icon: "none" });
-          this.invitingTrial = false;
-          return;
-        }
-        const inviteId = ((_a = inviteRes.data) == null ? void 0 : _a.appointment_id) || ((_b = inviteRes.data) == null ? void 0 : _b.invite_id);
         if (!inviteId) {
           common_vendor.index.showToast({ title: "邀请创建失败", icon: "none" });
           this.invitingTrial = false;
@@ -507,6 +514,7 @@ const _sfc_main = {
         });
         this.invitingTrial = false;
         if (sendRes.code === 0) {
+          this.appointmentId = inviteId;
           common_vendor.index.showToast({ title: "邀请已发送", icon: "success" });
           setTimeout(() => {
             this.loadNewMessages();
@@ -516,7 +524,7 @@ const _sfc_main = {
         }
       } catch (error) {
         this.invitingTrial = false;
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:684", "发送试课邀请失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:693", "发送试课邀请失败:", error);
         common_vendor.index.showToast({ title: "发送失败，请稍后再试", icon: "none" });
       }
     },
@@ -590,7 +598,7 @@ const _sfc_main = {
               }
             } catch (error) {
               this.payingDeposit = false;
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:765", "支付失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:774", "支付失败:", error);
               common_vendor.index.showToast({ title: "支付失败，请稍后再试", icon: "none" });
             }
           }

@@ -87,30 +87,49 @@ module.exports = async (obj) => {
     let updateData = {};
     
     if (payment_type === 'deposit') {
-      // 教师保证金
+      // 教师保证金（与 payment-create handlePaySuccess 一致）
+      let nextStatus = 'pending_confirm';
+      if (appointment.status === 'contact_request') nextStatus = 'contact_request';
+      else if (appointment.status === 'trial_invited') nextStatus = 'trial_invited';
+
       updateData = {
         ...baseUpdate,
         deposit_paid: true,
         deposit_time: now,
-        // 若还在待确认，支付保证金后进入已确认
-        status: appointment.status === 'contact_request' ? 'contact_request' : 'confirmed'
+        status: nextStatus
       };
-      
-      // 如果是 contact_request 状态，不需要设置 confirm_time
-      if (appointment.status !== 'contact_request') {
-        updateData.confirm_time = now;
-        updateData.teacher_confirm_time = now;
-      }
-      
+
       console.log('[notify:appointment] 📝 准备更新预约（保证金）:', JSON.stringify(updateData, null, 2));
-      
+
       const updateResult = await db.collection('appointments').doc(appointment_id).update(updateData);
       console.log('[notify:appointment] ✅ 更新预约成功（保证金）:', {
         appointment_id,
         updated: updateResult.updated,
         upserted: updateResult.upserted
       });
-      
+
+      try {
+        const conversationDoc = await db.collection('chat-conversations').where({ appointment_id }).get();
+        if (conversationDoc.data && conversationDoc.data.length > 0) {
+          const conversationId = conversationDoc.data[0]._id;
+          await db.collection('chat-conversations').doc(conversationId).update({
+            chat_enabled: true,
+            teacher_deposit_paid: true,
+            update_time: now
+          });
+        }
+      } catch (convErr) {
+        console.error('[notify:appointment] 更新会话(保证金)失败:', convErr);
+      }
+
+      try {
+        await db.collection('recruitment-responses').where({ appointment_id }).update({
+          deposit_paid: true,
+          update_time: now
+        });
+      } catch (rErr) {
+        console.warn('[notify:appointment] 更新招募响应记录:', rErr);
+      }
     } else {
       // 家长课程费（默认）
       // 判断下一个状态：参考 payment-create 的逻辑

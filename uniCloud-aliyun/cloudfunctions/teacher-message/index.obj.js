@@ -75,7 +75,7 @@ module.exports = {
 
       const where = { user_id }
       if (type !== 'all') {
-        where.message_type = type
+        where.type = type
       }
 
       const collection = db.collection(COLLECTION)
@@ -94,7 +94,7 @@ module.exports = {
         .aggregate()
         .match({ user_id })
         .group({
-          _id: '$message_type',
+          _id: '$type',
           total: $.sum(1),
           unread: $.sum($.cond([{ $eq: ['$is_read', false] }, 1, 0]))
         })
@@ -204,7 +204,7 @@ module.exports = {
       const user_id = await resolveUserId(this)
       const where = { user_id, is_read: false }
       if (type !== 'all') {
-        where.message_type = type
+        where.type = type
       }
 
       await db.collection(COLLECTION)

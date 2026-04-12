@@ -1,0 +1,22 @@
+{
+	"bsonType": "object",
+	"required": ["recruitment_id", "teacher_id", "parent_id", "appointment_id"],
+	"permission": {
+		"read": false,
+		"create": false,
+		"update": false,
+		"delete": false
+	},
+	"properties": {
+		"_id": { "description": "响应记录ID" },
+		"recruitment_id": { "bsonType": "string", "description": "招募ID", "foreignKey": "parent-recruitments._id" },
+		"teacher_id": { "bsonType": "string", "foreignKey": "uni-id-users._id" },
+		"parent_id": { "bsonType": "string", "foreignKey": "uni-id-users._id" },
+		"appointment_id": { "bsonType": "string", "foreignKey": "appointments._id" },
+		"conversation_id": { "bsonType": "string", "foreignKey": "chat-conversations._id" },
+		"need_deposit": { "bsonType": "bool", "defaultValue": true },
+		"deposit_paid": { "bsonType": "bool", "defaultValue": false },
+		"create_time": { "bsonType": "timestamp", "forceDefaultValue": { "$env": "now" } },
+		"update_time": { "bsonType": "timestamp" }
+	}
+}

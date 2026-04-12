@@ -103,7 +103,7 @@ module.exports = {
         user_role: _.in(['parent', null])
       }
       if (type !== 'all') {
-        where.message_type = type
+        where.type = type
       }
 
       const collection = db.collection(COLLECTION)
@@ -125,7 +125,7 @@ module.exports = {
           user_role: _.in(['parent', null])
         })
         .group({
-          _id: '$message_type',
+          _id: '$type',
           total: $.sum(1),
           unread: $.sum($.cond([{ $eq: ['$is_read', false] }, 1, 0]))
         })
@@ -173,7 +173,8 @@ module.exports = {
             appointment: tabStats.appointment || { total: 0, unread: 0 },
             payment: tabStats.payment || { total: 0, unread: 0 },
             review: tabStats.review || { total: 0, unread: 0 },
-            refund: tabStats.refund || { total: 0, unread: 0 }
+            refund: tabStats.refund || { total: 0, unread: 0 },
+            recruitment: tabStats.recruitment || { total: 0, unread: 0 }
           }
         }
       })
@@ -241,7 +242,7 @@ module.exports = {
         is_read: false
       }
       if (type !== 'all') {
-        where.message_type = type
+        where.type = type
       }
 
       await db.collection(COLLECTION)

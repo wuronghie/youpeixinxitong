@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "招募广场",
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
+  "usingComponents": {
+    "teacher-tab-bar": "../../components/TeacherTabBar"
+  }
+}

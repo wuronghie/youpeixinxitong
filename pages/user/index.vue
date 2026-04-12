@@ -89,6 +89,15 @@
 				</view>
 				<text class="iconfont icon-you text-light-muted"></text>
 			</view>
+			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
+			hover-class="bg-light-secondary"
+			@click="goToPage('/pages/recruitment/list')">
+				<view class="d-flex a-center">
+					<view class="iconfont icon-bangzhu mr-2" style="color:#3C9CFF;font-size: 40rpx;"></view>
+					<text class="font-md">我的招募</text>
+				</view>
+				<text class="iconfont icon-you text-light-muted"></text>
+			</view>
 			<!-- 我的邀请码展示 -->
 			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" hover-class="bg-light-secondary" @click="copyInviteCode">
 				<view class="d-flex a-center">

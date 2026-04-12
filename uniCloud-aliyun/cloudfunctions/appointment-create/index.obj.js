@@ -59,6 +59,45 @@ function generateAppointmentNo() {
   return `APT${timestamp}${random}`
 }
 
+function hasRole(userDoc, roleName) {
+  const role = userDoc && userDoc.role
+  const roles = Array.isArray(role) ? role : role ? [role] : []
+  return roles.includes(roleName)
+}
+
+function isParentProfileComplete(userDoc) {
+  const parentInfo = (userDoc && userDoc.parent_info) || {}
+  return !!(String(parentInfo.student_name || '').trim() && String(parentInfo.student_grade || '').trim())
+}
+
+function isTeacherProfileComplete(profile) {
+  if (!profile) return false
+  const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some((item) => item && item.image)
+  return !!(
+    String(profile.display_name || '').trim() &&
+    Array.isArray(profile.subjects) && profile.subjects.length > 0 &&
+    Array.isArray(profile.grades) && profile.grades.length > 0 &&
+    Number(profile.hourly_rate || 0) > 0 &&
+    Number((profile.teaching_experience && profile.teaching_experience.years) || 0) > 0 &&
+    String(profile.introduction || '').trim() &&
+    hasQualificationImage
+  )
+}
+
+function assertParentProfileComplete(userDoc) {
+  if (!isParentProfileComplete(userDoc)) {
+    throw new Error('请先完善孩子信息（学生姓名和年级）后再聊天')
+  }
+}
+
+async function assertTeacherProfileComplete(db, teacher_id) {
+  const profileRes = await db.collection('teacher-profiles').where({ teacher_id }).limit(1).get()
+  const profile = profileRes.data && profileRes.data.length > 0 ? profileRes.data[0] : null
+  if (!isTeacherProfileComplete(profile)) {
+    throw new Error('请先完善教师资料后再邀请试课')
+  }
+}
+
 module.exports = {
   _before: function() {
     // 云对象前置方法，初始化 uni-id 实例
@@ -75,7 +114,7 @@ module.exports = {
    * @returns {Object}
    */
   async inviteTrial(params) {
-    const { parent_id } = params
+    const { parent_id, recruitment_id, invited_via } = params
     
     try {
       const db = uniCloud.database()
@@ -87,8 +126,13 @@ module.exports = {
       }
       
       const userDoc = await db.collection('uni-id-users').doc(teacher_id).get()
-      if (!userDoc.data || userDoc.data.length === 0 || userDoc.data[0].role !== 'teacher') {
+      if (!userDoc.data || userDoc.data.length === 0 || !hasRole(userDoc.data[0], 'teacher')) {
         return error('只有教师可以邀请试课')
+      }
+      try {
+        await assertTeacherProfileComplete(db, teacher_id)
+      } catch (e) {
+        return error(e.message || '请先完善信息')
       }
       
       if (!parent_id) {
@@ -97,7 +141,7 @@ module.exports = {
       
       // 2. 检查家长是否存在
       const parentDoc = await db.collection('uni-id-users').doc(parent_id).get()
-      if (!parentDoc.data || parentDoc.data.length === 0 || parentDoc.data[0].role !== 'parent') {
+      if (!parentDoc.data || parentDoc.data.length === 0 || !hasRole(parentDoc.data[0], 'parent')) {
         return error('家长不存在')
       }
       
@@ -133,6 +177,8 @@ module.exports = {
         invited_by: 'teacher', // 标记是教师发起的邀请
         invite_time: now
       }
+      if (recruitment_id) appointmentData.recruitment_id = recruitment_id
+      if (invited_via) appointmentData.invited_via = invited_via
       
       const result = await db.collection('appointments').add(appointmentData)
       
@@ -152,9 +198,11 @@ module.exports = {
       let conversationId = null
       if (conversationDoc.data && conversationDoc.data.length > 0) {
         conversationId = conversationDoc.data[0]._id
-        // 更新会话关联预约ID
+        // 复用旧会话时，重置为当前试课邀请的聊天状态，避免继承历史已支付状态
         await db.collection('chat-conversations').doc(conversationId).update({
           appointment_id: result.id,
+          chat_enabled: false,
+          teacher_deposit_paid: false,
           update_time: now
         })
       } else {
@@ -453,6 +501,15 @@ module.exports = {
       if (!parent_id) {
         return error('请先登录')
       }
+      const parentUserDoc = await db.collection('uni-id-users').doc(parent_id).get()
+      if (!parentUserDoc.data || parentUserDoc.data.length === 0 || !hasRole(parentUserDoc.data[0], 'parent')) {
+        return error('只有家长可以发起联系')
+      }
+      try {
+        assertParentProfileComplete(parentUserDoc.data[0])
+      } catch (e) {
+        return error(e.message || '请先完善信息')
+      }
       
       if (!teacher_id) {
         return error('教师ID不能为空')
@@ -542,10 +599,11 @@ module.exports = {
       
       if (conversationDoc.data && conversationDoc.data.length > 0) {
         conversationId = conversationDoc.data[0]._id
-        // 检查会话是否已启用聊天（教师是否已支付保证金）
-        const conversation = conversationDoc.data[0]
+        // 复用旧会话时，重置为当前联系请求的聊天状态，避免继承历史已支付状态
         await db.collection('chat-conversations').doc(conversationId).update({
           appointment_id: appointmentId,
+          chat_enabled: false,
+          teacher_deposit_paid: false,
           update_time: now
         })
       } else {

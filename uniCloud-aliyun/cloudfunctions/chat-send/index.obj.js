@@ -25,6 +25,58 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+function hasRole(userDoc, roleName) {
+  const role = userDoc && userDoc.role
+  const roles = Array.isArray(role) ? role : role ? [role] : []
+  return roles.includes(roleName)
+}
+
+function isParentProfileComplete(userDoc) {
+  const parentInfo = (userDoc && userDoc.parent_info) || {}
+  return !!(String(parentInfo.student_name || '').trim() && String(parentInfo.student_grade || '').trim())
+}
+
+function isTeacherProfileComplete(profile) {
+  if (!profile) return false
+  const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some((item) => item && item.image)
+  return !!(
+    String(profile.display_name || '').trim() &&
+    Array.isArray(profile.subjects) && profile.subjects.length > 0 &&
+    Array.isArray(profile.grades) && profile.grades.length > 0 &&
+    Number(profile.hourly_rate || 0) > 0 &&
+    Number((profile.teaching_experience && profile.teaching_experience.years) || 0) > 0 &&
+    String(profile.introduction || '').trim() &&
+    hasQualificationImage
+  )
+}
+
+async function assertUserProfileCompleteForChat(db, user_id) {
+  const userDoc = await db.collection('uni-id-users')
+    .doc(user_id)
+    .field({ role: true, parent_info: true })
+    .get()
+
+  if (!userDoc.data || userDoc.data.length === 0) {
+    throw new Error('用户不存在')
+  }
+
+  const user = userDoc.data[0]
+  if (hasRole(user, 'parent')) {
+    if (!isParentProfileComplete(user)) {
+      throw new Error('请先完善孩子信息（学生姓名和年级）后再聊天')
+    }
+    return
+  }
+
+  if (hasRole(user, 'teacher')) {
+    const profileRes = await db.collection('teacher-profiles').where({ teacher_id: user_id }).limit(1).get()
+    const profile = profileRes.data && profileRes.data.length > 0 ? profileRes.data[0] : null
+    if (!isTeacherProfileComplete(profile)) {
+      throw new Error('请先完善教师资料后再聊天')
+    }
+  }
+}
+
 module.exports = {
   _before: function() {
     // 云对象前置方法，初始化 uni-id 实例
@@ -89,6 +141,7 @@ module.exports = {
       if (!sender_id) {
         return error('未获取到token，请先登录')
       }
+      await assertUserProfileCompleteForChat(db, sender_id)
       
       // 2. 参数验证
       if (!conversation_id) {
@@ -275,6 +328,7 @@ module.exports = {
       if (!user_id) {
         return error('未获取到token，请先登录')
       }
+      await assertUserProfileCompleteForChat(db, user_id)
       
       // 2. 查询会话信息
       const conversationDoc = await db.collection('chat-conversations').doc(conversation_id).get()
@@ -436,6 +490,30 @@ module.exports = {
         return error('预约ID不能为空')
       }
       
+      // 检查当前用户资料是否已完善
+      const token = this.getUniIdToken()
+      let user_id
+      if (!token) {
+        return error('未获取到token，请先登录')
+      }
+      try {
+        const payload = await this.uniID.checkToken(token)
+        if (payload.code) throw new Error('token校验失败')
+        user_id = payload.uid
+      } catch (e) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8')
+          const parts = decoded.split('_')
+          user_id = parts.length >= 1 ? parts[0] : null
+        } catch (decodeError) {
+          user_id = null
+        }
+      }
+      if (!user_id) {
+        return error('未获取到token，请先登录')
+      }
+      await assertUserProfileCompleteForChat(db, user_id)
+      
       console.log('查询会话，预约ID:', appointment_id)
       
       // 查询会话
@@ -559,6 +637,7 @@ module.exports = {
       if (!user_id) {
         return error('未获取到token，请先登录')
       }
+      await assertUserProfileCompleteForChat(db, user_id)
       
       // 2. 获取会话信息
       let conversation
@@ -744,6 +823,7 @@ module.exports = {
       if (!user_id) {
         return error('未获取到token，请先登录')
       }
+      await assertUserProfileCompleteForChat(db, user_id)
       
       // 2. 获取用户角色
       const userDoc = await db.collection('uni-id-users').doc(user_id).get()
@@ -935,6 +1015,7 @@ module.exports = {
       if (!user_id) {
         return error('未获取到token，请先登录')
       }
+      await assertUserProfileCompleteForChat(db, user_id)
       
       // 2. 参数验证
       if (!conversation_id) {

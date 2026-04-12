@@ -1,0 +1,53 @@
+{
+	"bsonType": "object",
+	"required": ["parent_id", "status", "display_name", "subject", "student_grade", "lesson_mode", "expire_at"],
+	"permission": {
+		"read": "doc.parent_id == auth.uid",
+		"create": "auth.uid != null",
+		"update": "doc.parent_id == auth.uid",
+		"delete": false
+	},
+	"properties": {
+		"_id": { "description": "招募ID" },
+		"parent_id": { "bsonType": "string", "description": "发布家长", "foreignKey": "uni-id-users._id" },
+		"status": { "bsonType": "string", "enum": ["open", "closed", "expired"], "description": "状态" },
+		"display_name": { "bsonType": "string", "description": "教师端脱敏展示名" },
+		"subject": { "bsonType": "string", "description": "科目" },
+		"student_grade": { "bsonType": "string", "description": "年级" },
+		"lesson_mode": { "bsonType": "string", "enum": ["online", "offline"], "description": "授课方式" },
+		"region": {
+			"bsonType": "object",
+			"description": "地区",
+			"properties": {
+				"province": { "bsonType": "string" },
+				"city": { "bsonType": "string" },
+				"district": { "bsonType": "string" },
+				"name": { "bsonType": "string" }
+			}
+		},
+		"location": {
+			"bsonType": "object",
+			"description": "粗略坐标",
+			"properties": {
+				"latitude": { "bsonType": "double" },
+				"longitude": { "bsonType": "double" }
+			}
+		},
+		"goal": { "bsonType": "string", "description": "辅导目标" },
+		"budget_min": { "bsonType": "number", "description": "预算下限(元/小时)" },
+		"budget_max": { "bsonType": "number", "description": "预算上限(元/小时)" },
+		"time_note": { "bsonType": "string", "description": "时间偏好" },
+		"remark": { "bsonType": "string", "description": "补充说明" },
+		"expire_at": { "bsonType": "timestamp", "description": "过期时间" },
+		"response_count": { "bsonType": "int", "description": "教师响应次数", "defaultValue": 0 },
+		"max_teacher_responses": { "bsonType": "int", "description": "最多响应教师数，0或不填表示不限制" },
+		"last_response_at": { "bsonType": "timestamp", "description": "最近响应时间" },
+		"close_reason": { "bsonType": "string", "enum": ["filled", "found_elsewhere", "other"] },
+		"audit_status": { "bsonType": "string", "enum": ["pending", "approved", "rejected"], "description": "后台审核：待审/通过/拒绝" },
+		"audit_remark": { "bsonType": "string", "description": "审核备注（如拒绝原因）" },
+		"audited_at": { "bsonType": "timestamp", "description": "审核时间" },
+		"audited_by": { "bsonType": "string", "description": "审核人用户ID" },
+		"create_time": { "bsonType": "timestamp", "forceDefaultValue": { "$env": "now" } },
+		"update_time": { "bsonType": "timestamp", "forceDefaultValue": { "$env": "now" } }
+	}
+}
