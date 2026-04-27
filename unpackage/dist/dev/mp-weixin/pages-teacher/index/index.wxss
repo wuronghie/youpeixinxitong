@@ -115,6 +115,38 @@
 	color: #999999;
 }
 
+/* 打卡待办横幅 */
+.clock-todo-banner.data-v-8346769d {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 24rpx 0 24rpx;
+	padding: 24rpx 32rpx;
+	border-radius: 20rpx;
+	background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+	box-shadow: 0 4rpx 16rpx rgba(217, 119, 6, 0.15);
+}
+.clock-todo-banner__main.data-v-8346769d {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+}
+.clock-todo-banner__title.data-v-8346769d {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #92400e;
+}
+.clock-todo-banner__sub.data-v-8346769d {
+	font-size: 24rpx;
+	color: #b45309;
+	margin-top: 4rpx;
+}
+.clock-todo-banner__arrow.data-v-8346769d {
+	font-size: 36rpx;
+	color: #b45309;
+	margin-left: 16rpx;
+}
+
 /* 预约列表区域 */
 .appointments-section.data-v-8346769d {
 	background-color: #FFFFFF;

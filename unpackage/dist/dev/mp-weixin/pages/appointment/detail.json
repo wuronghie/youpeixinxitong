@@ -5,6 +5,7 @@
   "usingComponents": {
     "card": "../../components/common/card",
     "divider": "../../components/common/divider",
+    "attendance-progress-card": "../../components/AttendanceProgressCard",
     "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
   }
 }

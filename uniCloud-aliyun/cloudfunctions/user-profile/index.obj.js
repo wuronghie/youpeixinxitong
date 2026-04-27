@@ -106,6 +106,7 @@ module.exports = {
           nickname: true,
           avatar: true,
           phone: true,
+          gender: true,
           role: true,
           status: true,
           wx_nickname: true,
@@ -123,6 +124,7 @@ module.exports = {
           nickname: '',
           avatar: '',
           phone: '',
+          gender: 0,
           role: null,
           status: 'active',
           wx_nickname: '',
@@ -154,8 +156,10 @@ module.exports = {
     const {
       real_name,
       phone,
+      gender, // 性别（必填）：'male' | 'female'
       avatar,
       student_name,
+      student_gender, // 孩子性别（必填）：'male' | 'female'
       student_grade,
       student_subjects = [],
       learning_goal = '',
@@ -298,10 +302,25 @@ module.exports = {
         return error('手机号格式不正确')
       }
       
+      // 验证性别（必填：male / female）
+      const genderStr = typeof gender === 'string' ? gender.trim() : ''
+      if (!genderStr || !['male', 'female'].includes(genderStr)) {
+        console.error('[updateParentProfile] 性别格式不正确:', gender)
+        return error('请选择性别')
+      }
+      const studentGenderStr = typeof student_gender === 'string' ? student_gender.trim() : ''
+      if (!studentGenderStr || !['male', 'female'].includes(studentGenderStr)) {
+        console.error('[updateParentProfile] 孩子性别格式不正确:', student_gender)
+        return error('请选择孩子性别')
+      }
+      // uni-id 约定：1=男, 2=女（0=未知）
+      const genderCode = genderStr === 'male' ? 1 : 2
+      
       // 构建更新数据
       const updateData = {
         nickname: real_name,  // 使用真实姓名作为昵称
         phone: phone,
+        gender: genderCode,
         update_date: Date.now()
       }
       
@@ -325,6 +344,7 @@ module.exports = {
       const parentInfo = {
         real_name: real_name,
         student_name: student_name || '',
+        student_gender: studentGenderStr,
         student_grade: student_grade || '',
         student_subjects: Array.isArray(student_subjects) ? student_subjects : [],
         learning_goal: learning_goal || '',

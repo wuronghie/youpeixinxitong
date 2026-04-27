@@ -65,6 +65,13 @@ const _sfc_main = {
       }
       return admin || "未填写";
     },
+    studentGenderText(gender) {
+      if (gender === "male" || gender === 1 || gender === "1")
+        return "男孩";
+      if (gender === "female" || gender === 2 || gender === "2")
+        return "女孩";
+      return "";
+    },
     goChat(conversationId, appointmentId) {
       if (!conversationId) {
         common_vendor.index.showToast({ title: "未找到会话", icon: "none" });
@@ -150,32 +157,37 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     b: common_vendor.t($data.detail.display_name),
     c: common_vendor.t($data.detail.subject),
     d: common_vendor.t($data.detail.student_grade),
-    e: common_vendor.t($data.detail.lesson_mode === "online" ? "线上" : "线下"),
-    f: common_vendor.t($data.detail.already_responded ? "已响应" : "可邀请"),
-    g: common_vendor.t($data.detail.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
-    h: $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写"
-  }, $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写" ? {
-    i: common_vendor.t($options.locationText($data.detail))
+    e: $options.studentGenderText($data.detail.student_gender)
+  }, $options.studentGenderText($data.detail.student_gender) ? {
+    f: common_vendor.t($options.studentGenderText($data.detail.student_gender))
   } : {}, {
-    j: common_vendor.t($options.budgetText($data.detail)),
-    k: common_vendor.t($options.locationText($data.detail)),
-    l: common_vendor.t($data.detail.time_note || "暂未指定，可进一步沟通"),
-    m: common_vendor.t($data.detail.goal || "家长暂未填写"),
-    n: common_vendor.t($data.detail.remark || "暂无补充说明")
+    g: common_vendor.t($data.detail.lesson_mode === "online" ? "线上" : "线下"),
+    h: common_vendor.t($data.detail.already_responded ? "已响应" : "可邀请"),
+    i: common_vendor.t($data.detail.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
+    j: $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写"
+  }, $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写" ? {
+    k: common_vendor.t($options.locationText($data.detail))
+  } : {}, {
+    l: common_vendor.t($options.budgetText($data.detail)),
+    m: common_vendor.t($options.locationText($data.detail)),
+    n: common_vendor.t($data.detail.time_note || "暂未指定，可进一步沟通"),
+    o: common_vendor.t($options.studentGenderText($data.detail.student_gender) || "未填写"),
+    p: common_vendor.t($data.detail.goal || "家长暂未填写"),
+    q: common_vendor.t($data.detail.remark || "暂无补充说明")
   }) : {}, {
-    o: $data.detail
+    r: $data.detail
   }, $data.detail ? common_vendor.e({
-    p: common_vendor.t($data.detail.already_responded ? "继续跟进此需求" : "先建立联系，再进入聊天发送试课邀请"),
-    q: common_vendor.t($data.detail.need_deposit ? "若你还未向该家长支付保证金，需要先完成支付后才能进入聊天。" : $data.detail.already_responded ? "如果之前已经发过试课邀请，聊天页不会重复发送。" : "首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。"),
-    r: !$data.detail.already_responded
+    s: common_vendor.t($data.detail.already_responded ? "继续跟进此需求" : "先建立联系，再进入聊天发送试课邀请"),
+    t: common_vendor.t($data.detail.need_deposit ? "若你还未向该家长支付信息费，需要先完成支付后才能进入聊天。" : $data.detail.already_responded ? "如果之前已经发过试课邀请，聊天页不会重复发送。" : "首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。"),
+    v: !$data.detail.already_responded
   }, !$data.detail.already_responded ? {
-    s: common_vendor.t($data.busy ? "处理中..." : $data.detail.need_deposit ? "支付保证金并进入聊天" : "进入聊天"),
-    t: $data.busy,
-    v: common_vendor.o((...args) => $options.onInvite && $options.onInvite(...args))
-  } : {
-    w: common_vendor.t($data.busy ? "处理中..." : $data.detail.need_deposit ? "支付保证金并进入聊天" : "进入聊天"),
+    w: common_vendor.t($data.busy ? "处理中..." : $data.detail.need_deposit ? "支付信息费并进入聊天" : "进入聊天"),
     x: $data.busy,
-    y: common_vendor.o((...args) => $options.onContinue && $options.onContinue(...args))
+    y: common_vendor.o((...args) => $options.onInvite && $options.onInvite(...args))
+  } : {
+    z: common_vendor.t($data.busy ? "处理中..." : $data.detail.need_deposit ? "支付信息费并进入聊天" : "进入聊天"),
+    A: $data.busy,
+    B: common_vendor.o((...args) => $options.onContinue && $options.onContinue(...args))
   }) : {});
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-29793447"]]);

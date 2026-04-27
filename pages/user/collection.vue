@@ -259,8 +259,18 @@ export default {
 		},
 		goToDetail(id) {
 			if (!id) return
+			if (this._navigatingDetail) return
+			this._navigatingDetail = true
 			uni.navigateTo({
-				url: `/pages/teacher/detail?id=${id}`
+				url: `/pages/teacher/detail?id=${id}`,
+				success: () => { this._navigatingDetail = false },
+				fail: (err) => {
+					this._navigatingDetail = false
+					console.warn('[collection] navigateTo detail failed:', err && err.errMsg)
+					if (err && /timeout/i.test(err.errMsg || '')) {
+						uni.showToast({ title: '加载超时，请重试', icon: 'none' })
+					}
+				}
 			})
 		},
 		goFindTeacher() {

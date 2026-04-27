@@ -1,6 +1,9 @@
 /**
  * 创建支付云对象
- * 功能：创建支付订单（试课费、正式课程费、保证金）
+ * 功能：创建支付订单（试课费、正式课程费、信息费）
+ * - course_fee：家长支付试课费/正式课程费
+ * - deposit  ：旧字段名，语义已改为"教师信息费"（= hourly_rate × 2，一节试课费用，2 小时）
+ *              试课成功 → 信息费归平台；试课失败 → 退回教师钱包
  * 使用 uni-id-common 进行 token 验证
  */
 
@@ -165,7 +168,7 @@ async function handlePaySuccess(db, order, options = {}) {
   }
 
   if (order.order_type === 'deposit') {
-    // 支付保证金后，不自动确认预约，保持当前状态（pending_confirm 或 contact_request）
+    // 支付信息费后，不自动确认预约，保持当前状态（pending_confirm 或 contact_request）
     // 需要老师手动点击"确认预约"按钮才会变为 confirmed
     const currentStatus = appointment.status
     let nextStatus = 'pending_confirm'
@@ -180,13 +183,13 @@ async function handlePaySuccess(db, order, options = {}) {
       // 不设置 confirm_time，等老师确认预约时再设置
     })
     
-    console.log('[payment-create][handlePaySuccess] 已更新预约为教师已支付保证金:', {
+    console.log('[payment-create][handlePaySuccess] 已更新预约为教师已支付信息费:', {
       appointment_id: order.appointment_id,
       nextStatus,
       deposit_paid: true
     })
 
-    // 支付保证金后，更新会话状态（会话应该在联系请求时已创建）
+    // 支付信息费后，更新会话状态（会话应该在联系请求时已创建）
     const conversationDoc = await db.collection('chat-conversations')
       .where({ appointment_id: order.appointment_id })
       .get()
@@ -200,13 +203,13 @@ async function handlePaySuccess(db, order, options = {}) {
         update_time: now
       })
       
-      console.log('[payment-create][handlePaySuccess] 已更新会话为教师已支付保证金:', {
+      console.log('[payment-create][handlePaySuccess] 已更新会话为教师已支付信息费:', {
         conversation_id: conversationId,
         appointment_id: order.appointment_id
       })
     } else {
       // 如果会话不存在，记录警告（不应该发生，因为会话应该在联系请求时创建）
-      console.warn('[payment-create][handlePaySuccess] 支付保证金时会话不存在:', {
+      console.warn('[payment-create][handlePaySuccess] 支付信息费时会话不存在:', {
         appointment_id: order.appointment_id
       })
       // 不自动创建会话，因为根据新流程，会话应该在联系老师时创建
@@ -430,27 +433,49 @@ module.exports = {
         
       } else if (payment_type === 'deposit') {
         if (payer_id !== appointment.teacher_id) {
-          return error('只有预约教师可以支付保证金')
+          return error('只有预约教师可以支付信息费')
         }
         
-        // 保证金支付：允许在联系请求、待确认、待支付状态下支付
-        // 联系请求（contact_request）状态下也可以支付保证金来开启聊天
+        // 信息费支付：允许在联系请求、待确认、待支付状态下支付
+        // 联系请求（contact_request）状态下支付信息费即可开启聊天
         const allowedStatuses = ['contact_request', 'trial_invited', 'pending_confirm', 'pending_payment']
         if (!allowedStatuses.includes(appointment.status)) {
-          return error('当前预约状态不允许支付保证金')
+          return error('当前预约状态不允许支付信息费')
         }
         
-        const configDoc = await db.collection('system-config')
-          .where({ config_key: 'teacher_deposit_amount' })
+        // 新规则：信息费 = 教师 hourly_rate × 2（一节试课费用，2 小时）
+        // 金额以服务端实际查询的 hourly_rate 为准，前端展示仅做提示
+        const teacherProfileDoc = await db.collection('teacher-profiles')
+          .where({ teacher_id: appointment.teacher_id })
+          .field({ hourly_rate: true })
+          .limit(1)
           .get()
-        
-        const depositAmount = configDoc.data[0]?.config_value || 1
-        
-        if (amount !== depositAmount) {
-          return error(`保证金金额应为${depositAmount}元`)
+        const hourlyRate = Number(
+          teacherProfileDoc.data && teacherProfileDoc.data[0] && teacherProfileDoc.data[0].hourly_rate
+        ) || 0
+        // 若老师未设置 hourly_rate，则回退到 system-config 里的历史 teacher_deposit_amount（默认 1 元），避免阻塞
+        let expectedInfoFee = hourlyRate > 0 ? Number((hourlyRate * 2).toFixed(2)) : 0
+        if (expectedInfoFee <= 0) {
+          const configDoc = await db.collection('system-config')
+            .where({ config_key: 'teacher_deposit_amount' })
+            .get()
+          expectedInfoFee = Number(configDoc.data && configDoc.data[0] && configDoc.data[0].config_value) || 1
         }
         
-        // 检查该老师是否已经为该家长支付过保证金（一个家长只需要支付一次）
+        const payCents = Math.round(Number(amount) * 100)
+        const expectedCents = Math.round(expectedInfoFee * 100)
+        if (payCents !== expectedCents) {
+          console.warn('[payment-create] 信息费金额校验失败:', {
+            appointment_id,
+            teacher_id: appointment.teacher_id,
+            hourlyRate,
+            expectedInfoFee,
+            amount_client: amount
+          })
+          return error(`信息费金额应为${expectedInfoFee}元（老师一节课 2 小时费用）`)
+        }
+        
+        // 检查该老师是否已经为该家长支付过信息费（一个家长只需要支付一次）
         // 方式1: 检查会话中是否已标记为已支付
         const depositConversation = await db.collection('chat-conversations')
           .where({
@@ -462,11 +487,10 @@ module.exports = {
           .get()
         
         if (depositConversation.data && depositConversation.data.length > 0) {
-          return error('该家长与老师已支付过保证金，无需重复支付')
+          return error('该家长的聊天权限已开启，无需重复支付信息费')
         }
         
-        // 方式2: 检查是否已有已支付的保证金订单（针对该家长和该老师）
-        // 先查找该老师已支付的所有保证金订单
+        // 方式2: 检查是否已有已支付的信息费订单（针对该家长和该老师）
         const existingDepositOrders = await db.collection('payment-orders')
           .where({
             order_type: 'deposit',
@@ -475,7 +499,6 @@ module.exports = {
           })
           .get()
         
-        // 如果存在已支付的保证金订单，检查这些订单是否属于该家长的预约
         if (existingDepositOrders.data && existingDepositOrders.data.length > 0) {
           const appointmentIds = existingDepositOrders.data.map(order => order.appointment_id)
           if (appointmentIds.length > 0) {
@@ -488,7 +511,7 @@ module.exports = {
               .get()
             
             if (relatedAppointments.data && relatedAppointments.data.length > 0) {
-              return error('该家长与老师已支付过保证金，无需重复支付')
+              return error('该家长的聊天权限已开启，无需重复支付信息费')
             }
           }
         }
@@ -510,6 +533,8 @@ module.exports = {
         discount_amount: payment_type === 'course_fee' ? (Number(discountAmount) || 0) : 0,
         user_coupon_id: payment_type === 'course_fee' && user_coupon_id ? user_coupon_id : null,
         coupon_id: payment_type === 'course_fee' && couponId ? couponId : null,
+        // 业务用途标签：deposit 实际上是"信息费"，便于后续报表区分
+        fee_kind: payment_type === 'deposit' ? 'info_fee' : payment_type,
         status: 'pending',
         channel,
         payment_method: channel,
@@ -530,7 +555,7 @@ module.exports = {
         channel,
         description: payment_type === 'course_fee'
           ? `${appointment.course_type === 'trial' ? '试课' : '正式课程'}费用`
-          : '教师保证金',
+          : '教师信息费（一节试课 2 小时费用）',
         mockPayment: true
       }
       

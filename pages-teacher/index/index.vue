@@ -59,6 +59,23 @@
 			</view>
 		</view>
 		
+		<!-- 打卡待办横幅（仅在有待打卡预约时展示） -->
+		<view
+			v-if="(stats.needClockIn || 0) + (stats.needClockOut || 0) > 0"
+			class="clock-todo-banner"
+			@click="goToAppointments"
+		>
+			<view class="clock-todo-banner__main">
+				<text class="clock-todo-banner__title">课堂打卡待办</text>
+				<text class="clock-todo-banner__sub">
+					<text v-if="stats.needClockIn">{{ stats.needClockIn }} 节待上课打卡</text>
+					<text v-if="stats.needClockIn && stats.needClockOut">　·　</text>
+					<text v-if="stats.needClockOut">{{ stats.needClockOut }} 节待下课打卡</text>
+				</text>
+			</view>
+			<text class="clock-todo-banner__arrow">→</text>
+		</view>
+
 		<!-- 待处理预约 -->
 		<view class="appointments-section">
 			<view class="section-header">
@@ -145,7 +162,9 @@ export default {
 				monthIncome: 0,        // 本月收入（元）
 				totalStudents: 0,     // 累计学生数
 				upcoming3Days: 0,     // 未来3天预约数
-				upcoming7Days: 0       // 未来7天预约数
+				upcoming7Days: 0,     // 未来7天预约数
+				needClockIn: 0,       // 待上课打卡数量
+				needClockOut: 0       // 待下课打卡数量
 			},
 			// 待处理预约列表（需要教师确认或处理的预约）
 			pendingAppointments: [],
@@ -324,7 +343,9 @@ export default {
 						monthIncome: 2800,
 						totalStudents: 12,
 						upcoming3Days: 4,
-						upcoming7Days: 7
+						upcoming7Days: 7,
+						needClockIn: 1,
+						needClockOut: 0
 					}
 					this.pendingAppointments = mockAppointments
 						.filter(apt => apt.status === 'pending_confirm' || apt.status === 'pending_payment')
@@ -620,6 +641,42 @@ export default {
 .stat-label {
 	font-size: 24rpx;
 	color: #999999;
+}
+
+/* 打卡待办横幅 */
+.clock-todo-banner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 0 24rpx 0 24rpx;
+	padding: 24rpx 32rpx;
+	border-radius: 20rpx;
+	background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+	box-shadow: 0 4rpx 16rpx rgba(217, 119, 6, 0.15);
+}
+
+.clock-todo-banner__main {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+}
+
+.clock-todo-banner__title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #92400e;
+}
+
+.clock-todo-banner__sub {
+	font-size: 24rpx;
+	color: #b45309;
+	margin-top: 4rpx;
+}
+
+.clock-todo-banner__arrow {
+	font-size: 36rpx;
+	color: #b45309;
+	margin-left: 16rpx;
 }
 
 /* 预约列表区域 */

@@ -51,8 +51,17 @@
 								</text>
 							</view>
 						</view>
-						<view class="bg-light-secondary rounded px-2 py-1 font-sm" :class="getStatusClass(item.status)">
-							{{ getStatusText(item.status) }}
+						<view class="d-flex flex-column a-end">
+							<view class="bg-light-secondary rounded px-2 py-1 font-sm" :class="getStatusClass(item.status)">
+								{{ getStatusText(item.status) }}
+							</view>
+							<view
+								v-if="getClockBadge(item)"
+								class="rounded-pill px-2 py-1 font-xs mt-2"
+								:class="getClockBadge(item).className"
+							>
+								{{ getClockBadge(item).text }}
+							</view>
 						</view>
 					</view>
 					<view v-if="item.status === 'pending_confirm' || item.status === 'contact_request' || item.status === 'pending_payment'" class="d-flex a-center pt-3 border-top">
@@ -131,6 +140,65 @@ export default {
 		}
 	},
 	methods: {
+		/**
+		 * 计算每条预约的"打卡待办"徽章
+		 * 返回 { text, className } 或 null
+		 *  - confirmed/in_progress 且未上课打卡 + 已到打卡窗口 → 红色：待上课打卡
+		 *  - in_progress 已上课但未下课，且已超过排课结束时间 → 橙色：待下课打卡
+		 *  - in_progress 已上课但未下课，未到排课结束 → 灰色：上课中
+		 *  - in_progress 已上课已下课 / completed → 绿色：打卡已完成
+		 */
+		getClockBadge(item) {
+			if (!item) return null
+			const status = item.status
+			if (!['confirmed', 'in_progress', 'completed'].includes(status)) return null
+			if (!(item.deposit_paid === true || item.deposit_paid === 'true')) return null
+
+			const startTs = this.parseScheduleStart(item)
+			const endTs = this.parseScheduleEnd(item, startTs)
+			const now = Date.now()
+			const ALLOW_EARLY_MS = 15 * 60 * 1000
+
+			const started = !!item.class_started_at
+			const ended = !!item.class_ended_at
+
+			if (started && ended) {
+				return { text: '打卡已完成', className: 'badge-success' }
+			}
+			if (started && !ended) {
+				if (endTs && now >= endTs) {
+					return { text: '待下课打卡', className: 'badge-warning' }
+				}
+				return { text: '上课中', className: 'badge-info' }
+			}
+			// 未上课打卡
+			if (startTs && now >= startTs - ALLOW_EARLY_MS && (!endTs || now < endTs)) {
+				return { text: '待上课打卡', className: 'badge-danger' }
+			}
+			if (endTs && now >= endTs) {
+				return { text: '已超时未打卡', className: 'badge-danger' }
+			}
+			return { text: '未到打卡时间', className: 'badge-muted' }
+		},
+		parseScheduleStart(item) {
+			const schedule = item.schedule || {}
+			const date = schedule.date || item.appointment_date || item.date
+			const startTime = schedule.start_time || item.appointment_time || item.start_time
+			if (!date || !startTime) return 0
+			const ts = new Date(`${date}T${startTime}:00`).getTime()
+			return Number.isNaN(ts) ? 0 : ts
+		},
+		parseScheduleEnd(item, startTs) {
+			if (!startTs) return 0
+			const schedule = item.schedule || {}
+			if (schedule.end_time) {
+				const date = schedule.date || item.appointment_date
+				const ts = new Date(`${date}T${schedule.end_time}:00`).getTime()
+				if (!Number.isNaN(ts)) return ts
+			}
+			const duration = Number(schedule.duration || item.duration || 2)
+			return startTs + duration * 3600 * 1000
+		},
 		/**
 		 * 将数据库状态映射到筛选状态
 		 * @param {String} status - 数据库状态
@@ -352,6 +420,38 @@ export default {
 
 .tabbar-spacer {
 	height: 140rpx;
+}
+
+/* 打卡徽章样式 */
+.rounded-pill {
+	border-radius: 999rpx;
+	font-size: 22rpx;
+	white-space: nowrap;
+}
+
+.badge-danger {
+	background: #fee2e2;
+	color: #b91c1c;
+}
+
+.badge-warning {
+	background: #fef3c7;
+	color: #b45309;
+}
+
+.badge-success {
+	background: #d1fae5;
+	color: #047857;
+}
+
+.badge-info {
+	background: #dbeafe;
+	color: #1d4ed8;
+}
+
+.badge-muted {
+	background: #f3f4f6;
+	color: #6b7280;
 }
 
 /* CSS图标样式 */

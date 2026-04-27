@@ -6,7 +6,7 @@
 					<view class="hero-header">
 						<view>
 							<text class="display-name">{{ detail.display_name }}</text>
-							<text class="publish-meta">{{ detail.subject }} / {{ detail.student_grade }} / {{ detail.lesson_mode === 'online' ? '线上' : '线下' }}</text>
+							<text class="publish-meta">{{ detail.subject }} / {{ detail.student_grade }}<text v-if="studentGenderText(detail.student_gender)"> / {{ studentGenderText(detail.student_gender) }}</text> / {{ detail.lesson_mode === 'online' ? '线上' : '线下' }}</text>
 						</view>
 						<text class="status-badge">{{ detail.already_responded ? '已响应' : '可邀请' }}</text>
 					</view>
@@ -27,6 +27,10 @@
 						<text class="label">时间偏好</text>
 						<text class="value">{{ detail.time_note || '暂未指定，可进一步沟通' }}</text>
 					</view>
+					<view class="info-item">
+						<text class="label">孩子性别</text>
+						<text class="value">{{ studentGenderText(detail.student_gender) || '未填写' }}</text>
+					</view>
 					<view class="info-item multiline">
 						<text class="label">辅导目标</text>
 						<text class="value">{{ detail.goal || '家长暂未填写' }}</text>
@@ -41,7 +45,7 @@
 					<text class="section-title">邀请说明</text>
 					<view class="tips-box">
 						<text class="tip-line">1. 发送试课邀请后，家长会在消息和聊天中收到通知。</text>
-						<text class="tip-line">2. 若你尚未为该家长支付保证金，系统会先引导支付再发送邀请。</text>
+						<text class="tip-line">2. 若你尚未为该家长支付信息费，系统会先引导支付再发送邀请。</text>
 						<text class="tip-line">3. 发送成功后，可直接进入聊天继续沟通试课安排。</text>
 					</view>
 				</view>
@@ -54,20 +58,20 @@
 			<view v-if="detail" class="footer-card">
 				<view class="footer-texts">
 						<text class="footer-title">{{ detail.already_responded ? '继续跟进此需求' : '先建立联系，再进入聊天发送试课邀请' }}</text>
-						<text class="footer-desc">{{ detail.need_deposit ? '若你还未向该家长支付保证金，需要先完成支付后才能进入聊天。' : (detail.already_responded ? '如果之前已经发过试课邀请，聊天页不会重复发送。' : '首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。') }}</text>
+						<text class="footer-desc">{{ detail.need_deposit ? '若你还未向该家长支付信息费，需要先完成支付后才能进入聊天。' : (detail.already_responded ? '如果之前已经发过试课邀请，聊天页不会重复发送。' : '首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。') }}</text>
 				</view>
 				<button
 					v-if="!detail.already_responded"
 					class="action-btn"
 					:disabled="busy"
 					@click="onInvite"
-				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付保证金并进入聊天' : '进入聊天') }}</button>
+				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
 				<button
 					v-else
 					class="action-btn"
 					:disabled="busy"
 					@click="onContinue"
-				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付保证金并进入聊天' : '进入聊天') }}</button>
+				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
 			</view>
 		</view>
 	</view>
@@ -131,6 +135,11 @@ export default {
 				if (rawName) return rawName
 			}
 			return admin || '未填写'
+		},
+		studentGenderText(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return '男孩'
+			if (gender === 'female' || gender === 2 || gender === '2') return '女孩'
+			return ''
 		},
 		goChat(conversationId, appointmentId) {
 			if (!conversationId) {

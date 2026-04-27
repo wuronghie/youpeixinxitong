@@ -240,6 +240,7 @@
 								<view class="ml-3 flex-1">
 									<view class="d-flex a-center mb-1">
 										<text class="font-lg font-weight">{{ teacher.display_name || teacher.name || '教师' }}</text>
+										<text v-if="teacherGenderText(teacher.gender)" class="ml-2 teacher-gender-chip" :class="teacherGenderClass(teacher.gender)">{{ teacherGenderText(teacher.gender) }}</text>
 										<text v-if="teacher.is_verified" class="ml-2 stat-tag rounded px-2 py-1 font-xs text-white">认证</text>
 									</view>
 									<text class="font-sm text-light-muted d-block mb-1">
@@ -1020,9 +1021,27 @@ export default {
 				uni.showToast({ title: '教师信息不完整', icon: 'none' })
 				return
 			}
+			// 防抖：上一次跳转尚未完成时直接忽略，避免微信小程序 navigateTo 排队 5s 超时
+			if (this._navigatingDetail) return
+			this._navigatingDetail = true
 			const params = [`id=${profileId}`]
 			if (teacherUid) params.push(`teacherUid=${teacherUid}`)
-			uni.navigateTo({ url: `/pages/teacher/detail?${params.join('&')}` })
+			uni.navigateTo({
+				url: `/pages/teacher/detail?${params.join('&')}`,
+				success: () => {
+					this._navigatingDetail = false
+				},
+				fail: (err) => {
+					this._navigatingDetail = false
+					console.warn('[teacher/list] navigateTo detail failed:', err && err.errMsg)
+					if (err && /timeout/i.test(err.errMsg || '')) {
+						// timeout 多为页面栈过深或网络抖动，提示用户重试一次
+						uni.showToast({ title: '加载超时，请重试', icon: 'none' })
+					} else {
+						uni.showToast({ title: '打开失败，请重试', icon: 'none' })
+					}
+				}
+			})
 		},
 		formatPercent(rate) {
 			if (!rate && rate !== 0) return '0%'
@@ -1048,6 +1067,16 @@ export default {
 				parts.push(`教龄${years}年`)
 			}
 			return parts.length > 0 ? parts.join('・') : '专业教师'
+		},
+		teacherGenderText(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return '男'
+			if (gender === 'female' || gender === 2 || gender === '2') return '女'
+			return ''
+		},
+		teacherGenderClass(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return 'male'
+			if (gender === 'female' || gender === 2 || gender === '2') return 'female'
+			return ''
 		},
 		/**
 		 * 获取好评率
@@ -1384,5 +1413,23 @@ export default {
 .teacher-card-hover {
 	transform: translateY(-4rpx);
 	box-shadow: 0 18rpx 40rpx rgba(0, 0, 0, 0.14);
+}
+
+.teacher-gender-chip {
+	padding: 4rpx 14rpx;
+	border-radius: 999rpx;
+	font-size: 20rpx;
+	line-height: 1.4;
+	font-weight: 600;
+}
+
+.teacher-gender-chip.male {
+	color: #1677ff;
+	background: #e6f4ff;
+}
+
+.teacher-gender-chip.female {
+	color: #eb2f96;
+	background: #fff0f6;
 }
 </style>

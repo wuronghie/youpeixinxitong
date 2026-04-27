@@ -116,9 +116,21 @@ module.exports = {
       console.log('[payment-refund] 预约信息:', appointment ? {
         appointment_id: appointment._id,
         course_type: appointment.course_type,
-        teacher_id: appointment.teacher_id
+        teacher_id: appointment.teacher_id,
+        status: appointment.status,
+        has_review: appointment.has_review
       } : '无')
-      
+
+      // 家长一旦在合并的「评价 + 确认结果」页提交，预约会切到 completed 并写入 has_review，
+      // 视为认可本次结算，不再允许申请退款（前端已拦截，这里做服务端二次校验）
+      if (appointment && (appointment.status === 'completed' || appointment.has_review === true)) {
+        console.warn('[payment-refund] ❌ 订单已确认完成，不允许再申请退款', {
+          status: appointment.status,
+          has_review: appointment.has_review
+        })
+        return error('订单已确认，不可再申请退款')
+      }
+
       let refundAmount = Number(order.amount || order.total_amount || 0)
       if (appointment && appointment.course_type === 'trial') {
         refundAmount = Math.round(refundAmount * 0.5 * 100) / 100

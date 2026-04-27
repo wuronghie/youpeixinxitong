@@ -21,6 +21,12 @@
 	justify-content: flex-end;
 	gap: 20rpx;
 }
+.action-buttons__main.data-v-1578feaf {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 12rpx;
+}
 
 /* 统一按钮样式 */
 .action-btn.data-v-1578feaf {
@@ -75,6 +81,31 @@
 	background: #F5F9FF;
 	transform: scale(0.98);
 	box-shadow: 0 2rpx 6rpx rgba(74, 144, 226, 0.2);
+}
+.action-refund-link.data-v-1578feaf {
+	background: transparent;
+	color: #9ca3af;
+	font-size: 24rpx;
+	line-height: 1.4;
+	padding: 4rpx 0;
+	border: none;
+	box-shadow: none;
+	text-align: center;
+}
+.action-refund-link.data-v-1578feaf::after {
+	border: none;
+}
+.action-refund-link.data-v-1578feaf:active {
+	color: #6b7280;
+	background: transparent;
+}
+.action-btn-disabled.data-v-1578feaf {
+	background: #f3f4f6;
+	color: #9ca3af;
+	border: 2rpx dashed #d1d5db;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 

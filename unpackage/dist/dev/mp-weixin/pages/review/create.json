@@ -2,7 +2,5 @@
   "navigationBarTitleText": "发表评价",
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
-  "usingComponents": {
-    "card": "../../components/common/card"
-  }
+  "usingComponents": {}
 }

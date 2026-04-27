@@ -36,11 +36,19 @@ const _sfc_main = {
       },
       isInitialized: false,
       // 标记是否已初始化完成
-      initPromise: null
+      initPromise: null,
       // 保存初始化 Promise
+      // 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2
+      teacherHourlyRate: 0
     };
   },
   computed: {
+    // 信息费金额（元）= 老师课时费 × 2（一节试课 2 小时）；老师未设置时兜底 1 元，与后端兜底一致
+    infoFeeAmount() {
+      const rate = Number(this.teacherHourlyRate) || 0;
+      const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0;
+      return fee > 0 ? fee : 1;
+    },
     formattedMessages() {
       const result = [];
       let lastLabel = "";
@@ -105,6 +113,7 @@ const _sfc_main = {
       };
     }
     this.initConversation();
+    this.loadTeacherHourlyRate();
   },
   async onShow() {
     if (this.initPromise) {
@@ -116,8 +125,20 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:251", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:260", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
       await this.refreshMessages();
+    },
+    // 读取当前教师的 hourly_rate，供信息费金额展示和支付用
+    async loadTeacherHourlyRate() {
+      try {
+        const teacherProfile = common_vendor.tr.importObject("teacher-profile", { customUI: true });
+        const res = await teacherProfile.getProfile();
+        if (res && res.code === 0 && res.data) {
+          this.teacherHourlyRate = Number(res.data.hourly_rate) || 0;
+        }
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:272", "[信息费] 获取教师课时费失败，使用兜底金额:", e);
+      }
     },
     async initConversation() {
       this.initPromise = (async () => {
@@ -136,7 +157,7 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: res.message || "获取会话失败", icon: "none" });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:272", "获取会话失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:293", "获取会话失败:", error);
               common_vendor.index.showToast({ title: "获取会话失败", icon: "none" });
             }
           } else {
@@ -188,7 +209,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:321", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:342", "加载用户信息失败:", error);
       }
     },
     // 检查与当前会话家长是否已有试课成功记录，用于控制“邀请试课”按钮显示
@@ -211,12 +232,12 @@ const _sfc_main = {
         const res = await appointmentQuery.checkTrialStatusForParent({ parent_id: parentId });
         if (res.code === 0 && res.data) {
           this.hasTrialSuccess = !!res.data.hasTrialSuccess;
-          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:344", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
+          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:365", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
         } else {
           this.hasTrialSuccess = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:349", "[teacher-chat-conversation] 检查试课状态失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:370", "[teacher-chat-conversation] 检查试课状态失败:", error);
         this.hasTrialSuccess = false;
       }
     },
@@ -279,7 +300,7 @@ const _sfc_main = {
           await chatSend.markRead({ conversation_id: this.conversationId });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:428", "加载新消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:449", "加载新消息失败:", error);
         if (this.messages.length === 0) {
           await this.refreshMessages();
         }
@@ -346,7 +367,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "消息加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:502", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:523", "加载消息失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -393,7 +414,7 @@ const _sfc_main = {
           this.rollbackTempMessage(tempMsg.message_id, res.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:551", "发送消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:572", "发送消息失败:", error);
         this.rollbackTempMessage(tempMsg.message_id);
       } finally {
         this.sending = false;
@@ -524,7 +545,7 @@ const _sfc_main = {
         }
       } catch (error) {
         this.invitingTrial = false;
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:693", "发送试课邀请失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:714", "发送试课邀请失败:", error);
         common_vendor.index.showToast({ title: "发送失败，请稍后再试", icon: "none" });
       }
     },
@@ -546,8 +567,9 @@ const _sfc_main = {
       if (this.payingDeposit)
         return;
       common_vendor.index.showModal({
-        title: "支付保证金",
-        content: "支付1元保证金可开启聊天功能。防止私下交易，课程完成后自动退还。",
+        title: "支付信息费",
+        content: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节试课 2 小时费用）可开启与家长的聊天窗口。
+试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
         success: async (res) => {
           var _a;
           if (res.confirm) {
@@ -567,7 +589,7 @@ const _sfc_main = {
               const createRes = await paymentCreate.create({
                 appointment_id: appointmentId,
                 payment_type: "deposit",
-                amount: 1
+                amount: this.infoFeeAmount
               });
               if (createRes.code !== 0) {
                 this.payingDeposit = false;
@@ -598,7 +620,7 @@ const _sfc_main = {
               }
             } catch (error) {
               this.payingDeposit = false;
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:774", "支付失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:795", "支付失败:", error);
               common_vendor.index.showToast({ title: "支付失败，请稍后再试", icon: "none" });
             }
           }
@@ -647,7 +669,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     i: $data.scrollIntoView,
     j: $options.needPayDeposit
   }, $options.needPayDeposit ? {
-    k: common_vendor.t($data.payingDeposit ? "支付中..." : "支付保证金（¥1）"),
+    k: common_vendor.t($data.payingDeposit ? "支付中..." : `支付信息费（¥${$options.infoFeeAmount}）`),
     l: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args)),
     m: $data.payingDeposit ? 1 : ""
   } : common_vendor.e({

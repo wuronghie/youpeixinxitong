@@ -130,7 +130,7 @@ const _sfc_main = {
       const map = {
         trial: "试课订单",
         regular: "正式课程订单",
-        deposit: "保证金",
+        deposit: "信息费",
         refund: "退款订单"
       };
       return map[type] || "课程订单";

@@ -1,0 +1,15 @@
+{
+  "name": "appointment-attendance",
+  "version": "1.0.0",
+  "description": "教师上课/下课打卡云对象（含时间 + 定位校验）",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 60,
+    "concurrency": 10
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

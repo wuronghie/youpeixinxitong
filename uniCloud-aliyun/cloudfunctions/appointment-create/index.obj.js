@@ -159,9 +159,60 @@ module.exports = {
       const hourlyRate = Number(teacherProfile.hourly_rate || 100)
       const trialAmount = hourlyRate * 2 // 试课2小时
       
-      // 4. 创建试课邀请预约（状态为 trial_invited）
-      const appointmentNo = generateAppointmentNo()
       const now = Date.now()
+      
+      // 4. 先查会话，判断同一对（teacher_id + parent_id）是否历史已支付过信息费
+      //    业务规则：同一老师 + 同一家长只需支付一次信息费，整个会话生命周期内复用
+      //    （见 payment-create.create 的 deposit 重复支付校验）
+      const conversationDoc = await db.collection('chat-conversations')
+        .where({
+          teacher_id,
+          parent_id
+        })
+        .limit(1)
+        .get()
+      
+      const existingConversation = (conversationDoc.data && conversationDoc.data.length > 0)
+        ? conversationDoc.data[0]
+        : null
+      let inheritedDepositPaid = !!(existingConversation && existingConversation.teacher_deposit_paid)
+      
+      // 自愈：会话上没有 teacher_deposit_paid，但 payment-orders 有该老师 + 该家长的已支付信息费订单，
+      //       说明会话被历史 bug 错误重置过，这里恢复正确状态。
+      if (!inheritedDepositPaid) {
+        try {
+          const dbCmdLocal = db.command
+          const paidDepositOrders = await db.collection('payment-orders')
+            .where({
+              order_type: 'deposit',
+              payer_id: teacher_id,
+              status: dbCmdLocal.in(['paid', 'success'])
+            })
+            .get()
+          if (paidDepositOrders.data && paidDepositOrders.data.length > 0) {
+            const appointmentIds = paidDepositOrders.data
+              .map(order => order.appointment_id)
+              .filter(Boolean)
+            if (appointmentIds.length > 0) {
+              const relatedApt = await db.collection('appointments')
+                .where({
+                  _id: dbCmdLocal.in(appointmentIds),
+                  parent_id
+                })
+                .limit(1)
+                .get()
+              if (relatedApt.data && relatedApt.data.length > 0) {
+                inheritedDepositPaid = true
+              }
+            }
+          }
+        } catch (healErr) {
+          console.warn('[inviteTrial] 自愈 deposit 状态失败（忽略）:', healErr)
+        }
+      }
+      
+      // 5. 创建试课邀请预约（状态为 trial_invited）
+      const appointmentNo = generateAppointmentNo()
       
       const appointmentData = {
         appointment_no: appointmentNo,
@@ -179,6 +230,12 @@ module.exports = {
       }
       if (recruitment_id) appointmentData.recruitment_id = recruitment_id
       if (invited_via) appointmentData.invited_via = invited_via
+      // 同一对家长+老师之前已支付过信息费 → 直接继承到新建的试课预约，
+      // 否则发邀请卡片消息会被 chat-send 拦截"聊天未开启，请先支付信息费"
+      if (inheritedDepositPaid) {
+        appointmentData.deposit_paid = true
+        appointmentData.deposit_time = now
+      }
       
       const result = await db.collection('appointments').add(appointmentData)
       
@@ -186,27 +243,25 @@ module.exports = {
         return error('创建试课邀请失败')
       }
       
-      // 5. 创建或获取聊天会话（如果还没有会话）
-      const conversationDoc = await db.collection('chat-conversations')
-        .where({
-          teacher_id,
-          parent_id
-        })
-        .limit(1)
-        .get()
-      
+      // 6. 维护聊天会话
       let conversationId = null
-      if (conversationDoc.data && conversationDoc.data.length > 0) {
-        conversationId = conversationDoc.data[0]._id
-        // 复用旧会话时，重置为当前试课邀请的聊天状态，避免继承历史已支付状态
-        await db.collection('chat-conversations').doc(conversationId).update({
+      if (existingConversation) {
+        conversationId = existingConversation._id
+        // 复用旧会话：仅把 appointment_id 切到新预约，
+        // 注意 ❌ 不要重置 chat_enabled / teacher_deposit_paid——
+        // 同一对家长+老师只需付一次信息费，重置会导致老师无法继续聊天/邀请试课
+        const convUpdate = {
           appointment_id: result.id,
-          chat_enabled: false,
-          teacher_deposit_paid: false,
           update_time: now
-        })
+        }
+        // 自愈：如果通过订单回查确认应当已支付，但会话上为 false，这里一并修正
+        if (inheritedDepositPaid && !existingConversation.teacher_deposit_paid) {
+          convUpdate.teacher_deposit_paid = true
+          convUpdate.chat_enabled = true
+        }
+        await db.collection('chat-conversations').doc(conversationId).update(convUpdate)
       } else {
-        // 创建新会话
+        // 没有任何历史会话：新建一条，初始未支付未开聊
         const conversationResult = await db.collection('chat-conversations').add({
           teacher_id,
           parent_id,
@@ -611,7 +666,7 @@ module.exports = {
           teacher_id,
           parent_id,
           appointment_id: appointmentId,
-          chat_enabled: false, // 联系请求阶段还不能聊天，需教师支付保证金后开启
+          chat_enabled: false, // 联系请求阶段还不能聊天，需教师支付信息费后开启
           teacher_deposit_paid: false,
           last_message: '',
           last_message_time: null,

@@ -7,71 +7,29 @@
 
 		<scroll-view scroll-y class="scroll">
 			<view class="px-2 py-3">
-				<!-- 学生信息 -->
-				<card headTitle="学生信息" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">学生姓名</text>
-						<text class="font-sm text-right">{{ (appointment.student_info && appointment.student_info.name) || appointment.student_name || '学生' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">年级</text>
-						<text class="font-sm text-right">{{ (appointment.student_info && appointment.student_info.grade) || appointment.student_grade || '初中' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2">
-						<text class="font-sm">科目</text>
-						<text class="font-sm text-right">{{ (appointment.student_info && appointment.student_info.subject) || appointment.subject || '数学' }}</text>
-					</view>
-				</card>
+				<!-- 学生 + 预约信息（拆分为 setup 子组件） -->
+				<appointment-basic-card :appointment="appointment" class="mb-3" />
 
-				<!-- 预约信息 -->
-				<card headTitle="预约信息" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">预约号</text>
-						<text class="font-sm text-right">{{ appointment.appointment_no || 'APT202401010001' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">课程类型</text>
-						<text class="font-sm text-right">{{ (appointment.type === 'trial' || appointment.course_type === 'trial') ? '试课' : '正式课程' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">上课时间</text>
-						<text class="font-sm text-right">{{ (appointment.schedule && appointment.schedule.date) || appointment.appointment_date || '' }} {{ (appointment.schedule && appointment.schedule.start_time) || appointment.appointment_time || '' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">课程时长</text>
-						<text class="font-sm text-right">{{ (appointment.schedule && appointment.schedule.duration) || appointment.duration || 2 }}小时</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">上课地址</text>
-						<text class="font-sm text-right">{{ formatAddress(appointment.address) || '待确认' }}</text>
-					</view>
-					<view v-if="appointment.student_info && appointment.student_info.requirements" class="py-2">
-						<text class="font-sm d-block mb-2">辅导需求</text>
-						<text class="font-sm text-light-muted">{{ appointment.student_info.requirements }}</text>
-					</view>
-				</card>
+				<!-- 费用信息（拆分为 setup 子组件） -->
+				<appointment-fee-card
+					:appointment="appointment"
+					:info-fee-amount="infoFeeAmount"
+					class="mb-3"
+				/>
 
-				<!-- 费用信息 -->
-				<card headTitle="费用信息" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">课程费用</text>
-						<text class="font-md font-weight main-text-color text-right">¥{{ appointment.total_amount || appointment.total_fee || 300 }}</text>
-					</view>
-					<view v-if="appointment.status === 'pending_confirm' && !appointment.deposit_paid" class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">保证金</text>
-						<text class="font-sm text-warning text-right">¥1（需支付）</text>
-					</view>
-					<view v-if="appointment.deposit_paid" class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">保证金</text>
-						<text class="font-sm text-success text-right">¥1（已支付）</text>
-					</view>
-					<view v-if="(appointment.type === 'trial' || appointment.course_type === 'trial')" class="bg-warning rounded px-3 py-2 mt-2">
-						<text class="font-sm text-dark">试课说明：平台收取一节试课完整费用作为中介费（仅该家长与您首次试课成功时收取），本单试课收入为 0；确认完成后会记录流水。</text>
-					</view>
-					<view v-if="(appointment.type === 'regular' || appointment.course_type === 'regular')" class="bg-info rounded px-3 py-2 mt-2">
-						<text class="font-sm text-dark">正式课程说明：试课成功一次后平台不收费；若家长使用优惠券由平台承担，您将获得完整课程金额。家长确认完成后结算到钱包并生成收入流水。</text>
-					</view>
-				</card>
+				<!-- 课堂打卡（仅已确认 + 已支付信息费 + 试课/正式课 时展示） -->
+				<attendance-clock-card
+					v-if="showClockCard"
+					:appointment-id="appointment._id"
+					:status="appointment.status"
+					:class-started-at="appointment.class_started_at || null"
+					:class-started-location="appointment.class_started_location || null"
+					:class-ended-at="appointment.class_ended_at || null"
+					:class-ended-location="appointment.class_ended_location || null"
+					:schedule-start-ts="scheduleStartTs"
+					:schedule-end-ts="scheduleEndTs"
+					@clocked="onClocked"
+				/>
 
 				<!-- 退款信息 -->
 				<card v-if="refundInfo" headTitle="退款申请" class="mb-3 border-left border-warning" style="border-left-width: 6rpx;">
@@ -102,7 +60,7 @@
 				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
 				@click="handlePayDeposit"
 			>
-				支付保证金（¥1）
+				支付信息费（¥{{ infoFeeAmount }}）
 			</button>
 			<button 
 				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
@@ -150,13 +108,19 @@
 
 <script>
 import card from '@/components/common/card.vue'
+import AttendanceClockCard from '@/components/AttendanceClockCard.vue'
+import AppointmentBasicCard from '@/components/AppointmentBasicCard.vue'
+import AppointmentFeeCard from '@/components/AppointmentFeeCard.vue'
 import { mockAppointments, useMockData } from '@/utils/mockData.js'
 import { createAndPay, createAndPayWithUniPay } from '@/utils/payment.js'
 
 export default {
 	name: 'TeacherAppointmentDetail',
 	components: {
-		card
+		card,
+		AttendanceClockCard,
+		AppointmentBasicCard,
+		AppointmentFeeCard
 	},
 	data() {
 		return {
@@ -164,12 +128,59 @@ export default {
 			appointment: {},
 			refundInfo: null,
 			useMock: true,
-			isLoadingRefund: false
+			isLoadingRefund: false,
+			// 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2（一节试课 2 小时费用）
+			teacherHourlyRate: 0
+		}
+	},
+	computed: {
+		// 信息费金额（元）= 老师课时费 × 2；老师未设置时按 1 元兜底（与后端 fallback 一致）
+		infoFeeAmount() {
+			const fromAppt = Number(this.appointment && this.appointment.hourly_rate) || 0
+			const rate = fromAppt > 0 ? fromAppt : (Number(this.teacherHourlyRate) || 0)
+			const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0
+			return fee > 0 ? fee : 1
+		},
+		infoFeeAmountCents() {
+			return Math.round(this.infoFeeAmount * 100)
+		},
+		// 排课开始/结束时间戳（毫秒），供打卡卡片做时间窗口校验
+		scheduleStartTs() {
+			const apt = this.appointment || {}
+			const schedule = apt.schedule || {}
+			const date = schedule.date || apt.appointment_date || apt.date
+			const startTime = schedule.start_time || apt.appointment_time || apt.start_time
+			if (!date || !startTime) return 0
+			const ts = new Date(`${date}T${startTime}:00`).getTime()
+			return Number.isNaN(ts) ? 0 : ts
+		},
+		scheduleEndTs() {
+			const start = this.scheduleStartTs
+			if (!start) return 0
+			const apt = this.appointment || {}
+			const schedule = apt.schedule || {}
+			if (schedule.end_time && (schedule.date || apt.appointment_date)) {
+				const date = schedule.date || apt.appointment_date
+				const ts = new Date(`${date}T${schedule.end_time}:00`).getTime()
+				if (!Number.isNaN(ts)) return ts
+			}
+			const duration = Number(schedule.duration || apt.duration || 2)
+			return start + duration * 3600 * 1000
+		},
+		// 仅在已确认 + 已支付信息费的预约展示打卡卡片，且预约还未结算完成
+		showClockCard() {
+			const apt = this.appointment || {}
+			if (!apt._id) return false
+			const statusAllowsClock = ['pending_confirm', 'confirmed', 'in_progress'].includes(apt.status)
+			if (!statusAllowsClock && !apt.class_started_at) return false
+			if (!(apt.deposit_paid === true || apt.deposit_paid === 'true') && !apt.class_started_at) return false
+			return true
 		}
 	},
 	onLoad(options) {
 		this.appointmentId = options.id || 'appointment_001'
 		this.useMock = useMockData() !== false
+		this.loadTeacherHourlyRate()
 		this.loadDetail()
 	},
 	onShow() {
@@ -178,6 +189,23 @@ export default {
 		}
 	},
 	methods: {
+		// 打卡成功后刷新详情，获取最新 class_started_at / class_ended_at
+		onClocked() {
+			this.loadDetail()
+		},
+		// 读取当前教师的 hourly_rate，供信息费金额展示用
+		async loadTeacherHourlyRate() {
+			try {
+				const teacherProfile = uniCloud.importObject('teacher-profile', { customUI: true })
+				const res = await teacherProfile.getProfile()
+				if (res && res.code === 0 && res.data) {
+					this.teacherHourlyRate = Number(res.data.hourly_rate) || 0
+				}
+			} catch (e) {
+				// 忽略，保持 0；后端会二次校验金额
+				console.warn('[信息费] 获取教师课时费失败，后续以预约 hourly_rate 为准:', e)
+			}
+		},
 		async loadDetail() {
 			// 保存当前支付状态（如果已支付）
 			const currentDepositPaid = this.appointment?.deposit_paid
@@ -477,11 +505,11 @@ export default {
 				})
 				
 				if (conversationRes.code === 0 && conversationRes.data && conversationRes.data.teacher_deposit_paid) {
-					// 已支付过保证金，更新本地状态并提示
+					// 已支付过信息费，更新本地状态并提示
 					this.appointment.deposit_paid = true
 					uni.showModal({
 						title: '提示',
-						content: '您已支付过保证金，无需重复支付。',
+						content: '您已支付过信息费，无需重复支付。',
 						showCancel: false,
 						confirmText: '确定',
 						success: () => {
@@ -491,7 +519,7 @@ export default {
 					return
 				}
 			} catch (error) {
-				console.warn('[支付保证金] 检查会话状态失败，继续检查订单:', error)
+				console.warn('[支付信息费] 检查会话状态失败，继续检查订单:', error)
 			}
 			
 			// 再检查是否已有已支付的订单
@@ -514,7 +542,7 @@ export default {
 					if (paidOrder) {
 						uni.showModal({
 							title: '提示',
-							content: '您已支付过保证金，无需重复支付。',
+							content: '您已支付过信息费，无需重复支付。',
 							showCancel: false,
 							confirmText: '确定',
 							success: () => {
@@ -532,11 +560,11 @@ export default {
 					
 					if (pendingOrder) {
 						// 如果有待支付的订单，直接使用该订单进行支付
-						console.log('[支付保证金] 找到待支付订单，使用现有订单:', pendingOrder.order_no)
+						console.log('[支付信息费] 找到待支付订单，使用现有订单:', pendingOrder.order_no)
 						// 直接使用现有订单进行支付
 						uni.showModal({
-							title: '支付保证金',
-							content: '支付1元保证金可确认预约并开启聊天功能。防止私下交易，保证金不予退还。',
+							title: '支付信息费',
+							content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
 							success: async (res) => {
 								if (!res.confirm) return
 								await this.payWithExistingOrder(pendingOrder.order_no)
@@ -546,12 +574,12 @@ export default {
 					}
 				}
 			} catch (error) {
-				console.warn('[支付保证金] 检查现有订单失败，继续创建新订单:', error)
+				console.warn('[支付信息费] 检查现有订单失败，继续创建新订单:', error)
 			}
 			
 			uni.showModal({
-				title: '支付保证金',
-				content: '支付1元保证金可确认预约并开启聊天功能。防止私下交易，保证金不予退还。',
+				title: '支付信息费',
+				content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
 				success: async (res) => {
 					if (!res.confirm) return
 					
@@ -570,8 +598,8 @@ export default {
 								await createAndPayWithUniPay(payComponent, {
 									appointment_id: this.appointmentId,
 									payment_type: 'deposit',
-									amount: 100, // 1元 = 100分
-									description: '支付保证金'
+									amount: this.infoFeeAmountCents, // 信息费 = hourly_rate × 2（单位：分）
+									description: '支付信息费'
 								})
 								// 支付结果会在 onPaySuccess 或 onPayFail 中处理
 								return // 成功调用 uni-pay，等待事件回调
@@ -599,7 +627,7 @@ export default {
 											if (paidOrder) {
 												uni.showModal({
 													title: '提示',
-													content: '您已支付过保证金，无需重复支付。',
+													content: '您已支付过信息费，无需重复支付。',
 													showCancel: false,
 													confirmText: '确定',
 													success: () => {
@@ -624,7 +652,7 @@ export default {
 										// 如果找不到订单，提示用户
 										uni.showModal({
 											title: '提示',
-											content: '您已支付过保证金，无需重复支付。',
+											content: '您已支付过信息费，无需重复支付。',
 											showCancel: false,
 											confirmText: '确定',
 											success: () => {
@@ -633,11 +661,11 @@ export default {
 										})
 										return // 找不到订单但提示已支付，直接返回
 									} catch (checkError) {
-										console.error('[支付保证金] 检查现有订单失败:', checkError)
+										console.error('[支付信息费] 检查现有订单失败:', checkError)
 										// 检查失败，也提示用户
 										uni.showModal({
 											title: '提示',
-											content: '您已支付过保证金，无需重复支付。',
+											content: '您已支付过信息费，无需重复支付。',
 											showCancel: false,
 											confirmText: '确定',
 											success: () => {
@@ -648,11 +676,13 @@ export default {
 									}
 								}
 								
-								// 如果 uni-pay 调用失败，且不是"已支付过"的错误，降级到模拟支付
+								// 如果 uni-pay 调用失败，且不是"已支付过"的错误，进入下方降级路径
+								// 默认：createAndPay 直接返回错误，前端提示用户重试
+								// 开发者执行 uni.$enableMockPay() 后：走模拟支付 modal
 							}
 						}
 						
-						// 降级到模拟支付（开发模式）
+						// 降级处理（默认提示重试；模拟支付开关打开后会弹 modal）
 						uni.hideLoading()
 						
 						let payResult
@@ -660,7 +690,7 @@ export default {
 							payResult = await createAndPay({
 								appointment_id: this.appointmentId,
 								payment_type: 'deposit',
-								amount: 100
+								amount: this.infoFeeAmountCents
 							})
 						} catch (createError) {
 							// 如果创建订单失败，且错误是"已支付过"，查找现有订单
@@ -683,7 +713,7 @@ export default {
 										if (paidOrder) {
 											uni.showModal({
 												title: '提示',
-												content: '您已支付过保证金，无需重复支付。',
+												content: '您已支付过信息费，无需重复支付。',
 												showCancel: false,
 												confirmText: '确定',
 												success: () => {
@@ -708,7 +738,7 @@ export default {
 									// 如果找不到订单，提示用户
 									uni.showModal({
 										title: '提示',
-										content: '您已支付过保证金，无需重复支付。',
+										content: '您已支付过信息费，无需重复支付。',
 										showCancel: false,
 										confirmText: '确定',
 										success: () => {
@@ -717,11 +747,11 @@ export default {
 									})
 									return // 找不到订单但提示已支付，直接返回
 								} catch (checkError) {
-									console.error('[支付保证金] 检查现有订单失败:', checkError)
+									console.error('[支付信息费] 检查现有订单失败:', checkError)
 									// 检查失败，也提示用户
 									uni.showModal({
 										title: '提示',
-										content: '您已支付过保证金，无需重复支付。',
+										content: '您已支付过信息费，无需重复支付。',
 										showCancel: false,
 										confirmText: '确定',
 										success: () => {
@@ -821,7 +851,7 @@ export default {
 											if (paidOrder) {
 												uni.showModal({
 													title: '提示',
-													content: '您已支付过保证金，无需重复支付。',
+													content: '您已支付过信息费，无需重复支付。',
 													showCancel: false,
 													confirmText: '确定',
 													success: () => {
@@ -832,7 +862,7 @@ export default {
 											}
 										}
 									} catch (checkError) {
-										console.error('[支付保证金] 检查现有订单失败:', checkError)
+										console.error('[支付信息费] 检查现有订单失败:', checkError)
 									}
 								}
 								
@@ -847,7 +877,7 @@ export default {
 						}
 					} catch (error) {
 						uni.hideLoading()
-						console.error('支付保证金失败:', error)
+						console.error('支付信息费失败:', error)
 						uni.showToast({ 
 							title: error.message || '支付失败，请稍后重试', 
 							icon: 'none',
@@ -938,7 +968,7 @@ export default {
 					// 更新本地状态
 					if (this.appointment) {
 						this.appointment.deposit_paid = true
-						// 支付保证金后不自动确认，保持 pending_confirm 状态，需要老师手动确认
+						// 支付信息费后不自动确认，保持 pending_confirm 状态，需要老师手动确认
 						// this.appointment.status = this.appointment.status === 'pending_confirm' ? 'confirmed' : this.appointment.status
 					}
 					
@@ -1103,7 +1133,7 @@ export default {
 					throw new Error(payRes.message || '更新订单状态失败')
 				}
 			} catch (error) {
-				console.error('[支付保证金] 使用现有订单支付失败:', error)
+				console.error('[支付信息费] 使用现有订单支付失败:', error)
 				uni.showToast({ 
 					title: error.message || '支付失败，请稍后重试', 
 					icon: 'none',

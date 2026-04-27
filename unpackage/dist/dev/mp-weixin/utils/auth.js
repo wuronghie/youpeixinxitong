@@ -10,6 +10,8 @@ function normalizeUserInfoFromDb(data = {}) {
     role: activeRole,
     status: data.status || "active",
     phone: data.phone || "",
+    // 性别（uni-id 约定：0=未知, 1=男, 2=女）
+    gender: data.gender != null ? data.gender : 0,
     parent_info: data.parent_info || {},
     teacherProfile: data.teacher_info || data.teacherProfile || {},
     wallet: data.wallet || {}
@@ -44,10 +46,37 @@ async function checkProfileComplete(userInfo) {
   }
   if (userInfo.role === "parent") {
     const parentInfo = userInfo.parent_info || {};
-    if (!parentInfo.student_name || !parentInfo.student_grade) {
+    const phone = userInfo.phone || userInfo.mobile || parentInfo.phone || "";
+    const genderCode = userInfo.gender;
+    const genderFilled = genderCode === 1 || genderCode === 2 || genderCode === "1" || genderCode === "2" || genderCode === "male" || genderCode === "female";
+    const studentGender = parentInfo.student_gender;
+    const studentGenderFilled = studentGender === "male" || studentGender === "female" || studentGender === 1 || studentGender === 2 || studentGender === "1" || studentGender === "2";
+    const missing = [];
+    if (!parentInfo.real_name)
+      missing.push("家长姓名");
+    if (!genderFilled)
+      missing.push("性别");
+    if (!phone)
+      missing.push("手机号");
+    if (!parentInfo.student_name)
+      missing.push("学生姓名");
+    if (!studentGenderFilled)
+      missing.push("孩子性别");
+    if (!parentInfo.student_grade)
+      missing.push("学生年级");
+    common_vendor.index.__f__("log", "at utils/auth.js:77", "[auth] 家长信息检查:", {
+      real_name: parentInfo.real_name,
+      gender: genderCode,
+      phone,
+      student_name: parentInfo.student_name,
+      student_gender: studentGender,
+      student_grade: parentInfo.student_grade,
+      missing
+    });
+    if (missing.length > 0) {
       return {
         isComplete: false,
-        message: "请完善孩子信息（学生姓名和年级）",
+        message: "请完善资料：" + missing.join("、"),
         redirectUrl: "/pages/common/register"
       };
     }
@@ -56,7 +85,7 @@ async function checkProfileComplete(userInfo) {
     try {
       const dashboard = common_vendor.tr.importObject("teacher-dashboard", { customUI: true });
       const res = await dashboard.checkProfileComplete();
-      common_vendor.index.__f__("log", "at utils/auth.js:75", "[auth] 教师信息检查结果:", res);
+      common_vendor.index.__f__("log", "at utils/auth.js:100", "[auth] 教师信息检查结果:", res);
       if (res.code === 0 && res.data) {
         const { isComplete, missingFieldsText } = res.data;
         if (!isComplete) {
@@ -70,11 +99,11 @@ async function checkProfileComplete(userInfo) {
         }
         return { isComplete: true };
       } else {
-        common_vendor.index.__f__("warn", "at utils/auth.js:91", "[auth] 检查教师信息失败，跳转到首页:", res.message);
+        common_vendor.index.__f__("warn", "at utils/auth.js:116", "[auth] 检查教师信息失败，跳转到首页:", res.message);
         return { isComplete: true };
       }
     } catch (error) {
-      common_vendor.index.__f__("error", "at utils/auth.js:95", "[auth] 检查教师信息异常:", error);
+      common_vendor.index.__f__("error", "at utils/auth.js:120", "[auth] 检查教师信息异常:", error);
       return { isComplete: true };
     }
   }
@@ -116,7 +145,7 @@ async function fetchRemoteUserInfo(options = {}) {
     }
     throw new Error(res.message || "获取用户信息失败");
   } catch (error) {
-    common_vendor.index.__f__("error", "at utils/auth.js:149", "[auth] 获取远程用户信息失败:", error);
+    common_vendor.index.__f__("error", "at utils/auth.js:174", "[auth] 获取远程用户信息失败:", error);
     const local = getStoredUserInfo();
     if (local && local.uid) {
       return local;

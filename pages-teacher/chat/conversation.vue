@@ -94,9 +94,9 @@
 		<!-- 输入栏 -->
 		<view class="input-bar">
 			<view v-if="needPayDeposit" class="deposit-tip">
-				<text class="deposit-tip-text">支付保证金后才能开始聊天</text>
+				<text class="deposit-tip-text">支付信息费后才能开始聊天</text>
 				<view class="deposit-btn" @click="handlePayDeposit" :class="{ 'deposit-btn-disabled': payingDeposit }">
-					<text class="deposit-btn-text">{{ payingDeposit ? '支付中...' : '支付保证金（¥1）' }}</text>
+					<text class="deposit-btn-text">{{ payingDeposit ? '支付中...' : `支付信息费（¥${infoFeeAmount}）` }}</text>
 				</view>
 			</view>
 			<view v-else>
@@ -169,10 +169,18 @@ export default {
 				hasMore: true
 			},
 			isInitialized: false, // 标记是否已初始化完成
-			initPromise: null // 保存初始化 Promise
+			initPromise: null, // 保存初始化 Promise
+			// 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2
+			teacherHourlyRate: 0
 		}
 	},
 	computed: {
+		// 信息费金额（元）= 老师课时费 × 2（一节试课 2 小时）；老师未设置时兜底 1 元，与后端兜底一致
+		infoFeeAmount() {
+			const rate = Number(this.teacherHourlyRate) || 0
+			const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0
+			return fee > 0 ? fee : 1
+		},
 		formattedMessages() {
 			const result = []
 			let lastLabel = ''
@@ -234,6 +242,7 @@ export default {
 		}
 
 		this.initConversation()
+		this.loadTeacherHourlyRate()
 	},
 	async onShow() {
 		// 等待初始化完成
@@ -250,6 +259,18 @@ export default {
 		async refreshData() {
 			console.log('[teacher-chat-conversation] 下拉刷新：重新加载消息')
 			await this.refreshMessages()
+		},
+		// 读取当前教师的 hourly_rate，供信息费金额展示和支付用
+		async loadTeacherHourlyRate() {
+			try {
+				const teacherProfile = uniCloud.importObject('teacher-profile', { customUI: true })
+				const res = await teacherProfile.getProfile()
+				if (res && res.code === 0 && res.data) {
+					this.teacherHourlyRate = Number(res.data.hourly_rate) || 0
+				}
+			} catch (e) {
+				console.warn('[信息费] 获取教师课时费失败，使用兜底金额:', e)
+			}
 		},
 		async initConversation() {
 			// 保存初始化 Promise
@@ -713,8 +734,8 @@ export default {
 			if (this.payingDeposit) return
 			
 			uni.showModal({
-				title: '支付保证金',
-				content: '支付1元保证金可开启聊天功能。防止私下交易，课程完成后自动退还。',
+				title: '支付信息费',
+				content: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节试课 2 小时费用）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
 				success: async (res) => {
 					if (res.confirm) {
 						try {
@@ -735,7 +756,7 @@ export default {
 							const createRes = await paymentCreate.create({
 								appointment_id: appointmentId,
 								payment_type: 'deposit',
-								amount: 1
+								amount: this.infoFeeAmount
 							})
 							
 							if (createRes.code !== 0) {

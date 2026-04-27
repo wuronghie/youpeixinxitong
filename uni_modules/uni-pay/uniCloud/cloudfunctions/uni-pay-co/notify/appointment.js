@@ -87,7 +87,7 @@ module.exports = async (obj) => {
     let updateData = {};
     
     if (payment_type === 'deposit') {
-      // 教师保证金（与 payment-create handlePaySuccess 一致）
+      // 教师信息费（与 payment-create handlePaySuccess 一致）
       let nextStatus = 'pending_confirm';
       if (appointment.status === 'contact_request') nextStatus = 'contact_request';
       else if (appointment.status === 'trial_invited') nextStatus = 'trial_invited';
@@ -99,10 +99,10 @@ module.exports = async (obj) => {
         status: nextStatus
       };
 
-      console.log('[notify:appointment] 📝 准备更新预约（保证金）:', JSON.stringify(updateData, null, 2));
+      console.log('[notify:appointment] 📝 准备更新预约（信息费）:', JSON.stringify(updateData, null, 2));
 
       const updateResult = await db.collection('appointments').doc(appointment_id).update(updateData);
-      console.log('[notify:appointment] ✅ 更新预约成功（保证金）:', {
+      console.log('[notify:appointment] ✅ 更新预约成功（信息费）:', {
         appointment_id,
         updated: updateResult.updated,
         upserted: updateResult.upserted
@@ -119,7 +119,7 @@ module.exports = async (obj) => {
           });
         }
       } catch (convErr) {
-        console.error('[notify:appointment] 更新会话(保证金)失败:', convErr);
+        console.error('[notify:appointment] 更新会话(信息费)失败:', convErr);
       }
 
       try {
@@ -133,7 +133,7 @@ module.exports = async (obj) => {
     } else {
       // 家长课程费（默认）
       // 判断下一个状态：参考 payment-create 的逻辑
-      // 如果已经支付了保证金或已经是 confirmed，则直接 confirmed；否则 pending_confirm
+      // 如果已经支付了信息费或已经是 confirmed，则直接 confirmed；否则 pending_confirm
       const nextStatus = (appointment.deposit_paid || appointment.status === 'confirmed') 
         ? 'confirmed' 
         : 'pending_confirm';

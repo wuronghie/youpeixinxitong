@@ -1,6 +1,6 @@
 {
 	"bsonType": "object",
-	"required": ["parent_id", "status", "display_name", "subject", "student_grade", "lesson_mode", "expire_at"],
+	"required": ["parent_id", "status", "display_name", "subject", "student_grade", "student_gender", "lesson_mode", "expire_at"],
 	"permission": {
 		"read": "doc.parent_id == auth.uid",
 		"create": "auth.uid != null",
@@ -14,6 +14,7 @@
 		"display_name": { "bsonType": "string", "description": "教师端脱敏展示名" },
 		"subject": { "bsonType": "string", "description": "科目" },
 		"student_grade": { "bsonType": "string", "description": "年级" },
+		"student_gender": { "bsonType": "string", "enum": ["male", "female"], "description": "孩子性别" },
 		"lesson_mode": { "bsonType": "string", "enum": ["online", "offline"], "description": "授课方式" },
 		"region": {
 			"bsonType": "object",

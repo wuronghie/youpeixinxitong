@@ -20,6 +20,33 @@
 	height: 140rpx;
 }
 
+/* 打卡徽章样式 */
+.rounded-pill.data-v-d652b2bb {
+	border-radius: 999rpx;
+	font-size: 22rpx;
+	white-space: nowrap;
+}
+.badge-danger.data-v-d652b2bb {
+	background: #fee2e2;
+	color: #b91c1c;
+}
+.badge-warning.data-v-d652b2bb {
+	background: #fef3c7;
+	color: #b45309;
+}
+.badge-success.data-v-d652b2bb {
+	background: #d1fae5;
+	color: #047857;
+}
+.badge-info.data-v-d652b2bb {
+	background: #dbeafe;
+	color: #1d4ed8;
+}
+.badge-muted.data-v-d652b2bb {
+	background: #f3f4f6;
+	color: #6b7280;
+}
+
 /* CSS图标样式 */
 .icon-empty.data-v-d652b2bb {
 	width: 240rpx;

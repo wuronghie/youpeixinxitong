@@ -68,7 +68,7 @@ module.exports = {
         {
           key: "teacher_deposit_amount",
           value: 1,
-          description: "教师确认预约需支付的保证金（元）",
+          description: "教师确认预约需支付的信息费（元）",
           create_time: Date.now(),
           update_time: Date.now()
         },

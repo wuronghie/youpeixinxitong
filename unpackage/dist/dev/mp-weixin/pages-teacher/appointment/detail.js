@@ -3,10 +3,16 @@ const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_payment = require("../../utils/payment.js");
 const card = () => "../../components/common/card.js";
+const AttendanceClockCard = () => "../../components/AttendanceClockCard.js";
+const AppointmentBasicCard = () => "../../components/AppointmentBasicCard.js";
+const AppointmentFeeCard = () => "../../components/AppointmentFeeCard.js";
 const _sfc_main = {
   name: "TeacherAppointmentDetail",
   components: {
-    card
+    card,
+    AttendanceClockCard,
+    AppointmentBasicCard,
+    AppointmentFeeCard
   },
   data() {
     return {
@@ -14,12 +20,65 @@ const _sfc_main = {
       appointment: {},
       refundInfo: null,
       useMock: true,
-      isLoadingRefund: false
+      isLoadingRefund: false,
+      // 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2（一节试课 2 小时费用）
+      teacherHourlyRate: 0
     };
+  },
+  computed: {
+    // 信息费金额（元）= 老师课时费 × 2；老师未设置时按 1 元兜底（与后端 fallback 一致）
+    infoFeeAmount() {
+      const fromAppt = Number(this.appointment && this.appointment.hourly_rate) || 0;
+      const rate = fromAppt > 0 ? fromAppt : Number(this.teacherHourlyRate) || 0;
+      const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0;
+      return fee > 0 ? fee : 1;
+    },
+    infoFeeAmountCents() {
+      return Math.round(this.infoFeeAmount * 100);
+    },
+    // 排课开始/结束时间戳（毫秒），供打卡卡片做时间窗口校验
+    scheduleStartTs() {
+      const apt = this.appointment || {};
+      const schedule = apt.schedule || {};
+      const date = schedule.date || apt.appointment_date || apt.date;
+      const startTime = schedule.start_time || apt.appointment_time || apt.start_time;
+      if (!date || !startTime)
+        return 0;
+      const ts = (/* @__PURE__ */ new Date(`${date}T${startTime}:00`)).getTime();
+      return Number.isNaN(ts) ? 0 : ts;
+    },
+    scheduleEndTs() {
+      const start = this.scheduleStartTs;
+      if (!start)
+        return 0;
+      const apt = this.appointment || {};
+      const schedule = apt.schedule || {};
+      if (schedule.end_time && (schedule.date || apt.appointment_date)) {
+        const date = schedule.date || apt.appointment_date;
+        const ts = (/* @__PURE__ */ new Date(`${date}T${schedule.end_time}:00`)).getTime();
+        if (!Number.isNaN(ts))
+          return ts;
+      }
+      const duration = Number(schedule.duration || apt.duration || 2);
+      return start + duration * 3600 * 1e3;
+    },
+    // 仅在已确认 + 已支付信息费的预约展示打卡卡片，且预约还未结算完成
+    showClockCard() {
+      const apt = this.appointment || {};
+      if (!apt._id)
+        return false;
+      const statusAllowsClock = ["pending_confirm", "confirmed", "in_progress"].includes(apt.status);
+      if (!statusAllowsClock && !apt.class_started_at)
+        return false;
+      if (!(apt.deposit_paid === true || apt.deposit_paid === "true") && !apt.class_started_at)
+        return false;
+      return true;
+    }
   },
   onLoad(options) {
     this.appointmentId = options.id || "appointment_001";
     this.useMock = utils_mockData.useMockData() !== false;
+    this.loadTeacherHourlyRate();
     this.loadDetail();
   },
   onShow() {
@@ -28,6 +87,22 @@ const _sfc_main = {
     }
   },
   methods: {
+    // 打卡成功后刷新详情，获取最新 class_started_at / class_ended_at
+    onClocked() {
+      this.loadDetail();
+    },
+    // 读取当前教师的 hourly_rate，供信息费金额展示用
+    async loadTeacherHourlyRate() {
+      try {
+        const teacherProfile = common_vendor.tr.importObject("teacher-profile", { customUI: true });
+        const res = await teacherProfile.getProfile();
+        if (res && res.code === 0 && res.data) {
+          this.teacherHourlyRate = Number(res.data.hourly_rate) || 0;
+        }
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:206", "[信息费] 获取教师课时费失败，后续以预约 hourly_rate 为准:", e);
+      }
+    },
     async loadDetail() {
       var _a, _b;
       const currentDepositPaid = (_a = this.appointment) == null ? void 0 : _a.deposit_paid;
@@ -63,7 +138,7 @@ const _sfc_main = {
                 }
               }
             } catch (error) {
-              common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:222", "检查会话状态失败:", error);
+              common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:250", "检查会话状态失败:", error);
             }
             if (currentDepositPaid !== void 0 && currentDepositPaid) {
               this.appointment.deposit_paid = true;
@@ -86,7 +161,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:249", "加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:277", "加载失败:", error);
         if (currentDepositPaid !== void 0 && currentDepositPaid && this.appointment) {
           this.appointment.deposit_paid = true;
           if (currentStatus) {
@@ -268,7 +343,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:457", "拒绝失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:485", "拒绝失败:", error);
               common_vendor.index.showToast({ title: "操作失败", icon: "none" });
             }
           }
@@ -290,7 +365,7 @@ const _sfc_main = {
           this.appointment.deposit_paid = true;
           common_vendor.index.showModal({
             title: "提示",
-            content: "您已支付过保证金，无需重复支付。",
+            content: "您已支付过信息费，无需重复支付。",
             showCancel: false,
             confirmText: "确定",
             success: () => {
@@ -300,7 +375,7 @@ const _sfc_main = {
           return;
         }
       } catch (error) {
-        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:494", "[支付保证金] 检查会话状态失败，继续检查订单:", error);
+        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:522", "[支付信息费] 检查会话状态失败，继续检查订单:", error);
       }
       try {
         const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
@@ -318,7 +393,7 @@ const _sfc_main = {
           if (paidOrder) {
             common_vendor.index.showModal({
               title: "提示",
-              content: "您已支付过保证金，无需重复支付。",
+              content: "您已支付过信息费，无需重复支付。",
               showCancel: false,
               confirmText: "确定",
               success: () => {
@@ -331,10 +406,11 @@ const _sfc_main = {
             (order) => order.status === "pending" || order.status === "unpaid"
           );
           if (pendingOrder) {
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:535", "[支付保证金] 找到待支付订单，使用现有订单:", pendingOrder.order_no);
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:563", "[支付信息费] 找到待支付订单，使用现有订单:", pendingOrder.order_no);
             common_vendor.index.showModal({
-              title: "支付保证金",
-              content: "支付1元保证金可确认预约并开启聊天功能。防止私下交易，保证金不予退还。",
+              title: "支付信息费",
+              content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || this.appointment && this.appointment.hourly_rate || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。
+试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
               success: async (res) => {
                 if (!res.confirm)
                   return;
@@ -345,11 +421,12 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:549", "[支付保证金] 检查现有订单失败，继续创建新订单:", error);
+        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:577", "[支付信息费] 检查现有订单失败，继续创建新订单:", error);
       }
       common_vendor.index.showModal({
-        title: "支付保证金",
-        content: "支付1元保证金可确认预约并开启聊天功能。防止私下交易，保证金不予退还。",
+        title: "支付信息费",
+        content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || this.appointment && this.appointment.hourly_rate || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。
+试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
         success: async (res) => {
           var _a;
           if (!res.confirm)
@@ -363,13 +440,13 @@ const _sfc_main = {
                 await utils_payment.createAndPayWithUniPay(payComponent, {
                   appointment_id: this.appointmentId,
                   payment_type: "deposit",
-                  amount: 100,
-                  // 1元 = 100分
-                  description: "支付保证金"
+                  amount: this.infoFeeAmountCents,
+                  // 信息费 = hourly_rate × 2（单位：分）
+                  description: "支付信息费"
                 });
                 return;
               } catch (error) {
-                common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:579", "uni-pay 组件调用失败:", error);
+                common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:607", "uni-pay 组件调用失败:", error);
                 if (error.message && error.message.includes("已支付过")) {
                   common_vendor.index.hideLoading();
                   try {
@@ -388,7 +465,7 @@ const _sfc_main = {
                       if (paidOrder) {
                         common_vendor.index.showModal({
                           title: "提示",
-                          content: "您已支付过保证金，无需重复支付。",
+                          content: "您已支付过信息费，无需重复支付。",
                           showCancel: false,
                           confirmText: "确定",
                           success: () => {
@@ -407,7 +484,7 @@ const _sfc_main = {
                     }
                     common_vendor.index.showModal({
                       title: "提示",
-                      content: "您已支付过保证金，无需重复支付。",
+                      content: "您已支付过信息费，无需重复支付。",
                       showCancel: false,
                       confirmText: "确定",
                       success: () => {
@@ -416,10 +493,10 @@ const _sfc_main = {
                     });
                     return;
                   } catch (checkError) {
-                    common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:636", "[支付保证金] 检查现有订单失败:", checkError);
+                    common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:664", "[支付信息费] 检查现有订单失败:", checkError);
                     common_vendor.index.showModal({
                       title: "提示",
-                      content: "您已支付过保证金，无需重复支付。",
+                      content: "您已支付过信息费，无需重复支付。",
                       showCancel: false,
                       confirmText: "确定",
                       success: () => {
@@ -437,7 +514,7 @@ const _sfc_main = {
               payResult = await utils_payment.createAndPay({
                 appointment_id: this.appointmentId,
                 payment_type: "deposit",
-                amount: 100
+                amount: this.infoFeeAmountCents
               });
             } catch (createError) {
               if (createError.message && createError.message.includes("已支付过")) {
@@ -457,7 +534,7 @@ const _sfc_main = {
                     if (paidOrder) {
                       common_vendor.index.showModal({
                         title: "提示",
-                        content: "您已支付过保证金，无需重复支付。",
+                        content: "您已支付过信息费，无需重复支付。",
                         showCancel: false,
                         confirmText: "确定",
                         success: () => {
@@ -476,7 +553,7 @@ const _sfc_main = {
                   }
                   common_vendor.index.showModal({
                     title: "提示",
-                    content: "您已支付过保证金，无需重复支付。",
+                    content: "您已支付过信息费，无需重复支付。",
                     showCancel: false,
                     confirmText: "确定",
                     success: () => {
@@ -485,10 +562,10 @@ const _sfc_main = {
                   });
                   return;
                 } catch (checkError) {
-                  common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:720", "[支付保证金] 检查现有订单失败:", checkError);
+                  common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:750", "[支付信息费] 检查现有订单失败:", checkError);
                   common_vendor.index.showModal({
                     title: "提示",
-                    content: "您已支付过保证金，无需重复支付。",
+                    content: "您已支付过信息费，无需重复支付。",
                     showCancel: false,
                     confirmText: "确定",
                     success: () => {
@@ -542,7 +619,7 @@ const _sfc_main = {
                   throw new Error("未找到支付订单");
                 }
               } catch (error) {
-                common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:791", "[支付成功] 更新数据库失败:", error);
+                common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:821", "[支付成功] 更新数据库失败:", error);
                 common_vendor.index.showToast({
                   title: error.message || "支付成功，但更新状态失败，请刷新页面查看",
                   icon: "none",
@@ -571,7 +648,7 @@ const _sfc_main = {
                       if (paidOrder) {
                         common_vendor.index.showModal({
                           title: "提示",
-                          content: "您已支付过保证金，无需重复支付。",
+                          content: "您已支付过信息费，无需重复支付。",
                           showCancel: false,
                           confirmText: "确定",
                           success: () => {
@@ -582,7 +659,7 @@ const _sfc_main = {
                       }
                     }
                   } catch (checkError) {
-                    common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:835", "[支付保证金] 检查现有订单失败:", checkError);
+                    common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:865", "[支付信息费] 检查现有订单失败:", checkError);
                   }
                 }
                 if (!payResult.message.includes("取消")) {
@@ -596,7 +673,7 @@ const _sfc_main = {
             }
           } catch (error) {
             common_vendor.index.hideLoading();
-            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:850", "支付保证金失败:", error);
+            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:880", "支付信息费失败:", error);
             common_vendor.index.showToast({
               title: error.message || "支付失败，请稍后重试",
               icon: "none",
@@ -611,22 +688,22 @@ const _sfc_main = {
     },
     // uni-pay 组件事件：订单创建成功
     onPayCreate(res) {
-      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:866", "支付订单创建成功:", res);
+      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:896", "支付订单创建成功:", res);
     },
     // uni-pay 组件事件：支付成功
     async onPaySuccess(res) {
       var _a, _b;
-      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:870", "[支付成功] uni-pay 回调:", res);
+      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:900", "[支付成功] uni-pay 回调:", res);
       const isPaid = res.has_paid || res.status === 1 || res.user_order_success;
       if (!isPaid) {
-        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:875", "[支付成功] 支付成功事件但状态异常:", res);
+        common_vendor.index.__f__("warn", "at pages-teacher/appointment/detail.vue:905", "[支付成功] 支付成功事件但状态异常:", res);
         return;
       }
       const order_no = res.order_no || ((_a = res.pay_order) == null ? void 0 : _a.order_no);
       const out_trade_no = res.out_trade_no;
       const custom = res.custom || {};
       const order_id = custom.order_id;
-      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:885", "[支付成功] 订单信息:", {
+      common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:915", "[支付成功] 订单信息:", {
         order_no,
         out_trade_no,
         order_id,
@@ -637,7 +714,7 @@ const _sfc_main = {
         const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
         let finalOrderNo = order_no;
         if (!finalOrderNo) {
-          common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:901", "[支付成功] 未找到 order_no，通过 appointment_id 查找订单...");
+          common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:931", "[支付成功] 未找到 order_no，通过 appointment_id 查找订单...");
           const orderListRes = await paymentCreate.getOrderList({
             appointment_id: this.appointmentId || custom.appointment_id,
             payment_type: custom.payment_type || "deposit",
@@ -651,13 +728,13 @@ const _sfc_main = {
               (order) => order.status === "pending" || order.status === "unpaid"
             );
             finalOrderNo = pendingOrder ? pendingOrder.order_no : orderListRes.data.list[0].order_no;
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:916", "[支付成功] 找到订单:", finalOrderNo);
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:946", "[支付成功] 找到订单:", finalOrderNo);
           }
         }
         if (!finalOrderNo) {
           throw new Error("无法获取订单号，请稍后刷新页面查看支付状态");
         }
-        common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:925", "[支付成功] 更新订单状态，order_no:", finalOrderNo);
+        common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:955", "[支付成功] 更新订单状态，order_no:", finalOrderNo);
         const payRes = await paymentCreate.mockPaySuccess({
           order_no: finalOrderNo,
           out_trade_no,
@@ -665,7 +742,7 @@ const _sfc_main = {
           uni_pay_order_no: order_no
         });
         if (payRes.code === 0) {
-          common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:933", "[支付成功] 数据库更新成功:", {
+          common_vendor.index.__f__("log", "at pages-teacher/appointment/detail.vue:963", "[支付成功] 数据库更新成功:", {
             appointment_status: (_b = payRes.data) == null ? void 0 : _b.appointment_status,
             order_no: finalOrderNo
           });
@@ -684,7 +761,7 @@ const _sfc_main = {
           throw new Error(payRes.message || "更新订单状态失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:959", "[支付成功] 更新数据库失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:989", "[支付成功] 更新数据库失败:", error);
         common_vendor.index.showToast({
           title: error.message || "支付成功，但更新状态失败，请刷新页面查看",
           icon: "none",
@@ -697,7 +774,7 @@ const _sfc_main = {
     },
     // uni-pay 组件事件：支付失败
     onPayFail(err) {
-      common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:973", "支付失败:", err);
+      common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1003", "支付失败:", err);
       if (err.errMsg && !err.errMsg.includes("cancel")) {
         common_vendor.index.showToast({
           title: err.errMsg || "支付失败",
@@ -736,7 +813,7 @@ const _sfc_main = {
             }
           } catch (error) {
             common_vendor.index.hideLoading();
-            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1015", "确认预约失败:", error);
+            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1045", "确认预约失败:", error);
             common_vendor.index.showToast({ title: "操作失败", icon: "none" });
           }
         }
@@ -773,7 +850,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "操作失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1050", "教师审核退款失败:", error);
+            common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1080", "教师审核退款失败:", error);
             common_vendor.index.showToast({ title: "操作失败", icon: "none" });
           }
         }
@@ -827,7 +904,7 @@ const _sfc_main = {
           throw new Error(payRes.message || "更新订单状态失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1106", "[支付保证金] 使用现有订单支付失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/detail.vue:1136", "[支付信息费] 使用现有订单支付失败:", error);
         common_vendor.index.showToast({
           title: error.message || "支付失败，请稍后重试",
           icon: "none",
@@ -840,9 +917,12 @@ const _sfc_main = {
   }
 };
 if (!Array) {
+  const _component_appointment_basic_card = common_vendor.resolveComponent("appointment-basic-card");
+  const _component_appointment_fee_card = common_vendor.resolveComponent("appointment-fee-card");
+  const _component_attendance_clock_card = common_vendor.resolveComponent("attendance-clock-card");
   const _component_card = common_vendor.resolveComponent("card");
   const _easycom_uni_pay2 = common_vendor.resolveComponent("uni-pay");
-  (_component_card + _easycom_uni_pay2)();
+  (_component_appointment_basic_card + _component_appointment_fee_card + _component_attendance_clock_card + _component_card + _easycom_uni_pay2)();
 }
 const _easycom_uni_pay = () => "../../uni_modules/uni-pay/components/uni-pay/uni-pay.js";
 if (!Math) {
@@ -852,85 +932,76 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: common_vendor.t($options.getStatusText($data.appointment.status)),
     b: common_vendor.n($options.getStatusClass($data.appointment.status)),
-    c: common_vendor.t($data.appointment.student_info && $data.appointment.student_info.name || $data.appointment.student_name || "学生"),
-    d: common_vendor.t($data.appointment.student_info && $data.appointment.student_info.grade || $data.appointment.student_grade || "初中"),
-    e: common_vendor.t($data.appointment.student_info && $data.appointment.student_info.subject || $data.appointment.subject || "数学"),
-    f: common_vendor.p({
-      headTitle: "学生信息"
+    c: common_vendor.p({
+      appointment: $data.appointment
     }),
-    g: common_vendor.t($data.appointment.appointment_no || "APT202401010001"),
-    h: common_vendor.t($data.appointment.type === "trial" || $data.appointment.course_type === "trial" ? "试课" : "正式课程"),
-    i: common_vendor.t($data.appointment.schedule && $data.appointment.schedule.date || $data.appointment.appointment_date || ""),
-    j: common_vendor.t($data.appointment.schedule && $data.appointment.schedule.start_time || $data.appointment.appointment_time || ""),
-    k: common_vendor.t($data.appointment.schedule && $data.appointment.schedule.duration || $data.appointment.duration || 2),
-    l: common_vendor.t($options.formatAddress($data.appointment.address) || "待确认"),
-    m: $data.appointment.student_info && $data.appointment.student_info.requirements
-  }, $data.appointment.student_info && $data.appointment.student_info.requirements ? {
-    n: common_vendor.t($data.appointment.student_info.requirements)
+    d: common_vendor.p({
+      appointment: $data.appointment,
+      ["info-fee-amount"]: $options.infoFeeAmount
+    }),
+    e: $options.showClockCard
+  }, $options.showClockCard ? {
+    f: common_vendor.o($options.onClocked),
+    g: common_vendor.p({
+      ["appointment-id"]: $data.appointment._id,
+      status: $data.appointment.status,
+      ["class-started-at"]: $data.appointment.class_started_at || null,
+      ["class-started-location"]: $data.appointment.class_started_location || null,
+      ["class-ended-at"]: $data.appointment.class_ended_at || null,
+      ["class-ended-location"]: $data.appointment.class_ended_location || null,
+      ["schedule-start-ts"]: $options.scheduleStartTs,
+      ["schedule-end-ts"]: $options.scheduleEndTs
+    })
   } : {}, {
-    o: common_vendor.p({
-      headTitle: "预约信息"
-    }),
-    p: common_vendor.t($data.appointment.total_amount || $data.appointment.total_fee || 300),
-    q: $data.appointment.status === "pending_confirm" && !$data.appointment.deposit_paid
-  }, $data.appointment.status === "pending_confirm" && !$data.appointment.deposit_paid ? {} : {}, {
-    r: $data.appointment.deposit_paid
-  }, $data.appointment.deposit_paid ? {} : {}, {
-    s: $data.appointment.type === "trial" || $data.appointment.course_type === "trial"
-  }, $data.appointment.type === "trial" || $data.appointment.course_type === "trial" ? {} : {}, {
-    t: $data.appointment.type === "regular" || $data.appointment.course_type === "regular"
-  }, $data.appointment.type === "regular" || $data.appointment.course_type === "regular" ? {} : {}, {
-    v: common_vendor.p({
-      headTitle: "费用信息"
-    }),
-    w: $data.refundInfo
+    h: $data.refundInfo
   }, $data.refundInfo ? common_vendor.e({
-    x: common_vendor.t($options.formatRefundStatus($data.refundInfo.status, $data.refundInfo.teacher_review_status)),
-    y: common_vendor.t($data.refundInfo.reason || "无"),
-    z: common_vendor.t($data.refundInfo.description || "无"),
-    A: common_vendor.t(($data.refundInfo.amount || 0).toFixed(2)),
-    B: common_vendor.t($options.formatTime($data.refundInfo.create_time)),
-    C: $data.refundInfo.teacher_review_time
+    i: common_vendor.t($options.formatRefundStatus($data.refundInfo.status, $data.refundInfo.teacher_review_status)),
+    j: common_vendor.t($data.refundInfo.reason || "无"),
+    k: common_vendor.t($data.refundInfo.description || "无"),
+    l: common_vendor.t(($data.refundInfo.amount || 0).toFixed(2)),
+    m: common_vendor.t($options.formatTime($data.refundInfo.create_time)),
+    n: $data.refundInfo.teacher_review_time
   }, $data.refundInfo.teacher_review_time ? {
-    D: common_vendor.t($options.formatTime($data.refundInfo.teacher_review_time))
+    o: common_vendor.t($options.formatTime($data.refundInfo.teacher_review_time))
   } : {}, {
-    E: $data.refundInfo.review_time
+    p: $data.refundInfo.review_time
   }, $data.refundInfo.review_time ? {
-    F: common_vendor.t($options.formatTime($data.refundInfo.review_time))
+    q: common_vendor.t($options.formatTime($data.refundInfo.review_time))
   } : {}, {
-    G: common_vendor.p({
+    r: common_vendor.p({
       headTitle: "退款申请"
     })
   }) : {}, {
-    H: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
+    s: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
   }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid ? {
-    I: common_vendor.o((...args) => $options.handleReject && $options.handleReject(...args))
+    t: common_vendor.o((...args) => $options.handleReject && $options.handleReject(...args))
   } : {}, {
-    J: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.deposit_paid
+    v: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.deposit_paid
   }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.deposit_paid ? {
-    K: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args))
+    w: common_vendor.t($options.infoFeeAmount),
+    x: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args))
   } : {}, {
-    L: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
+    y: ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid
   }, ($data.appointment.status === "pending_confirm" || $data.appointment.status === "pending_payment") && !$data.appointment.parent_paid ? {
-    M: common_vendor.o((...args) => $options.handleConfirm && $options.handleConfirm(...args))
+    z: common_vendor.o((...args) => $options.handleConfirm && $options.handleConfirm(...args))
   } : {}, {
-    N: $data.appointment.status === "confirmed" && ($data.appointment.deposit_paid === true || $data.appointment.deposit_paid === "true")
+    A: $data.appointment.status === "confirmed" && ($data.appointment.deposit_paid === true || $data.appointment.deposit_paid === "true")
   }, $data.appointment.status === "confirmed" && ($data.appointment.deposit_paid === true || $data.appointment.deposit_paid === "true") ? {
-    O: common_vendor.o((...args) => $options.startChat && $options.startChat(...args))
+    B: common_vendor.o((...args) => $options.startChat && $options.startChat(...args))
   } : {}, {
-    P: $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending"
+    C: $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending"
   }, $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending" ? {
-    Q: common_vendor.o(($event) => $options.handleRefundReview("reject"))
+    D: common_vendor.o(($event) => $options.handleRefundReview("reject"))
   } : {}, {
-    R: $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending"
+    E: $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending"
   }, $data.refundInfo && $data.refundInfo.status === "pending" && $data.refundInfo.teacher_review_status === "pending" ? {
-    S: common_vendor.o(($event) => $options.handleRefundReview("approve"))
+    F: common_vendor.o(($event) => $options.handleRefundReview("approve"))
   } : {}, {
-    T: common_vendor.sr("pay", "db498b74-4"),
-    U: common_vendor.o($options.onPaySuccess),
-    V: common_vendor.o($options.onPayCreate),
-    W: common_vendor.o($options.onPayFail),
-    X: common_vendor.p({
+    G: common_vendor.sr("pay", "db498b74-4"),
+    H: common_vendor.o($options.onPaySuccess),
+    I: common_vendor.o($options.onPayCreate),
+    J: common_vendor.o($options.onPayFail),
+    K: common_vendor.p({
       height: "70vh",
       ["to-success-page"]: false,
       ["return-url"]: "/pages-teacher/appointment/detail",

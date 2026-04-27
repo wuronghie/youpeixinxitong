@@ -10,6 +10,8 @@ function normalizeUserInfoFromDb(data = {}) {
     role: activeRole,
     status: data.status || 'active',
     phone: data.phone || '',
+    // 性别（uni-id 约定：0=未知, 1=男, 2=女）
+    gender: data.gender != null ? data.gender : 0,
     parent_info: data.parent_info || {},
     teacherProfile: data.teacher_info || data.teacherProfile || {},
     wallet: data.wallet || {}
@@ -56,12 +58,35 @@ export async function checkProfileComplete(userInfo) {
   }
 
   if (userInfo.role === 'parent') {
-    // 检查家长信息：需要 student_name 和 student_grade
+    // 检查家长信息：家长姓名、性别、手机号、学生信息必须补齐，方便后台/老师联系
+    // 注意：phone 存储在 uni-id-users 顶层（userInfo.phone），不是 parent_info.phone
+    // 性别存储在 uni-id-users.gender（1=男, 2=女, 0/空=未填）
     const parentInfo = userInfo.parent_info || {}
-    if (!parentInfo.student_name || !parentInfo.student_grade) {
+    const phone = userInfo.phone || userInfo.mobile || parentInfo.phone || ''
+    const genderCode = userInfo.gender
+    const genderFilled = genderCode === 1 || genderCode === 2 || genderCode === '1' || genderCode === '2' || genderCode === 'male' || genderCode === 'female'
+    const studentGender = parentInfo.student_gender
+    const studentGenderFilled = studentGender === 'male' || studentGender === 'female' || studentGender === 1 || studentGender === 2 || studentGender === '1' || studentGender === '2'
+    const missing = []
+    if (!parentInfo.real_name) missing.push('家长姓名')
+    if (!genderFilled) missing.push('性别')
+    if (!phone) missing.push('手机号')
+    if (!parentInfo.student_name) missing.push('学生姓名')
+    if (!studentGenderFilled) missing.push('孩子性别')
+    if (!parentInfo.student_grade) missing.push('学生年级')
+    console.log('[auth] 家长信息检查:', {
+      real_name: parentInfo.real_name,
+      gender: genderCode,
+      phone,
+      student_name: parentInfo.student_name,
+      student_gender: studentGender,
+      student_grade: parentInfo.student_grade,
+      missing
+    })
+    if (missing.length > 0) {
       return {
         isComplete: false,
-        message: '请完善孩子信息（学生姓名和年级）',
+        message: '请完善资料：' + missing.join('、'),
         redirectUrl: '/pages/common/register'
       }
     }

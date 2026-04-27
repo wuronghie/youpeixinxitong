@@ -45,6 +45,7 @@
 						<view class="card-title-wrap">
 							<text class="card-title">{{ item.subject }} / {{ item.student_grade }}</text>
 							<view class="meta-row">
+								<text v-if="studentGenderText(item.student_gender)" class="meta-chip gender-chip">{{ studentGenderText(item.student_gender) }}</text>
 								<text class="meta-chip">{{ item.lesson_mode === 'online' ? '线上辅导' : '线下辅导' }}</text>
 								<text v-if="auditHint(item)" class="meta-chip audit-chip">{{ auditHint(item).replace('· ', '') }}</text>
 							</view>
@@ -116,6 +117,11 @@ export default {
 			const a = item.audit_status
 			if (a === 'pending') return '审核中'
 			if (a === 'rejected') return '未通过审核'
+			return ''
+		},
+		studentGenderText(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return '男孩'
+			if (gender === 'female' || gender === 2 || gender === '2') return '女孩'
 			return ''
 		},
 		async load(reset) {
@@ -346,6 +352,10 @@ export default {
 	color: #60708c;
 	background: #f3f6fb;
 }
+.gender-chip {
+	color: #8a4fff;
+	background: rgba(138, 79, 255, 0.08);
+}
 .audit-chip {
 	color: #2f6df6;
 	background: rgba(47, 109, 246, 0.08);
@@ -393,6 +403,7 @@ export default {
 }
 .line-clamp-2 {
 	display: -webkit-box;
+	line-clamp: 2;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

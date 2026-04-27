@@ -141,7 +141,7 @@ module.exports = {
         .where({
           teacher_id: teacher_id,
           status: 'confirmed',  // 只查询已确认的预约
-          deposit_paid: true    // 确保保证金已支付
+          deposit_paid: true    // 确保信息费已支付
         })
         .orderBy('create_time', 'desc')
         .get()
@@ -149,7 +149,7 @@ module.exports = {
       console.log('可聊天预约查询结果:', appointmentDoc.data)
       
       if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
-        return error('没有找到可聊天的预约，请确保已支付保证金')
+        return error('没有找到可聊天的预约，请确保已支付信息费')
       }
       
       return success({
@@ -219,6 +219,19 @@ module.exports = {
           // 关联失败不影响预约主体信息返回
         }
       }
+      
+      console.log('[appointment-query.getAppointmentDetail] 返回预约详情:', {
+        appointment_id,
+        returnedAppointmentId: appointment._id,
+        teacher_id: appointment.teacher_id,
+        parent_id: appointment.parent_id,
+        status: appointment.status,
+        parent_paid: appointment.parent_paid,
+        has_review: appointment.has_review,
+        class_started_at: appointment.class_started_at || null,
+        class_ended_at: appointment.class_ended_at || null,
+        conversation_id: appointment.conversation_id || null
+      })
       
       return success(appointment, '获取成功')
       
@@ -546,9 +559,12 @@ module.exports = {
    * 家长确认课程完成
    * @param {Object} params
    * @param {String} params.appointment_id 预约ID
+   * @param {Boolean} [params.is_satisfied] 仅试课用：true=确认成功（默认），false=确认不满意（走 confirmTrialFail，
+   *   信息费退教师，不退家长任何钱；如需异常退款请走 payment-refund.apply）
+   * @param {String} [params.fail_reason] 试课不满意原因（is_satisfied=false 时使用）
    */
   async confirmCompletion(params = {}) {
-    const { appointment_id } = params
+    const { appointment_id, is_satisfied = true, fail_reason = '' } = params
     
     try {
       const db = uniCloud.database()
@@ -613,14 +629,19 @@ module.exports = {
         parent_id: appointment.parent_id
       })
       
-      // 根据课程类型调用不同的结算逻辑：
-      // - 正式课程：调用 completeCourse
-      // - 试课课程：调用 confirmTrialSuccess
+      // 根据课程类型 + is_satisfied 调用不同的结算逻辑：
+      // - 正式课程：completeCourse
+      // - 试课课程：is_satisfied=true → confirmTrialSuccess；false → confirmTrialFail
       const appointmentComplete = uniCloud.importObject('appointment-complete', { customUI: true })
       let completeResult
       if (appointment.course_type === 'trial') {
-        console.log('[confirmCompletion] 试课课程，调用 confirmTrialSuccess')
-        completeResult = await appointmentComplete.confirmTrialSuccess({ appointment_id })
+        if (is_satisfied === false) {
+          console.log('[confirmCompletion] 试课不满意，调用 confirmTrialFail')
+          completeResult = await appointmentComplete.confirmTrialFail({ appointment_id, reason: fail_reason })
+        } else {
+          console.log('[confirmCompletion] 试课成功，调用 confirmTrialSuccess')
+          completeResult = await appointmentComplete.confirmTrialSuccess({ appointment_id })
+        }
       } else {
         console.log('[confirmCompletion] 正式课程，调用 completeCourse')
         completeResult = await appointmentComplete.completeCourse({ appointment_id })
@@ -1105,8 +1126,8 @@ module.exports = {
         return error('当前预约状态不允许确认')
       }
       
-      // 检查保证金支付状态
-      // 业务规则：同一“家长 + 老师”只需支付一次保证金，因此这里既要看当前预约，也要看该家长与老师历史记录。
+      // 检查信息费支付状态
+      // 业务规则：同一“家长 + 老师”只需支付一次信息费，因此这里既要看当前预约，也要看该家长与老师历史记录。
       let depositPaid = !!appointment.deposit_paid
       
       // 3.1 如果预约中没有标记为已支付，先检查当前预约绑定会话中的 teacher_deposit_paid 状态
@@ -1121,7 +1142,7 @@ module.exports = {
         }
       }
       
-      // 3.2 如果当前预约未标记为已支付，再按“家长 + 老师”维度检查任意会话是否已支付保证金
+      // 3.2 如果当前预约未标记为已支付，再按“家长 + 老师”维度检查任意会话是否已支付信息费
       if (!depositPaid) {
         const pairConvDoc = await db.collection('chat-conversations')
           .where({
@@ -1137,12 +1158,12 @@ module.exports = {
         }
       }
       
-      // 3.3 如果会话中也没有，检查是否有已支付的保证金订单
-      //      先看当前预约的保证金订单，如果没有，再看该老师为该家长其它预约支付的保证金订单
+      // 3.3 如果会话中也没有，检查是否有已支付的信息费订单
+      //      先看当前预约的信息费订单，如果没有，再看该老师为该家长其它预约支付的信息费订单
       if (!depositPaid) {
         const dbCmd = db.command
         
-        // 当前预约的保证金订单
+        // 当前预约的信息费订单
         const currentDepositOrderDoc = await db.collection('payment-orders')
           .where({
             appointment_id: appointment_id,
@@ -1156,7 +1177,7 @@ module.exports = {
         if (currentDepositOrderDoc.data && currentDepositOrderDoc.data.length > 0) {
           depositPaid = true
         } else {
-          // 查找该老师已支付的所有保证金订单，再过滤出属于当前家长的任意预约
+          // 查找该老师已支付的所有信息费订单，再过滤出属于当前家长的任意预约
           const existingDepositOrders = await db.collection('payment-orders')
             .where({
               order_type: 'deposit',
@@ -1188,12 +1209,12 @@ module.exports = {
       }
       
       if (!depositPaid) {
-        console.warn('[appointment-query][confirmAppointment] 教师尚未为该家长支付保证金，拒绝确认:', {
+        console.warn('[appointment-query][confirmAppointment] 教师尚未为该家长支付信息费，拒绝确认:', {
           appointment_id,
           teacher_id,
           parent_id: appointment.parent_id
         })
-        return error('请先支付保证金')
+        return error('请先支付信息费')
       }
       
       // 4. 更新预约状态为已确认（家长随后才能支付课程费）

@@ -1,5 +1,5 @@
 /**
- * 家长招募：发布、教师广场、邀请试课（含保证金前置）
+ * 家长招募：发布、教师广场、邀请试课（含信息费前置）
  */
 const uniID = require('uni-id-common')
 
@@ -54,9 +54,19 @@ function hasRole(userDoc, roleName) {
   return roles.includes(roleName)
 }
 
+function normalizeGenderValue(value) {
+  if (value === 1 || value === '1' || value === 'male') return 'male'
+  if (value === 2 || value === '2' || value === 'female') return 'female'
+  return ''
+}
+
 function isParentProfileComplete(userDoc) {
   const parentInfo = (userDoc && userDoc.parent_info) || {}
-  return !!(String(parentInfo.student_name || '').trim() && String(parentInfo.student_grade || '').trim())
+  return !!(
+    String(parentInfo.student_name || '').trim() &&
+    String(parentInfo.student_grade || '').trim() &&
+    normalizeGenderValue(parentInfo.student_gender)
+  )
 }
 
 function isTeacherProfileComplete(profile) {
@@ -75,8 +85,41 @@ function isTeacherProfileComplete(profile) {
 
 async function assertParentProfileComplete(db, userDoc) {
   if (!isParentProfileComplete(userDoc)) {
-    throw new Error('请先完善孩子信息（学生姓名和年级）后再发布招募')
+    throw new Error('请先完善孩子信息（学生姓名、性别和年级）后再发布招募')
   }
+}
+
+async function fillRecruitmentStudentGender(db, rows = []) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows
+  const parentIds = Array.from(
+    new Set(
+      rows
+        .filter((row) => row && row.parent_id && !normalizeGenderValue(row.student_gender))
+        .map((row) => row.parent_id)
+    )
+  )
+  if (!parentIds.length) {
+    return rows.map((row) => ({
+      ...row,
+      student_gender: normalizeGenderValue(row.student_gender)
+    }))
+  }
+
+  const userRes = await db
+    .collection('uni-id-users')
+    .where({ _id: db.command.in(parentIds) })
+    .field({ _id: true, parent_info: true })
+    .get()
+
+  const genderMap = {}
+  ;(userRes.data || []).forEach((user) => {
+    genderMap[user._id] = normalizeGenderValue(user.parent_info && user.parent_info.student_gender)
+  })
+
+  return rows.map((row) => ({
+    ...row,
+    student_gender: normalizeGenderValue(row.student_gender) || genderMap[row.parent_id] || ''
+  }))
 }
 
 async function assertTeacherProfileComplete(db, teacher_id) {
@@ -285,6 +328,8 @@ module.exports = {
     const now = Date.now()
     const expire_at = now + days * 24 * 60 * 60 * 1000
     const nick = userDoc.data[0].nickname || userDoc.data[0].wx_nickname || ''
+    const parentInfo = userDoc.data[0].parent_info || {}
+    const student_gender = normalizeGenderValue(parentInfo.student_gender)
     const display_name = maskDisplayName(nick, parent_id)
 
     const doc = {
@@ -295,6 +340,7 @@ module.exports = {
       display_name,
       subject: String(subject).trim(),
       student_grade: String(student_grade).trim(),
+      student_gender,
       lesson_mode,
       region: region || {},
       location: location || {},
@@ -319,6 +365,15 @@ module.exports = {
     const db = uniCloud.database()
     const parent_id = await resolveUserId(this)
     if (!parent_id) return error('请先登录')
+    const userDoc = await db.collection('uni-id-users').doc(parent_id).get()
+    if (!userDoc.data || userDoc.data.length === 0 || !hasRole(userDoc.data[0], 'parent')) {
+      return error('仅家长可编辑招募')
+    }
+    try {
+      await assertParentProfileComplete(db, userDoc.data[0])
+    } catch (e) {
+      return error(e.message || '请先完善信息')
+    }
 
     const { recruitment_id, ...rest } = params
     if (!recruitment_id) return error('缺少招募ID')
@@ -348,6 +403,8 @@ module.exports = {
     for (const k of allow) {
       if (rest[k] !== undefined) patch[k] = rest[k]
     }
+    const parentInfo = userDoc.data[0].parent_info || {}
+    patch.student_gender = normalizeGenderValue(parentInfo.student_gender)
     if (rest.valid_days) {
       const days = [7, 14, 30].includes(Number(rest.valid_days)) ? Number(rest.valid_days) : 14
       patch.expire_at = now + days * 24 * 60 * 60 * 1000
@@ -412,7 +469,7 @@ module.exports = {
 
     const listRes = await col.where(where).orderBy('create_time', 'desc').skip(skip).limit(pageSize).get()
 
-    let list = listRes.data || []
+    let list = await fillRecruitmentStudentGender(db, listRes.data || [])
     if (tab === 'open') {
       const expiredIds = []
       list = list.map((r) => {
@@ -467,11 +524,13 @@ module.exports = {
 
     const col = db.collection('parent-recruitments')
     const listRes = await col.where(where).orderBy('create_time', 'desc').skip(skip).limit(pageSize).get()
-    const list = (listRes.data || []).map((r) => ({
+    const rows = await fillRecruitmentStudentGender(db, listRes.data || [])
+    const list = rows.map((r) => ({
       _id: r._id,
       display_name: r.display_name,
       subject: r.subject,
       student_grade: r.student_grade,
+      student_gender: r.student_gender,
       lesson_mode: r.lesson_mode,
       region: r.region,
       goal: r.goal,
@@ -537,6 +596,7 @@ module.exports = {
       display_name: r.display_name,
       subject: r.subject,
       student_grade: r.student_grade,
+      student_gender: normalizeGenderValue(r.student_gender),
       lesson_mode: r.lesson_mode,
       region: r.region,
       goal: r.goal,
@@ -549,6 +609,12 @@ module.exports = {
       already_responded,
       my_response,
       need_deposit
+    }
+
+    if (!detail.student_gender && r.parent_id) {
+      const parentDoc = await db.collection('uni-id-users').doc(r.parent_id).field({ parent_info: true }).get()
+      const parentInfo = parentDoc.data && parentDoc.data[0] ? parentDoc.data[0].parent_info || {} : {}
+      detail.student_gender = normalizeGenderValue(parentInfo.student_gender)
     }
 
     return success(detail)
@@ -649,6 +715,37 @@ module.exports = {
     })
   },
 
+  /**
+   * 后台招募审核工作台：各状态数量（与列表 Tab / 首页待审口径对齐）
+   */
+  async adminRecruitmentKpi() {
+    try {
+      await assertAdmin(this)
+    } catch (e) {
+      return error(e.message || '无权限')
+    }
+    const db = uniCloud.database()
+    const _ = db.command
+    const pendingWhere = _.and([
+      { status: 'open' },
+      _.or([{ audit_status: 'pending' }, { audit_status: _.exists(false) }])
+    ])
+    const [totalRes, pendingRes, approvedRes, rejectedRes, closedRes] = await Promise.all([
+      db.collection('parent-recruitments').where({}).count(),
+      db.collection('parent-recruitments').where(pendingWhere).count(),
+      db.collection('parent-recruitments').where({ audit_status: 'approved' }).count(),
+      db.collection('parent-recruitments').where({ audit_status: 'rejected' }).count(),
+      db.collection('parent-recruitments').where({ status: 'closed' }).count()
+    ])
+    return success({
+      total: totalRes.total || 0,
+      pending: pendingRes.total || 0,
+      approved: approvedRes.total || 0,
+      rejected: rejectedRes.total || 0,
+      closed: closedRes.total || 0
+    })
+  },
+
   async adminList(params = {}) {
     try {
       await assertAdmin(this)
@@ -675,9 +772,10 @@ module.exports = {
       .skip(skip)
       .limit(pageSize)
       .get()
+    const enrichedList = await fillRecruitmentStudentGender(db, listRes.data || [])
     const totalRes = await db.collection('parent-recruitments').where(w).count()
     return success({
-      list: listRes.data || [],
+      list: enrichedList,
       pagination: { page, pageSize, total: totalRes.total || 0 }
     })
   },
@@ -693,13 +791,14 @@ module.exports = {
     const db = uniCloud.database()
     const doc = await db.collection('parent-recruitments').doc(recruitment_id).get()
     if (!doc.data || !doc.data.length) return error('不存在')
+    const enrichedRows = await fillRecruitmentStudentGender(db, doc.data || [])
     const responses = await db
       .collection('recruitment-responses')
       .where({ recruitment_id })
       .orderBy('create_time', 'desc')
       .limit(100)
       .get()
-    return success({ recruitment: doc.data[0], responses: responses.data || [] })
+    return success({ recruitment: enrichedRows[0] || doc.data[0], responses: responses.data || [] })
   },
 
   async adminForceClose(params = {}) {

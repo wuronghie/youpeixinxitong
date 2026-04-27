@@ -1,0 +1,10 @@
+{
+  "name": "houtai-stats",
+  "version": "1.0.0",
+  "description": "后台管理统计云对象：注册/活跃/趋势/角色分布等业务聚合",
+  "main": "index.obj.js",
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+  },
+  "extensions": {}
+}

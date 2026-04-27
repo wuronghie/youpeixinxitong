@@ -75,13 +75,62 @@ async function createPaymentOrderProd(options) {
 }
 
 /**
- * 检查是否使用开发模式
- * @returns {Boolean} 是否使用开发模式
+ * 模拟支付开关（仅供开发调试）
+ *
+ * 默认关闭——生产环境一律走 uni-pay 真实收银台；
+ * 启用后，`createAndPay` 不会跳转支付页面，而是弹出确认框直接调用云端
+ * `payment-create.mockPaySuccess` 标记订单为已支付，方便本地调试。
+ *
+ * 启用方式（任选其一）：
+ *   1) 调用 `enableMockPayForDev()`（推荐，立即生效）
+ *   2) 在控制台执行：`uni.setStorageSync('__dev_mock_pay__', true)`
+ * 关闭：
+ *   - `disableMockPayForDev()` 或清除 storage 的同名 key
  */
+const MOCK_PAY_STORAGE_KEY = '__dev_mock_pay__'
+
 function isDevMode() {
-	// 可以通过配置或环境变量控制
-	// 暂时默认使用开发模式（云服务未接入时）
-	return true
+	try {
+		return uni.getStorageSync(MOCK_PAY_STORAGE_KEY) === true
+	} catch (e) {
+		return false
+	}
+}
+
+export function enableMockPayForDev() {
+	try {
+		uni.setStorageSync(MOCK_PAY_STORAGE_KEY, true)
+		console.warn('[支付] 已开启「模拟支付」模式，所有支付将跳过真实收银台。生产环境请勿启用！')
+	} catch (e) {
+		console.warn('[支付] 开启模拟支付失败:', e)
+	}
+}
+
+export function disableMockPayForDev() {
+	try {
+		uni.removeStorageSync(MOCK_PAY_STORAGE_KEY)
+		console.info('[支付] 已关闭「模拟支付」模式，恢复真实支付。')
+	} catch (e) {
+		console.warn('[支付] 关闭模拟支付失败:', e)
+	}
+}
+
+export function isMockPayEnabled() {
+	return isDevMode()
+}
+
+// 挂到 uni 全局，方便在小程序开发者工具控制台里直接调用：
+//   uni.$enableMockPay()    // 打开模拟支付（仅本机生效）
+//   uni.$disableMockPay()   // 关闭，恢复真实支付
+//   uni.$isMockPayEnabled() // 查看当前模式
+try {
+	if (typeof uni !== 'undefined') {
+		uni.$enableMockPay = enableMockPayForDev
+		uni.$disableMockPay = disableMockPayForDev
+		uni.$isMockPayEnabled = isMockPayEnabled
+	}
+} catch (e) {
+	// 某些非 uni 环境下 uni 可能不可用，忽略即可
 }
 
 /**
@@ -168,7 +217,7 @@ function generateOutTradeNo(appointment_id, payment_type) {
  * @param {Object} payComponent uni-pay 组件实例
  * @param {Object} options 支付参数
  * @param {String} options.appointment_id 预约ID
- * @param {String} options.payment_type 支付类型（course_fee: 课程费, deposit: 保证金）
+ * @param {String} options.payment_type 支付类型（course_fee: 课程费, deposit: 信息费）
  * @param {Number} options.amount 支付金额（分）
  * @param {String} options.description 支付描述
  * @param {String} options.provider 支付供应商（可选）
@@ -241,7 +290,7 @@ export async function createAndPayWithUniPay(payComponent, options) {
 			order_no, // 使用业务订单号
 			out_trade_no, // 使用短支付单号
 			total_fee: amount, // uni-pay 需要的是分
-			description: description || (payment_type === 'deposit' ? '支付保证金' : '支付课程费用'),
+			description: description || (payment_type === 'deposit' ? '支付信息费' : '支付课程费用'),
 			type: 'appointment',
 			provider: provider, // 不传则打开收银台
 			custom: {
@@ -299,7 +348,7 @@ export async function createAndPay(options) {
 				// 显示模拟支付弹窗
 				uni.showModal({
 					title: '模拟支付',
-					content: `预约ID：${appointment_id}\n支付类型：${payment_type === 'deposit' ? '保证金' : '课程费'}\n金额：¥${(amount / 100).toFixed(2)}\n\n这是开发模式，点击确认模拟支付成功`,
+					content: `预约ID：${appointment_id}\n支付类型：${payment_type === 'deposit' ? '信息费' : '课程费'}\n金额：¥${(amount / 100).toFixed(2)}\n\n这是开发模式，点击确认模拟支付成功`,
 					confirmText: '确认支付',
 					cancelText: '取消',
 					success: async (res) => {
@@ -364,9 +413,11 @@ export async function createAndPay(options) {
 		})
 	}
 	
-	// 生产模式：需要 uni-pay 组件，这里返回错误提示
+	// 生产模式：未开启模拟支付时，调用方应使用 createAndPayWithUniPay + uni-pay 组件
+	// 这里给一个清晰的错误码，调用方按需提示用户「请稍后重试 / 切换支付方式」
 	return {
 		code: -1,
-		message: '请使用 createAndPayWithUniPay 方法，并传入 uni-pay 组件实例'
+		message: '当前环境无法发起支付，请稍后重试或联系客服',
+		errorType: 'NO_PAY_CHANNEL'
 	}
 }

@@ -66,6 +66,13 @@ const _sfc_main = {
         return rawName;
       return admin ? `${admin}${rawName}`.trim() : rawName;
     },
+    studentGenderText(gender) {
+      if (gender === "male" || gender === 1 || gender === "1")
+        return "男孩";
+      if (gender === "female" || gender === 2 || gender === "2")
+        return "女孩";
+      return "";
+    },
     reload() {
       this.page = 1;
       this.list = [];
@@ -150,15 +157,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         c: common_vendor.t(item.response_count || 0),
         d: common_vendor.t(item.subject),
         e: common_vendor.t(item.student_grade),
-        f: common_vendor.t(item.lesson_mode === "online" ? "线上" : "线下"),
-        g: item.lesson_mode === "offline" && $options.addressText(item)
-      }, item.lesson_mode === "offline" && $options.addressText(item) ? {
-        h: common_vendor.t($options.addressText(item))
+        f: $options.studentGenderText(item.student_gender)
+      }, $options.studentGenderText(item.student_gender) ? {
+        g: common_vendor.t($options.studentGenderText(item.student_gender))
       } : {}, {
-        i: common_vendor.t(item.goal || item.remark || "家长暂未填写更多说明"),
-        j: common_vendor.t($options.budgetText(item)),
-        k: item._id,
-        l: common_vendor.o(($event) => $options.goDetail(item._id), item._id)
+        h: common_vendor.t(item.lesson_mode === "online" ? "线上" : "线下"),
+        i: item.lesson_mode === "offline" && $options.addressText(item)
+      }, item.lesson_mode === "offline" && $options.addressText(item) ? {
+        j: common_vendor.t($options.addressText(item))
+      } : {}, {
+        k: common_vendor.t(item.goal || item.remark || "家长暂未填写更多说明"),
+        l: common_vendor.t($options.budgetText(item)),
+        m: item._id,
+        n: common_vendor.o(($event) => $options.goDetail(item._id), item._id)
       });
     }),
     r: $data.loading

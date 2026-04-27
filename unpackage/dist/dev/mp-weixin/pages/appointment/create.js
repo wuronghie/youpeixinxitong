@@ -107,11 +107,11 @@ const _sfc_main = {
   methods: {
     setupDateRange() {
       const today = /* @__PURE__ */ new Date();
-      const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
       const oneMonthLater = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
-      this.dateOptions.start = this.formatDate(tomorrow);
+      const todayStr = this.formatDate(today);
+      this.dateOptions.start = todayStr;
       this.dateOptions.end = this.formatDate(oneMonthLater);
-      this.formData.date = this.dateOptions.start;
+      this.formData.date = todayStr;
     },
     async ensureTeacher() {
       if (!this.teacherProfileId && !this.teacherUid) {
@@ -158,7 +158,7 @@ const _sfc_main = {
           throw new Error(res.message || "加载邀请信息失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:357", "加载试课邀请信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:358", "加载试课邀请信息失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
       }
     },
@@ -173,7 +173,7 @@ const _sfc_main = {
           this.teacherUid = teacher.teacher_id || "";
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:371", "自动获取教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:372", "自动获取教师失败:", error);
       }
     },
     async loadTeacher() {
@@ -191,7 +191,7 @@ const _sfc_main = {
           throw new Error(res.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:388", "加载教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:389", "加载教师失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载教师失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -288,7 +288,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages/appointment/create.vue:490", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages/appointment/create.vue:491", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -385,7 +385,7 @@ const _sfc_main = {
           throw new Error(res.message || "预约失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:592", "预约失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:594", "预约失败:", error);
         common_vendor.index.showToast({ title: error.message || "预约失败，请稍后再试", icon: "none" });
       } finally {
         this.isSubmitting = false;

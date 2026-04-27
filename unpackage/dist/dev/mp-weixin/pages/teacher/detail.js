@@ -36,11 +36,46 @@ const _sfc_main = {
     };
   },
   computed: {
-    gradeText() {
+    subjectList() {
+      const list = this.teacherInfo.subjects || [];
+      if (!Array.isArray(list))
+        return [];
+      return list.filter(Boolean);
+    },
+    gradeList() {
       const list = this.teacherInfo.grades || [];
-      if (!list.length)
-        return null;
-      return list;
+      if (!Array.isArray(list))
+        return [];
+      return list.filter(Boolean);
+    },
+    gradeTotalCount() {
+      return this.gradeList.length;
+    },
+    gradeGroups() {
+      const primary = ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级"];
+      const junior = ["初一", "初二", "初三"];
+      const senior = ["高一", "高二", "高三"];
+      const gradeSet = new Set(this.gradeList);
+      const makeGroup = (key, label, order) => ({
+        key,
+        label,
+        items: order.filter((item) => gradeSet.has(item))
+      });
+      const groups = [
+        makeGroup("primary", "小学", primary),
+        makeGroup("junior", "初中", junior),
+        makeGroup("senior", "高中", senior)
+      ].filter((group) => group.items.length > 0);
+      const known = /* @__PURE__ */ new Set([...primary, ...junior, ...senior]);
+      const other = this.gradeList.filter((item) => !known.has(item));
+      if (other.length > 0) {
+        groups.push({
+          key: "other",
+          label: "其他",
+          items: other
+        });
+      }
+      return groups;
     },
     recentReviews() {
       return this.teacherInfo.recent_reviews || [];
@@ -95,8 +130,10 @@ const _sfc_main = {
       setTimeout(() => common_vendor.index.navigateBack(), 1500);
       return;
     }
-    this.fetchUserLocation();
-    this.loadDetail();
+    setTimeout(() => {
+      this.loadDetail();
+      this.fetchUserLocation();
+    }, 0);
   },
   onShareAppMessage() {
     const id = this.teacherId || this.teacherUid || "";
@@ -153,7 +190,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:459", "加载教师详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:617", "加载教师详情失败:", error);
         this.loadError = error.message || "加载失败，请稍后重试";
         common_vendor.index.showToast({ title: this.loadError, icon: "none" });
       } finally {
@@ -202,8 +239,8 @@ const _sfc_main = {
           extra_notes: parentInfo.extra_notes || "",
           address_detail: parentInfo.address_detail || ""
         };
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:512", "[teacher-detail] 联系请求参数:", contactParams);
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:513", "[teacher-detail] parentInfo:", parentInfo);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:670", "[teacher-detail] 联系请求参数:", contactParams);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:671", "[teacher-detail] parentInfo:", parentInfo);
         const appointmentObj = common_vendor.tr.importObject("appointment-create", { customUI: true });
         const result = await appointmentObj.createContactRequest(contactParams);
         if (result.code === 0) {
@@ -242,7 +279,7 @@ const _sfc_main = {
 `;
               messageContent += `
 希望了解您的教学安排，期待您的回复！`;
-              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:562", "[teacher-detail] 发送消息内容:", messageContent);
+              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:720", "[teacher-detail] 发送消息内容:", messageContent);
               const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
               await chatSend.send({
                 conversation_id: conversationId,
@@ -250,7 +287,7 @@ const _sfc_main = {
                 content: messageContent
               });
             } catch (msgError) {
-              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:571", "发送初始消息失败:", msgError);
+              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:729", "发送初始消息失败:", msgError);
             }
           }
           this.hasContacted = true;
@@ -277,7 +314,7 @@ const _sfc_main = {
           throw new Error(result.message || "发送联系请求失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:602", "联系老师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:760", "联系老师失败:", error);
         common_vendor.index.showToast({ title: error.message || "联系失败，请稍后再试", icon: "none" });
       } finally {
         this.isContacting = false;
@@ -322,7 +359,7 @@ const _sfc_main = {
           this.isFavorited = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:643", "查询收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:801", "查询收藏状态失败:", error);
         this.isFavorited = false;
       }
     },
@@ -350,19 +387,19 @@ const _sfc_main = {
           const conversationListRes = await chatSend.getConversationList();
           if (conversationListRes.code === 0 && conversationListRes.data) {
             const conversations = conversationListRes.data.list || conversationListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:677", "[teacher-detail] 会话列表数量:", conversations.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:835", "[teacher-detail] 会话列表数量:", conversations.length);
             const hasConversation = conversations.some((conv) => {
               var _a, _b;
               return conv.teacher_id === teacherId || ((_a = conv.other_user) == null ? void 0 : _a.teacher_id) === teacherId || ((_b = conv.teacher_info) == null ? void 0 : _b.teacher_id) === teacherId;
             });
             this.hasContacted = !!hasConversation;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:687", "[teacher-detail] hasContacted 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:845", "[teacher-detail] hasContacted 计算结果:", {
               teacherId,
               hasConversation
             });
           }
         } catch (chatError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:693", "检查会话列表失败:", chatError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:851", "检查会话列表失败:", chatError);
           this.hasContacted = false;
         }
         try {
@@ -375,9 +412,9 @@ const _sfc_main = {
           });
           if (appointmentListRes.code === 0 && appointmentListRes.data) {
             const appointments = appointmentListRes.data.list || appointmentListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:710", "[teacher-detail] 家长预约总数:", appointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:868", "[teacher-detail] 家长预约总数:", appointments.length);
             const relatedAppointments = appointments.filter((apt) => apt.teacher_id === teacherId);
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:713", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:871", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
             const hasTrialSuccess = relatedAppointments.some((apt) => {
               const isTrialCourse = apt.course_type === "trial";
               const isCompletedStatus = apt.status === "completed";
@@ -385,7 +422,7 @@ const _sfc_main = {
               return isTrialCourse && isCompletedStatus && isSuccessResult;
             });
             this.hasTrialSuccess = !!hasTrialSuccess;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:727", "[teacher-detail] hasTrialSuccess 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:885", "[teacher-detail] hasTrialSuccess 计算结果:", {
               teacherId,
               hasTrialSuccess,
               trialAppointments: relatedAppointments.filter((apt) => apt.course_type === "trial").map((apt) => ({
@@ -398,11 +435,11 @@ const _sfc_main = {
             this.hasTrialSuccess = false;
           }
         } catch (trialError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:742", "检查试课成功记录失败:", trialError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:900", "检查试课成功记录失败:", trialError);
           this.hasTrialSuccess = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:747", "检查联系状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:905", "检查联系状态失败:", error);
         this.hasContacted = false;
         this.hasTrialSuccess = false;
       }
@@ -446,7 +483,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:790", "收藏操作失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:948", "收藏操作失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       } finally {
         this.favoriteLoading = false;
@@ -461,6 +498,20 @@ const _sfc_main = {
       if (!rating && rating !== 0)
         return "5.0";
       return Number(rating).toFixed(1);
+    },
+    teacherGenderText(gender) {
+      if (gender === "male" || gender === 1 || gender === "1")
+        return "男";
+      if (gender === "female" || gender === 2 || gender === "2")
+        return "女";
+      return "";
+    },
+    teacherGenderClass(gender) {
+      if (gender === "male" || gender === 1 || gender === "1")
+        return "male";
+      if (gender === "female" || gender === 2 || gender === "2")
+        return "female";
+      return "";
     },
     async fetchUserLocation() {
       try {
@@ -575,98 +626,132 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: $data.teacherInfo.avatar || $data.defaultAvatarUrl,
     b: common_vendor.t($data.teacherInfo.display_name || $data.teacherInfo.name || "教师"),
-    c: $data.teacherInfo.is_verified
-  }, $data.teacherInfo.is_verified ? {} : {}, {
-    d: $data.teacherInfo.school || $data.teacherInfo.experience
-  }, $data.teacherInfo.school || $data.teacherInfo.experience ? {
-    e: common_vendor.t([$data.teacherInfo.school, $data.teacherInfo.experience].filter(Boolean).join(" · "))
+    c: $options.teacherGenderText($data.teacherInfo.gender)
+  }, $options.teacherGenderText($data.teacherInfo.gender) ? {
+    d: common_vendor.t($options.teacherGenderText($data.teacherInfo.gender)),
+    e: common_vendor.n($options.teacherGenderClass($data.teacherInfo.gender))
   } : {}, {
-    f: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
-    g: common_vendor.t($data.teacherInfo.hourly_rate || 100),
-    h: common_vendor.t($options.formatExperience()),
-    i: $data.isFavorited ? $data.favoriteFilledUrl : $data.favoriteEmptyUrl,
-    j: common_vendor.o((...args) => $options.toggleFavorite && $options.toggleFavorite(...args)),
-    k: ($data.teacherInfo.subjects || []).length
-  }, ($data.teacherInfo.subjects || []).length ? {
-    l: common_vendor.f($data.teacherInfo.subjects, (subject, k0, i0) => {
+    f: $data.teacherInfo.is_verified
+  }, $data.teacherInfo.is_verified ? {} : {}, {
+    g: $data.teacherInfo.school || $data.teacherInfo.experience
+  }, $data.teacherInfo.school || $data.teacherInfo.experience ? {
+    h: common_vendor.t([$data.teacherInfo.school, $data.teacherInfo.experience].filter(Boolean).join(" · "))
+  } : {}, {
+    i: $options.subjectList.length
+  }, $options.subjectList.length ? common_vendor.e({
+    j: common_vendor.t($options.subjectList.slice(0, 3).join(" / ")),
+    k: $options.subjectList.length > 3
+  }, $options.subjectList.length > 3 ? {
+    l: common_vendor.t($options.subjectList.length - 3)
+  } : {}) : {}, {
+    m: $data.isFavorited ? $data.favoriteFilledUrl : $data.favoriteEmptyUrl,
+    n: common_vendor.o((...args) => $options.toggleFavorite && $options.toggleFavorite(...args)),
+    o: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
+    p: common_vendor.t($data.teacherInfo.hourly_rate || 100),
+    q: common_vendor.t($options.formatExperience()),
+    r: $options.subjectList.length || $options.gradeGroups.length
+  }, $options.subjectList.length || $options.gradeGroups.length ? common_vendor.e({
+    s: $options.subjectList.length
+  }, $options.subjectList.length ? {
+    t: common_vendor.t($options.subjectList.length),
+    v: common_vendor.f($options.subjectList, (subject, k0, i0) => {
       return {
         a: common_vendor.t(subject),
         b: subject
       };
     })
   } : {}, {
-    m: $options.gradeText
-  }, $options.gradeText ? {
-    n: common_vendor.f($options.gradeText, (grade, k0, i0) => {
+    w: $options.gradeGroups.length
+  }, $options.gradeGroups.length ? {
+    x: common_vendor.t($options.gradeTotalCount),
+    y: common_vendor.f($options.gradeGroups, (group, k0, i0) => {
       return {
-        a: common_vendor.t(grade),
-        b: grade
+        a: common_vendor.t(group.label),
+        b: common_vendor.t(group.items.length),
+        c: common_vendor.f(group.items, (grade, k1, i1) => {
+          return {
+            a: common_vendor.t(grade),
+            b: grade
+          };
+        }),
+        d: group.key
       };
-    })
-  } : {}, {
-    o: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
-    p: common_vendor.t($data.teacherInfo.trial_count || 0),
-    q: common_vendor.t($data.teacherInfo.trial_success_count != null ? $data.teacherInfo.trial_success_count : 0),
-    r: common_vendor.t($options.formatPercent($data.teacherInfo.trial_success_rate)),
-    s: common_vendor.t($data.teacherInfo.total_students || 0),
-    t: common_vendor.t($data.teacherInfo.total_courses || $data.teacherInfo.total_hours || 0),
-    v: common_vendor.t($data.teacherInfo.review_count || $options.recentReviews.length),
-    w: common_vendor.t($data.teacherInfo.introduction || "老师正在完善介绍，欢迎预约体验课程。"),
-    x: $options.teacherAddressText || $options.teacherDistanceText
+    }),
+    z: $options.subjectList.length ? 1 : ""
+  } : {}) : {}, {
+    A: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
+    B: common_vendor.t($data.teacherInfo.trial_count || 0),
+    C: common_vendor.t($data.teacherInfo.trial_success_count != null ? $data.teacherInfo.trial_success_count : 0),
+    D: common_vendor.t($options.formatPercent($data.teacherInfo.trial_success_rate)),
+    E: common_vendor.t($data.teacherInfo.total_students || 0),
+    F: common_vendor.t($data.teacherInfo.total_courses || $data.teacherInfo.total_hours || 0),
+    G: common_vendor.t($data.teacherInfo.review_count || $options.recentReviews.length),
+    H: common_vendor.t($data.teacherInfo.introduction || "老师正在完善介绍，欢迎预约体验课程。"),
+    I: $options.teacherAddressText || $options.teacherDistanceText || $options.teacherGenderText($data.teacherInfo.gender) || $data.teacherInfo.school || $data.teacherInfo.experience || ($data.teacherInfo.tags || []).length || $data.teacherInfo.education && ($data.teacherInfo.education.degree || $data.teacherInfo.education.major || $data.teacherInfo.education.graduation_year) || ($data.teacherInfo.qualifications || []).length
+  }, $options.teacherAddressText || $options.teacherDistanceText || $options.teacherGenderText($data.teacherInfo.gender) || $data.teacherInfo.school || $data.teacherInfo.experience || ($data.teacherInfo.tags || []).length || $data.teacherInfo.education && ($data.teacherInfo.education.degree || $data.teacherInfo.education.major || $data.teacherInfo.education.graduation_year) || ($data.teacherInfo.qualifications || []).length ? common_vendor.e({
+    J: $options.teacherAddressText || $options.teacherDistanceText
   }, $options.teacherAddressText || $options.teacherDistanceText ? common_vendor.e({
-    y: $options.teacherAddressText
+    K: $options.teacherAddressText
   }, $options.teacherAddressText ? {
-    z: common_vendor.t($options.teacherAddressText)
+    L: common_vendor.t($options.teacherAddressText)
   } : {}, {
-    A: $options.teacherDistanceText
+    M: $options.teacherDistanceText
   }, $options.teacherDistanceText ? {
-    B: common_vendor.t($options.teacherDistanceText)
+    N: common_vendor.t($options.teacherDistanceText)
   } : {}) : {}, {
-    C: $data.teacherInfo.school || $data.teacherInfo.experience
-  }, $data.teacherInfo.school || $data.teacherInfo.experience ? common_vendor.e({
-    D: $data.teacherInfo.school
-  }, $data.teacherInfo.school ? {
-    E: common_vendor.t($data.teacherInfo.school)
+    O: $options.teacherGenderText($data.teacherInfo.gender) || $data.teacherInfo.school || $data.teacherInfo.experience
+  }, $options.teacherGenderText($data.teacherInfo.gender) || $data.teacherInfo.school || $data.teacherInfo.experience ? common_vendor.e({
+    P: $options.teacherGenderText($data.teacherInfo.gender)
+  }, $options.teacherGenderText($data.teacherInfo.gender) ? {
+    Q: common_vendor.t($options.teacherGenderText($data.teacherInfo.gender)),
+    R: !$data.teacherInfo.school && !$data.teacherInfo.experience ? 1 : ""
   } : {}, {
-    F: $data.teacherInfo.experience
+    S: $data.teacherInfo.school
+  }, $data.teacherInfo.school ? {
+    T: common_vendor.t($data.teacherInfo.school),
+    U: !$data.teacherInfo.experience ? 1 : ""
+  } : {}, {
+    V: $data.teacherInfo.experience
   }, $data.teacherInfo.experience ? {
-    G: common_vendor.t($data.teacherInfo.experience)
+    W: common_vendor.t($data.teacherInfo.experience)
   } : {}) : {}, {
-    H: ($data.teacherInfo.tags || []).length
+    X: ($data.teacherInfo.tags || []).length
   }, ($data.teacherInfo.tags || []).length ? {
-    I: common_vendor.f($data.teacherInfo.tags, (tag, k0, i0) => {
+    Y: common_vendor.f($data.teacherInfo.tags, (tag, k0, i0) => {
       return {
         a: common_vendor.t(tag),
         b: tag
       };
     })
   } : {}, {
-    J: $data.teacherInfo.education && ($data.teacherInfo.education.degree || $data.teacherInfo.education.major || $data.teacherInfo.education.graduation_year)
+    Z: $data.teacherInfo.education && ($data.teacherInfo.education.degree || $data.teacherInfo.education.major || $data.teacherInfo.education.graduation_year)
   }, $data.teacherInfo.education && ($data.teacherInfo.education.degree || $data.teacherInfo.education.major || $data.teacherInfo.education.graduation_year) ? common_vendor.e({
-    K: $data.teacherInfo.education.degree
+    aa: $data.teacherInfo.education.degree
   }, $data.teacherInfo.education.degree ? {
-    L: common_vendor.t($data.teacherInfo.education.degree)
+    ab: common_vendor.t($data.teacherInfo.education.degree)
   } : {}, {
-    M: $data.teacherInfo.education.major
+    ac: $data.teacherInfo.education.major
   }, $data.teacherInfo.education.major ? {
-    N: common_vendor.t($data.teacherInfo.education.major)
+    ad: common_vendor.t($data.teacherInfo.education.major)
   } : {}, {
-    O: $data.teacherInfo.education.graduation_year
+    ae: $data.teacherInfo.education.graduation_year
   }, $data.teacherInfo.education.graduation_year ? {
-    P: common_vendor.t($data.teacherInfo.education.graduation_year)
+    af: common_vendor.t($data.teacherInfo.education.graduation_year)
   } : {}) : {}, {
-    Q: ($data.teacherInfo.qualifications || []).length
+    ag: ($data.teacherInfo.qualifications || []).length
   }, ($data.teacherInfo.qualifications || []).length ? {
-    R: common_vendor.f($data.teacherInfo.qualifications, (item, index, i0) => {
+    ah: common_vendor.f($data.teacherInfo.qualifications, (item, index, i0) => {
       return {
         a: common_vendor.t(item.name || "证书"),
         b: index
       };
     })
-  } : {}, {
-    S: $options.scheduleSummary.length
+  } : {}) : {}, {
+    ai: $options.scheduleSummary.length || $options.recentReviews.length
+  }, $options.scheduleSummary.length || $options.recentReviews.length ? common_vendor.e({
+    aj: $options.scheduleSummary.length
   }, $options.scheduleSummary.length ? {
-    T: common_vendor.f($options.scheduleSummary, (slot, k0, i0) => {
+    ak: common_vendor.f($options.scheduleSummary, (slot, k0, i0) => {
       return {
         a: common_vendor.t(slot.day),
         b: common_vendor.t(slot.time),
@@ -674,10 +759,10 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    U: $options.recentReviews.length
+    al: $options.recentReviews.length
   }, $options.recentReviews.length ? {
-    V: common_vendor.o((...args) => $options.goToReviews && $options.goToReviews(...args)),
-    W: common_vendor.f($options.recentReviews, (review, k0, i0) => {
+    am: common_vendor.o((...args) => $options.goToReviews && $options.goToReviews(...args)),
+    an: common_vendor.f($options.recentReviews, (review, k0, i0) => {
       return {
         a: common_vendor.t(review.parent_name || "家长"),
         b: common_vendor.t($options.formatTime(review.create_time)),
@@ -686,25 +771,25 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         e: review._id
       };
     })
-  } : {}, {
-    X: $data.isLoading
+  } : {}) : {}, {
+    ao: $data.isLoading
   }, $data.isLoading ? {} : $data.loadError ? {
-    Z: common_vendor.t($data.loadError),
-    aa: common_vendor.o((...args) => $options.loadDetail && $options.loadDetail(...args))
+    aq: common_vendor.t($data.loadError),
+    ar: common_vendor.o((...args) => $options.loadDetail && $options.loadDetail(...args))
   } : {}, {
-    Y: $data.loadError,
-    ab: $data.isRefreshing,
-    ac: common_vendor.o((...args) => $options.onRefresh && $options.onRefresh(...args)),
-    ad: common_vendor.t($data.teacherInfo.hourly_rate || 100),
-    ae: common_vendor.t($data.isContacting ? "联系中..." : "联系老师"),
-    af: $data.isLoading || $data.loadError || $data.isContacting,
-    ag: common_vendor.o((...args) => $options.handleContactTeacher && $options.handleContactTeacher(...args)),
-    ah: $options.canMakeAppointment
+    ap: $data.loadError,
+    as: $data.isRefreshing,
+    at: common_vendor.o((...args) => $options.onRefresh && $options.onRefresh(...args)),
+    av: common_vendor.t($data.teacherInfo.hourly_rate || 100),
+    aw: common_vendor.t($data.isContacting ? "联系中..." : "联系老师"),
+    ax: $data.isLoading || $data.loadError || $data.isContacting,
+    ay: common_vendor.o((...args) => $options.handleContactTeacher && $options.handleContactTeacher(...args)),
+    az: $options.canMakeAppointment
   }, $options.canMakeAppointment ? {
-    ai: $data.isLoading || $data.loadError,
-    aj: common_vendor.o((...args) => $options.goToAppointment && $options.goToAppointment(...args))
+    aA: $data.isLoading || $data.loadError,
+    aB: common_vendor.o((...args) => $options.goToAppointment && $options.goToAppointment(...args))
   } : $data.hasContacted && !$data.hasTrialSuccess ? {} : {}, {
-    ak: $data.hasContacted && !$data.hasTrialSuccess
+    aC: $data.hasContacted && !$data.hasTrialSuccess
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-0cbe3d9e"]]);

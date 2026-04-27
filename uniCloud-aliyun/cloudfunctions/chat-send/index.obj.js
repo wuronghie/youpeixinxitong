@@ -169,7 +169,7 @@ module.exports = {
       // 5. 确定发送者角色
       const sender_role = sender_id === conversation.parent_id ? 'parent' : 'teacher'
       
-      // 6. 验证聊天权限（联系请求阶段：家长可以发送，老师需要支付保证金后才能发送）
+      // 6. 验证聊天权限（联系请求阶段：家长可以发送，老师需要支付信息费后才能发送）
       // 查询关联的预约状态
       const appointmentDoc = await db.collection('appointments')
         .doc(conversation.appointment_id)
@@ -182,7 +182,7 @@ module.exports = {
       // 如果是联系请求（contact_request）状态，需要特殊处理
       if (appointment && appointment.status === 'contact_request') {
         if (sender_role === 'teacher' && !conversation.chat_enabled) {
-          return error('请先支付保证金后才能回复家长')
+          return error('请先支付信息费后才能回复家长')
         }
         
         // 家长在联系请求阶段：需要等待老师回复后才能继续发送消息
@@ -219,7 +219,7 @@ module.exports = {
       } else {
         // 其他状态（如已确认的预约），需要 chat_enabled 为 true
         if (!conversation.chat_enabled) {
-          return error('聊天未开启，请先支付保证金')
+          return error('聊天未开启，请先支付信息费')
         }
       }
       const receiver_id = sender_role === 'parent' ? conversation.teacher_id : conversation.parent_id
@@ -518,7 +518,7 @@ module.exports = {
       
       // 查询会话
       // 优先按 appointment_id 精确匹配；如果不存在，则按 parent_id + teacher_id 维度回退查找，
-      // 以兼容“同一对家长与老师复用会话和保证金”的逻辑。
+      // 以兼容“同一对家长与老师复用会话和信息费”的逻辑。
       let conversation = null
       
       const conversationDoc = await db.collection('chat-conversations')
@@ -568,7 +568,7 @@ module.exports = {
       // 其他状态需要chat_enabled为true才能查看
       if (appointment && appointment.status !== 'contact_request') {
         if (!conversation.chat_enabled) {
-          return error('聊天功能未开启，请先支付保证金')
+          return error('聊天功能未开启，请先支付信息费')
         }
       }
       

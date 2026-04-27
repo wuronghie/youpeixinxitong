@@ -56,6 +56,21 @@
 						/>
 					</view>
 					<view class="d-flex a-center j-sb py-2 border-bottom">
+						<text class="font-sm">性别<text class="text-danger">*</text></text>
+						<view class="d-flex a-center">
+							<view
+								class="gender-chip rounded px-3 py-1 mr-2 font-sm"
+								:class="formData.gender === 'male' ? 'gender-selected male' : 'gender-default'"
+								@click="selectGender('male')"
+							>男</view>
+							<view
+								class="gender-chip rounded px-3 py-1 font-sm"
+								:class="formData.gender === 'female' ? 'gender-selected female' : 'gender-default'"
+								@click="selectGender('female')"
+							>女</view>
+						</view>
+					</view>
+					<view class="d-flex a-center j-sb py-2 border-bottom">
 						<text class="font-sm">手机号码<text class="text-danger">*</text></text>
 						<input
 							class="text-right font-sm flex-1 ml-3"
@@ -63,16 +78,6 @@
 							:disabled="!canEdit"
 							type="number"
 							placeholder="请输入常用手机号"
-							placeholder-class="text-light-muted"
-						/>
-					</view>
-					<view class="d-flex a-center j-sb py-2">
-						<text class="font-sm">微信号</text>
-						<input
-							class="text-right font-sm flex-1 ml-3"
-							v-model.trim="formData.contact_wechat"
-							:disabled="!canEdit"
-							placeholder="方便老师联系的微信号"
 							placeholder-class="text-light-muted"
 						/>
 					</view>
@@ -89,6 +94,21 @@
 							placeholder="请输入学生姓名"
 							placeholder-class="text-light-muted"
 						/>
+					</view>
+					<view class="d-flex a-center j-sb py-2 border-bottom">
+						<text class="font-sm">孩子性别<text class="text-danger">*</text></text>
+						<view class="d-flex a-center">
+							<view
+								class="gender-chip rounded px-3 py-1 mr-2 font-sm"
+								:class="formData.student_gender === 'male' ? 'gender-selected male' : 'gender-default'"
+								@click="selectStudentGender('male')"
+							>男</view>
+							<view
+								class="gender-chip rounded px-3 py-1 font-sm"
+								:class="formData.student_gender === 'female' ? 'gender-selected female' : 'gender-default'"
+								@click="selectStudentGender('female')"
+							>女</view>
+						</view>
 					</view>
 					<view class="d-flex a-center j-sb py-2 border-bottom">
 						<text class="font-sm">当前年级<text class="text-danger">*</text></text>
@@ -229,6 +249,7 @@ import card from '@/components/common/card.vue'
 import { mockUserInfo, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import { redirectByRole } from '@/utils/auth.js'
 import { 
 	chooseLocation, 
 	openLocation, 
@@ -258,9 +279,10 @@ export default {
 				avatar: '',
 				avatarFileId: '',
 				real_name: '',
+				gender: '', // 家长性别（必填）：'male' | 'female'
 				phone: '',
-				contact_wechat: '',
 				student_name: '',
+				student_gender: '', // 孩子性别（必填）：'male' | 'female'
 				student_grade: '',
 				student_age: '',
 				school_name: '',
@@ -379,7 +401,8 @@ export default {
 						avatar: profile.avatar || stored.avatar,
 						role: profile.role || stored.role,
 						parent_info: profile.parent_info || stored.parent_info || {},
-						phone: profile.phone || stored.phone
+						phone: profile.phone || stored.phone,
+						gender: profile.gender != null ? profile.gender : stored.gender
 					}
 					uni.setStorageSync('userInfo', nextStored)
 				} else {
@@ -432,13 +455,24 @@ export default {
 			
 			const finalAddressName = pInfo.address_detail || locationName || (hasLegacyAddress && legacyAddress.name) || ''
 			
+			// 性别：uni-id-users.gender 约定 1=男, 2=女；兼容前端 male/female 文本
+			const rawGender = profile.gender
+			let genderStr = ''
+			if (rawGender === 1 || rawGender === '1' || rawGender === 'male') genderStr = 'male'
+			else if (rawGender === 2 || rawGender === '2' || rawGender === 'female') genderStr = 'female'
+			const rawStudentGender = pInfo.student_gender
+			let studentGenderStr = ''
+			if (rawStudentGender === 1 || rawStudentGender === '1' || rawStudentGender === 'male') studentGenderStr = 'male'
+			else if (rawStudentGender === 2 || rawStudentGender === '2' || rawStudentGender === 'female') studentGenderStr = 'female'
+
 			this.formData = {
 				avatar: avatarUrl || defaultAvatar,
 				avatarFileId: avatarFileId || '',
 				real_name: profile.nickname || pInfo.real_name || '',
+				gender: genderStr,
 				phone: profile.phone || '',
-				contact_wechat: pInfo.contact_wechat || '',
 				student_name: pInfo.student_name || '',
+				student_gender: studentGenderStr,
 				student_grade: pInfo.student_grade || '',
 				student_age: pInfo.student_age || '',
 				school_name: pInfo.school_name || '',
@@ -520,6 +554,16 @@ export default {
 			const index = Number(event.detail.value)
 			this.gradeIndex = index
 			this.formData.student_grade = this.gradeOptions[index]
+		},
+		selectGender(gender) {
+			if (!this.canEdit) return
+			if (gender !== 'male' && gender !== 'female') return
+			this.formData.gender = gender
+		},
+		selectStudentGender(gender) {
+			if (!this.canEdit) return
+			if (gender !== 'male' && gender !== 'female') return
+			this.formData.student_gender = gender
 		},
 		toggleSubject(subject) {
 			if (!this.canEdit) return
@@ -613,6 +657,10 @@ export default {
 				uni.showToast({ title: '请填写真实姓名', icon: 'none' })
 				return false
 			}
+			if (this.formData.gender !== 'male' && this.formData.gender !== 'female') {
+				uni.showToast({ title: '请选择性别', icon: 'none' })
+				return false
+			}
 			const phoneReg = /^1[3-9]\d{9}$/
 			if (!this.formData.phone || !phoneReg.test(this.formData.phone)) {
 				uni.showToast({ title: '请填写正确的手机号', icon: 'none' })
@@ -620,6 +668,10 @@ export default {
 			}
 			if (!this.formData.student_name) {
 				uni.showToast({ title: '请填写学生姓名', icon: 'none' })
+				return false
+			}
+			if (this.formData.student_gender !== 'male' && this.formData.student_gender !== 'female') {
+				uni.showToast({ title: '请选择孩子性别', icon: 'none' })
 				return false
 			}
 			if (!this.formData.student_grade) {
@@ -656,12 +708,13 @@ export default {
 				const payload = {
 					real_name: this.formData.real_name,
 					phone: this.formData.phone,
+					gender: this.formData.gender,
 					avatar: this.formData.avatarFileId || this.formData.avatar,
 					student_name: this.formData.student_name,
+					student_gender: this.formData.student_gender,
 					student_grade: this.formData.student_grade,
 					student_subjects: this.formData.student_subjects,
 					learning_goal: this.formData.learning_goal,
-					contact_wechat: this.formData.contact_wechat,
 					address_detail: this.formData.address.name || this.formData.address_detail || '',
 					address: this.formData.address.latitude && this.formData.address.longitude 
 						? {
@@ -692,10 +745,10 @@ export default {
 					const parentInfo = {
 						real_name: this.formData.real_name,
 						student_name: this.formData.student_name,
+						student_gender: this.formData.student_gender,
 						student_grade: this.formData.student_grade,
 						student_subjects: this.formData.student_subjects,
 						learning_goal: this.formData.learning_goal,
-						contact_wechat: this.formData.contact_wechat,
 						address_detail: this.formData.address.name || this.formData.address_detail || '',
 						address: this.formData.address.latitude && this.formData.address.longitude 
 							? {
@@ -714,15 +767,27 @@ export default {
 						nickname: this.formData.real_name,
 						avatar: this.formData.avatarFileId || this.formData.avatar || stored.avatar,
 						phone: this.formData.phone,
+						gender: this.formData.gender === 'male' ? 1 : 2,
 						parent_info: parentInfo,
 						role: 'parent'
 					}
-					uni.setStorageSync('userInfo', nextStored)
-					console.log('[register] 保存成功，已更新本地存储')
-					uni.showToast({ title: '保存成功', icon: 'success' })
-					setTimeout(() => {
-						uni.navigateBack({ delta: 1 })
-					}, 1200)
+				uni.setStorageSync('userInfo', nextStored)
+				console.log('[register] 保存成功，已更新本地存储')
+				uni.showToast({ title: '保存成功', icon: 'success' })
+				setTimeout(() => {
+					// 有上一页则返回；首次进入（被强制跳转到此页）时没有上一页，reLaunch 到家长工作台（找教师列表）
+					const pages = getCurrentPages()
+					if (pages && pages.length > 1) {
+						uni.navigateBack({
+							delta: 1,
+							fail: () => {
+								redirectByRole('parent')
+							}
+						})
+					} else {
+						redirectByRole('parent')
+					}
+				}, 1200)
 				} else {
 					console.error('[register] 保存失败:', res.message)
 					uni.showToast({ title: res.message || '保存失败', icon: 'none', duration: 3000 })
@@ -748,5 +813,33 @@ export default {
 	flex: 1;
 	height: calc(100vh - 200rpx);
 	padding-bottom: 160rpx;
+}
+
+.gender-chip {
+	min-width: 96rpx;
+	text-align: center;
+	transition: all 0.3s;
+	padding: 8rpx 24rpx;
+	border: 2rpx solid #e0e0e0;
+}
+
+.gender-default {
+	background-color: #f5f5f5;
+	color: #666;
+	border: 2rpx solid #e0e0e0;
+}
+
+.gender-selected.male {
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+	color: #fff;
+	border: 2rpx solid #4A90E2;
+	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
+}
+
+.gender-selected.female {
+	background: linear-gradient(135deg, #ff6b9a 0%, #e04a7c 100%);
+	color: #fff;
+	border: 2rpx solid #ff6b9a;
+	box-shadow: 0 4rpx 12rpx rgba(255, 107, 154, 0.3);
 }
 </style>

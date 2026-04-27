@@ -66,9 +66,12 @@ function deepEqual(a, b) {
 function hasProfileChanged(oldProfile, newData) {
   // 比较基本字段
   if (oldProfile.display_name !== newData.display_name) return true
+  if ((oldProfile.gender || '') !== (newData.gender || '')) return true
   if (oldProfile.hourly_rate !== newData.hourly_rate) return true
   if ((oldProfile.introduction || '') !== (newData.introduction || '')) return true
-  
+  // 联系手机号也展示给已支付家长，修改后需要重新审核
+  if ((oldProfile.contact_mobile || '') !== (newData.contact_mobile || '')) return true
+
   // 比较数组字段
   if (!deepEqual(oldProfile.subjects || [], newData.subjects || [])) return true
   if (!deepEqual(oldProfile.grades || [], newData.grades || [])) return true
@@ -126,6 +129,8 @@ module.exports = {
     const {
       avatar,
       display_name,
+      gender,
+      contact_mobile,
       subjects,
       grades,
       hourly_rate,
@@ -202,6 +207,16 @@ module.exports = {
       if (!display_name || !String(display_name).trim()) {
         return error('请填写姓名')
       }
+      // 性别必填（新规则：用于家长识别和后台审核）
+      const genderVal = typeof gender === 'string' ? gender.trim() : ''
+      if (!genderVal || !['male', 'female'].includes(genderVal)) {
+        return error('请选择性别')
+      }
+      // 头像必填（新规则：要求上传本人证件照或自拍照）
+      const avatarStr = typeof avatar === 'string' ? avatar.trim() : ''
+      if (!avatarStr) {
+        return error('请上传本人头像（证件照或自拍照）')
+      }
       if (!Array.isArray(subjects) || subjects.length === 0) {
         return error('请至少选择一个教学科目')
       }
@@ -235,8 +250,24 @@ module.exports = {
       const profile = profileData[0]
       
       // 3. 准备新数据
+      // 注意：前端 input type="number" 传过来可能是 number 类型，需要统一转字符串
+      const contactMobileStr = (contact_mobile !== null && contact_mobile !== undefined && contact_mobile !== '')
+        ? String(contact_mobile).trim()
+        : ''
+
+      // 服务端也做一次必填和格式校验，防止老客户端或异常调用绕过前端校验
+      const mobileReg = /^1[3-9]\d{9}$/
+      if (!contactMobileStr) {
+        return error('请填写联系手机号')
+      }
+      if (!mobileReg.test(contactMobileStr)) {
+        return error('手机号格式不正确')
+      }
+
       const newData = {
         display_name,
+        gender: genderVal,
+        contact_mobile: contactMobileStr,
         subjects,
         grades,
         hourly_rate,
@@ -258,8 +289,8 @@ module.exports = {
         teaching_areas: teaching_areas || []
       }
 
-      if (typeof avatar === 'string' && avatar.length > 0) {
-        newData.avatar = avatar
+      if (avatarStr) {
+        newData.avatar = avatarStr
       }
       
       // 4. 检查是否有修改
@@ -277,11 +308,18 @@ module.exports = {
           available: profile.available
         }, '资料未修改，无需审核')
       }
-      
-      // 5. 有修改，更新教师资料并设置为待审核
+
+      // 5. 有修改，更新教师资料并重置审核状态
+      //   - audit_status: 不论原来是 approved 还是 rejected，统一回到 pending，
+      //     家长端只展示 audit_status === 'approved' 且 is_verified === true 的教师，
+      //     所以重置后家长端会立即看不到该教师，直到平台再次审核通过。
+      //   - audit_comment: 清空上一次的审核意见，避免管理员看到陈旧的备注。
+      //   - is_verified / available: 同步关闭，老师状态变为「不可被预约」。
+      const wasApproved = profile.audit_status === 'approved'
       const updateData = {
         ...newData,
-        // 提交后等待审核
+        audit_status: 'pending',
+        audit_comment: '',
         is_verified: false,
         available: false,
         update_time: Date.now()
@@ -289,19 +327,33 @@ module.exports = {
 
       await db.collection('teacher-profiles').doc(profile._id).update(updateData)
 
+      // 同步写回 uni-id-users：头像 + 性别（1=男, 2=女，uni-id 约定）
+      const userSync = {}
       if (updateData.avatar && updateData.avatar !== profile.avatar) {
-        await db.collection('uni-id-users').doc(teacher_id).update({
-          avatar: updateData.avatar
-        })
+        userSync.avatar = updateData.avatar
+      }
+      if (genderVal) {
+        userSync.gender = genderVal === 'male' ? 1 : 2
+      }
+      if (Object.keys(userSync).length) {
+        try {
+          await db.collection('uni-id-users').doc(teacher_id).update(userSync)
+        } catch (syncErr) {
+          console.warn('[teacher-profile] 同步 uni-id-users 失败（不影响主流程）:', syncErr && syncErr.message)
+        }
       }
       
       // 6. 创建系统消息，通知教师资料已提交，等待审核
       try {
+        const messageTitle = wasApproved ? '资料修改后等待重新审核' : '资料审核中'
+        const messageContent = wasApproved
+          ? '检测到您修改了个人资料，原审核已失效，资料已自动转为「待审核」。审核通过前，您暂时不会出现在家长端列表，请耐心等待。'
+          : '您的教师资料已提交，正在等待平台审核。审核通过后，您将可以接受学生预约。'
         await db.collection('system-messages').add({
           user_id: teacher_id,
           type: 'system',
-          title: '资料审核中',
-          content: `您的教师资料已提交，正在等待平台审核。审核通过后，您将可以接受学生预约。`,
+          title: messageTitle,
+          content: messageContent,
           related_id: profile._id,
           action: {
             type: 'navigate',
@@ -310,7 +362,7 @@ module.exports = {
           action_url: '/pages-teacher/profile/index',  // 兼容字段，用于前端跳转
           is_read: false
         })
-        console.log(`已为教师 ${teacher_id} 创建审核等待消息`)
+        console.log(`已为教师 ${teacher_id} 创建审核等待消息（wasApproved=${wasApproved}）`)
       } catch (msgError) {
         console.error('创建系统消息失败:', msgError)
         // 消息创建失败不影响主流程，只记录错误

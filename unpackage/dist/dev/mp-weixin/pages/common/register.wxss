@@ -4,3 +4,27 @@
 	height: calc(100vh - 200rpx);
 	padding-bottom: 160rpx;
 }
+.gender-chip.data-v-05030230 {
+	min-width: 96rpx;
+	text-align: center;
+	transition: all 0.3s;
+	padding: 8rpx 24rpx;
+	border: 2rpx solid #e0e0e0;
+}
+.gender-default.data-v-05030230 {
+	background-color: #f5f5f5;
+	color: #666;
+	border: 2rpx solid #e0e0e0;
+}
+.gender-selected.male.data-v-05030230 {
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+	color: #fff;
+	border: 2rpx solid #4A90E2;
+	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
+}
+.gender-selected.female.data-v-05030230 {
+	background: linear-gradient(135deg, #ff6b9a 0%, #e04a7c 100%);
+	color: #fff;
+	border: 2rpx solid #ff6b9a;
+	box-shadow: 0 4rpx 12rpx rgba(255, 107, 154, 0.3);
+}

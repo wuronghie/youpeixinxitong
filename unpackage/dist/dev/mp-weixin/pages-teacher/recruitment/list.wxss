@@ -155,6 +155,10 @@
 	color: #60708c;
 	background: #f3f6fb;
 }
+.gender-chip.data-v-374b0988 {
+	color: #8a4fff;
+	background: rgba(138, 79, 255, 0.08);
+}
 .address-chip.data-v-374b0988 {
 	max-width: 100%;
 	white-space: normal;
@@ -191,6 +195,7 @@
 }
 .line-clamp-2.data-v-374b0988 {
 	display: -webkit-box;
+	line-clamp: 2;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

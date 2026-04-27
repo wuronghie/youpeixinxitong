@@ -161,6 +161,10 @@
 	color: #60708c;
 	background: #f3f6fb;
 }
+.gender-chip.data-v-61830342 {
+	color: #8a4fff;
+	background: rgba(138, 79, 255, 0.08);
+}
 .audit-chip.data-v-61830342 {
 	color: #2f6df6;
 	background: rgba(47, 109, 246, 0.08);
@@ -208,6 +212,7 @@
 }
 .line-clamp-2.data-v-61830342 {
 	display: -webkit-box;
+	line-clamp: 2;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

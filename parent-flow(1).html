@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家长流程图</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.9);
+            font-size: 16px;
+        }
+
+        .flow-chart {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .flow-step {
+            position: relative;
+            margin-bottom: 30px;
+            padding-left: 80px;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .flow-step:nth-child(1) { animation-delay: 0.1s; }
+        .flow-step:nth-child(2) { animation-delay: 0.2s; }
+        .flow-step:nth-child(3) { animation-delay: 0.3s; }
+        .flow-step:nth-child(4) { animation-delay: 0.4s; }
+        .flow-step:nth-child(5) { animation-delay: 0.5s; }
+        .flow-step:nth-child(6) { animation-delay: 0.6s; }
+        .flow-step:nth-child(7) { animation-delay: 0.7s; }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .flow-step::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: -30px;
+            width: 4px;
+            background: linear-gradient(to bottom, #f093fb, #f5576c);
+            border-radius: 2px;
+        }
+
+        .flow-step:last-child::before {
+            display: none;
+        }
+
+        .step-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+            z-index: 1;
+        }
+
+        .step-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.2);
+        }
+
+        .step-card h3 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-card p {
+            color: #666;
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        .step-card .icon {
+            font-size: 24px;
+        }
+
+        .action-button {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+        }
+
+        .action-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(240, 147, 251, 0.6);
+        }
+
+        .action-button:active {
+            transform: scale(0.98);
+        }
+
+        .action-button.confirmed {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .choice-container {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .choice-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 25px;
+            border: 3px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            border-color: #f093fb;
+            background: rgba(240, 147, 251, 0.1);
+        }
+
+        .choice-btn.selected {
+            border-color: #f093fb;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .result-box {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+            animation: slideIn 0.4s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .result-box.success {
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.1));
+            border-left: 4px solid #11998e;
+        }
+
+        .result-box.fail {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 195, 113, 0.1));
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .result-box h4 {
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .result-box.success h4 {
+            color: #11998e;
+        }
+
+        .result-box.fail h4 {
+            color: #ff6b6b;
+        }
+
+        .result-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .result-box li {
+            margin-bottom: 5px;
+        }
+
+        .highlight {
+            color: #f5576c;
+            font-weight: bold;
+        }
+
+        .payment-info {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+            border-radius: 8px;
+            color: #f57f17;
+            font-weight: 500;
+        }
+
+        .info-check {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(66, 133, 244, 0.1), rgba(52, 168, 235, 0.05));
+            border-left: 4px solid #4285f4;
+        }
+
+        .info-check h4 {
+            color: #4285f4;
+            margin-bottom: 8px;
+        }
+
+        .branch-container {
+            margin-top: 20px;
+        }
+
+        .branch {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .branch.success-branch {
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.05));
+            border: 2px solid #11998e;
+        }
+
+        .branch.fail-branch {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 195, 113, 0.05));
+            border: 2px solid #ff6b6b;
+        }
+
+        .branch h4 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .branch.success-branch h4 {
+            color: #11998e;
+        }
+
+        .branch.fail-branch h4 {
+            color: #ff6b6b;
+        }
+
+        @media (max-width: 600px) {
+            .flow-step {
+                padding-left: 60px;
+            }
+
+            .step-number {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .step-card {
+                padding: 15px;
+            }
+
+            .step-card h3 {
+                font-size: 18px;
+            }
+
+            .choice-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👨‍👩‍👧 家长端流程</h1>
+            <p>从发现心仪老师到完成试课的完整流程指南</p>
+        </div>
+
+        <div class="flow-chart">
+            <div class="flow-step">
+                <div class="step-number">1</div>
+                <div class="step-card">
+                    <h3><span class="icon">👀</span> 发现心仪老师</h3>
+                    <p>在平台浏览教师资料，找到符合需求、条件满意的老师。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">2</div>
+                <div class="step-card">
+                    <h3><span class="icon">💬</span> 点击与老师沟通</h3>
+                    <p>点击"与老师沟通"按钮，系统会自动检查您是否已完善个人信息。</p>
+                    <div class="info-check">
+                        <h4>🔍 系统自动检查</h4>
+                        <p><span class="highlight">未填写信息</span> → 请先完善个人资料<br><span class="highlight">已填写信息</span> → 系统自动生成一句话介绍发送给老师</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">3</div>
+                <div class="step-card">
+                    <h3><span class="icon">📩</span> 等待老师确认</h3>
+                    <p>系统自动将您的信息发送给老师，等待老师确认是否接受沟通。</p>
+                    <button class="action-button" onclick="simulateWait(this)">查看状态</button>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">4</div>
+                <div class="step-card">
+                    <h3><span class="icon">💬</span> 正常沟通</h3>
+                    <p>老师确认沟通后，您可以与老师详细交流，了解教学经验、授课方式等，建立初步信任。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">5</div>
+                <div class="step-card">
+                    <h3><span class="icon">📝</span> 发起试课邀请</h3>
+                    <p>与老师沟通满意后，可以向老师发起试课邀请，说明试课时间、地点等具体要求。</p>
+                    <button class="action-button" onclick="sendTrialRequest(this)">📤 发起试课邀请</button>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">6</div>
+                <div class="step-card">
+                    <h3><span class="icon">🏠</span> 老师上门签到</h3>
+                    <p>老师接收邀请后到达您家中进行签到，同时您需要<span class="highlight">支付试课费用（正式上课费用的70%）</span>。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">7</div>
+                <div class="step-card">
+                    <h3><span class="icon">⏰</span> 下课选择试课结果</h3>
+                    <p>老师下课后，您可以选择试课成功与否，系统将自动处理后续费用结算。</p>
+                    <div class="choice-container">
+                        <button class="choice-btn">✓ 试课成功</button>
+                        <button class="choice-btn">✗ 试课失败</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function simulateWait(button) {
+            if (!button.classList.contains('confirmed')) {
+                button.classList.add('confirmed');
+                button.innerHTML = '✓ 老师已确认沟通';
+                alert('老师已确认沟通，您可以开始与老师交流了！');
+            }
+        }
+
+        function sendTrialRequest(button) {
+            if (!button.classList.contains('confirmed')) {
+                button.classList.add('confirmed');
+                button.innerHTML = '✓ 邀请已发送';
+                alert('试课邀请已发送给老师，请等待老师确认！');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.animationPlayState = 'running';
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.flow-step').forEach(step => {
+                observer.observe(step);
+            });
+        });
+    </script>
+</body>
+</html>

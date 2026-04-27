@@ -27,51 +27,54 @@
 	<view class="teacher-detail-page">
 		<!-- 头部区域：教师基本信息、评分、价格、收藏按钮 -->
 		<view class="detail-hero position-relative">
-			<view class="hero-overlay"></view>
+			<view class="hero-orb hero-orb--left"></view>
+			<view class="hero-orb hero-orb--right"></view>
 			<view class="hero-card position-relative">
-				<view class="d-flex a-center position-relative">
+				<view class="hero-top">
 					<view class="avatar-shell rounded-circle d-flex a-center j-center">
-						<image 
-							class="rounded-circle border-light" 
-							:src="teacherInfo.avatar || defaultAvatarUrl" 
+						<image
+							class="hero-avatar rounded-circle"
+							:src="teacherInfo.avatar || defaultAvatarUrl"
 							mode="aspectFill"
-							style="width: 150rpx;height: 150rpx;border: 4rpx solid rgba(255,255,255,0.3);"
 						/>
 					</view>
-					<view class="ml-3 flex-1 text-white">
-						<view class="d-flex a-center mb-1 flex-wrap">
-							<text class="font-lg font-weight">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
-							<text v-if="teacherInfo.is_verified" class="ml-2 stat-tag rounded px-2 py-1 font-sm text-white">认证</text>
+					<view class="hero-main">
+						<view class="hero-name-row">
+							<text class="hero-name">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
+							<text v-if="teacherGenderText(teacherInfo.gender)" class="detail-gender-chip" :class="teacherGenderClass(teacherInfo.gender)">{{ teacherGenderText(teacherInfo.gender) }}</text>
+							<text v-if="teacherInfo.is_verified" class="hero-verify">已认证</text>
 						</view>
-						<text v-if="teacherInfo.school || teacherInfo.experience" class="font-sm d-block mb-2 hero-subtitle">
+						<text v-if="teacherInfo.school || teacherInfo.experience" class="hero-subtitle">
 							{{ [teacherInfo.school, teacherInfo.experience].filter(Boolean).join(' · ') }}
 						</text>
-						<view class="hero-metrics">
-							<view class="hero-metric-item">
-								<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating) }}</text>
-								<text class="font-sm hero-metric-label">综合评分</text>
-							</view>
-							<view class="hero-metric-item">
-								<text class="font-lg font-weight d-block">¥{{ teacherInfo.hourly_rate || 100 }}</text>
-								<text class="font-sm hero-metric-label">课时费/小时</text>
-							</view>
-							<view class="hero-metric-item">
-								<text class="font-lg font-weight d-block">{{ formatExperience() }}</text>
-								<text class="font-sm hero-metric-label">教学经验</text>
-							</view>
+						<view class="hero-subject-line" v-if="subjectList.length">
+							<text class="hero-subject-text">{{ subjectList.slice(0, 3).join(' / ') }}</text>
+							<text v-if="subjectList.length > 3" class="hero-subject-more">+{{ subjectList.length - 3 }}</text>
 						</view>
 					</view>
-					<!-- 收藏按钮 -->
-					<view
-						class="favorite-btn position-absolute d-flex a-center j-center"
-						style="top: 0;right: 0;"
-						@click.stop="toggleFavorite"
-					>
-						<image 
+					<view class="favorite-btn d-flex a-center j-center" @click.stop="toggleFavorite">
+						<image
 							:src="isFavorited ? favoriteFilledUrl : favoriteEmptyUrl"
 							mode="aspectFit"
-							style="width: 50rpx; height: 50rpx;"
+							class="favorite-icon"
 						/>
+					</view>
+				</view>
+
+				<view class="hero-metrics">
+					<view class="hero-metric-item">
+						<text class="hero-metric-value">{{ formatRating(teacherInfo.rating) }}</text>
+						<text class="hero-metric-label">综合评分</text>
+					</view>
+					<view class="hero-metric-divider"></view>
+					<view class="hero-metric-item">
+						<text class="hero-metric-value">¥{{ teacherInfo.hourly_rate || 100 }}</text>
+						<text class="hero-metric-label">每小时</text>
+					</view>
+					<view class="hero-metric-divider"></view>
+					<view class="hero-metric-item">
+						<text class="hero-metric-value">{{ formatExperience() }}</text>
+						<text class="hero-metric-label">教学经验</text>
 					</view>
 				</view>
 			</view>
@@ -85,37 +88,85 @@
 			class="scroll"
 		>
 			<view class="page-content px-3 py-3">
-				<!-- 擅长科目 -->
-				<card v-if="(teacherInfo.subjects || []).length" class="detail-card">
-					<view slot="title" class="font-md font-weight">擅长科目</view>
-					<view class="d-flex a-center flex-wrap">
-						<text 
-							v-for="subject in teacherInfo.subjects" 
-							:key="subject" 
-							class="detail-tag rounded px-3 py-1 font-sm mr-2 mb-2"
-						>
-							{{ subject }}
-						</text>
+				<view class="detail-zone detail-zone--primary">
+					<view class="zone-header">
+						<view>
+							<text class="zone-title">核心能力</text>
+							<text class="zone-subtitle">先看老师能教什么、教学表现怎么样</text>
+						</view>
+						<text class="zone-badge">能力概览</text>
 					</view>
-				</card>
+				<!-- 教学范围 -->
+				<card v-if="subjectList.length || gradeGroups.length" class="detail-card detail-card--blue teaching-scope-card">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--blue"></view>
+						<view>
+							<text class="section-title__text">教学范围</text>
+							<text class="section-title__sub">科目与年级清晰分组</text>
+						</view>
+					</view>
+					<view class="scope-panel">
+						<view v-if="subjectList.length" class="scope-section">
+							<view class="scope-section__head">
+								<view>
+									<text class="scope-section__title">教授科目</text>
+									<text class="scope-section__desc">老师主要擅长的课程方向</text>
+								</view>
+								<text class="scope-count">{{ subjectList.length }} 项</text>
+							</view>
+							<view class="scope-tags">
+								<text
+									v-for="subject in subjectList"
+									:key="subject"
+									class="scope-tag scope-tag--subject"
+								>
+									{{ subject }}
+								</text>
+							</view>
+						</view>
 
-				<!-- 适合年级 -->
-				<card v-if="gradeText" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">适合年级</view>
-					<view class="d-flex a-center flex-wrap">
-						<text 
-							v-for="grade in gradeText" 
-							:key="grade" 
-							class="detail-outline-tag rounded px-3 py-1 font-sm mr-2 mb-2"
-						>
-							{{ grade }}
-						</text>
+						<view v-if="gradeGroups.length" class="scope-section" :class="{ 'scope-section--with-divider': subjectList.length }">
+							<view class="scope-section__head">
+								<view>
+									<text class="scope-section__title">适合年级</text>
+									<text class="scope-section__desc">可辅导的学生阶段</text>
+								</view>
+								<text class="scope-count scope-count--muted">{{ gradeTotalCount }} 项</text>
+							</view>
+							<view class="grade-groups">
+								<view
+									v-for="group in gradeGroups"
+									:key="group.key"
+									class="grade-group"
+								>
+									<view class="grade-group__head">
+										<text class="grade-group__title">{{ group.label }}</text>
+										<text class="grade-group__count">{{ group.items.length }} 个年级</text>
+									</view>
+									<view class="scope-tags">
+										<text
+											v-for="grade in group.items"
+											:key="grade"
+											class="scope-tag scope-tag--grade"
+										>
+											{{ grade }}
+										</text>
+									</view>
+								</view>
+							</view>
+						</view>
 					</view>
 				</card>
 
 				<!-- 教学亮点 -->
-				<card class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">教学亮点</view>
+				<card class="mt-3 detail-card detail-card--gold">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--gold"></view>
+						<view>
+							<text class="section-title__text">教学亮点</text>
+							<text class="section-title__sub">试课表现与教学数据</text>
+						</view>
+					</view>
 					<view class="highlight-grid mb-3">
 						<view class="highlight-item text-center">
 							<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating) }}</text>
@@ -152,10 +203,28 @@
 						<text class="font text-secondary intro-text">{{ teacherInfo.introduction || '老师正在完善介绍，欢迎预约体验课程。' }}</text>
 					</view>
 				</card>
+				</view>
 
+				<view
+					v-if="teacherAddressText || teacherDistanceText || teacherGenderText(teacherInfo.gender) || teacherInfo.school || teacherInfo.experience || (teacherInfo.tags || []).length || (teacherInfo.education && (teacherInfo.education.degree || teacherInfo.education.major || teacherInfo.education.graduation_year)) || (teacherInfo.qualifications || []).length"
+					class="detail-zone detail-zone--profile"
+				>
+					<view class="zone-header">
+						<view>
+							<text class="zone-title">教师资料</text>
+							<text class="zone-subtitle">地址、背景、特色与资质分区展示</text>
+						</view>
+						<text class="zone-badge zone-badge--muted">资料信息</text>
+					</view>
 				<!-- 教学地址与距离 -->
-				<card v-if="teacherAddressText || teacherDistanceText" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">教学地址</view>
+				<card v-if="teacherAddressText || teacherDistanceText" class="mt-3 detail-card detail-card--green">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--green"></view>
+						<view>
+							<text class="section-title__text">教学地址</text>
+							<text class="section-title__sub">线下授课位置参考</text>
+						</view>
+					</view>
 					<view class="info-list">
 						<view v-if="teacherAddressText" class="info-row">
 							<text class="info-label">教学地址</text>
@@ -169,10 +238,20 @@
 				</card>
 
 				<!-- 所在院校和资历 -->
-				<card v-if="teacherInfo.school || teacherInfo.experience" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">基本信息</view>
+				<card v-if="teacherGenderText(teacherInfo.gender) || teacherInfo.school || teacherInfo.experience" class="mt-3 detail-card detail-card--slate">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--slate"></view>
+						<view>
+							<text class="section-title__text">基本信息</text>
+							<text class="section-title__sub">老师背景与资历</text>
+						</view>
+					</view>
 					<view class="info-list">
-						<view v-if="teacherInfo.school" class="info-row">
+						<view v-if="teacherGenderText(teacherInfo.gender)" class="info-row" :class="{ 'no-border': !teacherInfo.school && !teacherInfo.experience }">
+							<text class="info-label">性别</text>
+							<text class="info-value">{{ teacherGenderText(teacherInfo.gender) }}</text>
+						</view>
+						<view v-if="teacherInfo.school" class="info-row" :class="{ 'no-border': !teacherInfo.experience }">
 							<text class="info-label">所在院校</text>
 							<text class="info-value">{{ teacherInfo.school }}</text>
 						</view>
@@ -184,8 +263,14 @@
 				</card>
 
 				<!-- 附加标签 -->
-				<card v-if="(teacherInfo.tags || []).length" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">教学特色</view>
+				<card v-if="(teacherInfo.tags || []).length" class="mt-3 detail-card detail-card--purple">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--purple"></view>
+						<view>
+							<text class="section-title__text">教学特色</text>
+							<text class="section-title__sub">课堂风格与服务标签</text>
+						</view>
+					</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="tag in teacherInfo.tags" 
@@ -198,8 +283,14 @@
 				</card>
 
 				<!-- 教育背景 -->
-				<card v-if="teacherInfo.education && (teacherInfo.education.degree || teacherInfo.education.major || teacherInfo.education.graduation_year)" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">教育背景</view>
+				<card v-if="teacherInfo.education && (teacherInfo.education.degree || teacherInfo.education.major || teacherInfo.education.graduation_year)" class="mt-3 detail-card detail-card--cyan">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--cyan"></view>
+						<view>
+							<text class="section-title__text">教育背景</text>
+							<text class="section-title__sub">学历、专业与毕业信息</text>
+						</view>
+					</view>
 					<view class="info-list">
 						<view v-if="teacherInfo.education.degree" class="info-row">
 							<text class="info-label">学历</text>
@@ -217,8 +308,14 @@
 				</card>
 
 				<!-- 资质证书 -->
-				<card v-if="(teacherInfo.qualifications || []).length" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">资质证书</view>
+				<card v-if="(teacherInfo.qualifications || []).length" class="mt-3 detail-card detail-card--pink">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--pink"></view>
+						<view>
+							<text class="section-title__text">资质证书</text>
+							<text class="section-title__sub">已提交的教学资质</text>
+						</view>
+					</view>
 					<view class="d-flex a-center flex-wrap">
 						<text 
 							v-for="(item, index) in teacherInfo.qualifications" 
@@ -229,10 +326,25 @@
 						</text>
 					</view>
 				</card>
+				</view>
 
+				<view v-if="scheduleSummary.length || recentReviews.length" class="detail-zone detail-zone--interaction">
+					<view class="zone-header">
+						<view>
+							<text class="zone-title">预约与口碑</text>
+							<text class="zone-subtitle">查看可约时间和其他家长反馈</text>
+						</view>
+						<text class="zone-badge zone-badge--warm">互动信息</text>
+					</view>
 				<!-- 可预约时间 -->
-				<card v-if="scheduleSummary.length" class="mt-3 detail-card">
-					<view slot="title" class="font-md font-weight">可预约时间</view>
+				<card v-if="scheduleSummary.length" class="mt-3 detail-card detail-card--blue">
+					<view slot="title" class="section-title">
+						<view class="section-title__mark section-title__mark--blue"></view>
+						<view>
+							<text class="section-title__text">可预约时间</text>
+							<text class="section-title__sub">近期可沟通的授课时段</text>
+						</view>
+					</view>
 					<view class="d-flex flex-column">
 						<view 
 							v-for="slot in scheduleSummary" 
@@ -246,10 +358,16 @@
 				</card>
 
 				<!-- 家长评价 -->
-				<card v-if="recentReviews.length" class="mt-3 detail-card">
-					<view slot="title" class="d-flex a-center j-sb w-100">
-						<text class="font-md font-weight">家长评价</text>
-						<text class="text-primary font-sm" @click="goToReviews">查看全部</text>
+				<card v-if="recentReviews.length" class="mt-3 detail-card detail-card--gold">
+					<view slot="title" class="section-title section-title--between">
+						<view class="section-title__left">
+							<view class="section-title__mark section-title__mark--gold"></view>
+							<view>
+								<text class="section-title__text">家长评价</text>
+								<text class="section-title__sub">真实课后反馈</text>
+							</view>
+						</view>
+						<text class="section-title__link" @click="goToReviews">查看全部</text>
 					</view>
 					<view v-for="review in recentReviews" :key="review._id" class="review-card rounded p-3 mb-2">
 						<view class="d-flex a-center j-sb mb-2">
@@ -260,6 +378,7 @@
 						<text class="font text-secondary">{{ review.content }}</text>
 					</view>
 				</card>
+				</view>
 
 				<view v-if="isLoading" class="text-center text-light-muted font py-5">教师资料加载中...</view>
 				<view v-else-if="loadError" class="d-flex flex-column a-center j-center py-5">
@@ -271,31 +390,32 @@
 		</scroll-view>
 
 		<!-- 底部操作栏 -->
-		<view class="action-bar position-fixed bottom-0 left-0 right-0 d-flex a-center px-3 py-3" style="z-index: 100;">
-			<view class="flex-1">
-				<text class="font-sm text-light-muted d-block">课程费用</text>
-				<text class="main-text-color font-md font-weight d-block">¥{{ teacherInfo.hourly_rate || 100 }}/小时</text>
+		<view class="action-bar position-fixed bottom-0 left-0 right-0">
+			<view class="action-price">
+				<text class="action-price__label">课时费</text>
+				<view class="action-price__row">
+					<text class="action-price__amount">¥{{ teacherInfo.hourly_rate || 100 }}</text>
+					<text class="action-price__unit">/小时</text>
+				</view>
 			</view>
-			<view class="d-flex a-center">
-				<button 
-					class="secondary-action-btn border border-primary text-primary rounded px-4 py-2 font-md mr-2" 
-					:disabled="isLoading || loadError || isContacting" 
+			<view class="action-buttons">
+				<button
+					class="secondary-action-btn action-button"
+					:disabled="isLoading || loadError || isContacting"
 					@click="handleContactTeacher"
-					style="min-width: 160rpx;"
 				>
 					{{ isContacting ? '联系中...' : '联系老师' }}
 				</button>
-				<button 
+				<button
 					v-if="canMakeAppointment"
-					class="primary-action-btn main-bg-color text-white rounded px-4 py-2 font-md font-weight" 
-					:disabled="isLoading || loadError" 
+					class="primary-action-btn action-button"
+					:disabled="isLoading || loadError"
 					@click="goToAppointment"
-					style="min-width: 160rpx;"
 				>
 					立即预约
 				</button>
-				<view v-else-if="hasContacted && !hasTrialSuccess" class="text-center" style="min-width: 160rpx;">
-					<text class="font-sm text-light-muted">请先完成试课</text>
+				<view v-else-if="hasContacted && !hasTrialSuccess" class="trial-tip">
+					<text>请先完成试课</text>
 				</view>
 			</view>
 		</view>
@@ -337,10 +457,44 @@ export default {
 		}
 	},
 	computed: {
-		gradeText() {
+		subjectList() {
+			const list = this.teacherInfo.subjects || []
+			if (!Array.isArray(list)) return []
+			return list.filter(Boolean)
+		},
+		gradeList() {
 			const list = this.teacherInfo.grades || []
-			if (!list.length) return null
-			return list
+			if (!Array.isArray(list)) return []
+			return list.filter(Boolean)
+		},
+		gradeTotalCount() {
+			return this.gradeList.length
+		},
+		gradeGroups() {
+			const primary = ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级']
+			const junior = ['初一', '初二', '初三']
+			const senior = ['高一', '高二', '高三']
+			const gradeSet = new Set(this.gradeList)
+			const makeGroup = (key, label, order) => ({
+				key,
+				label,
+				items: order.filter(item => gradeSet.has(item))
+			})
+			const groups = [
+				makeGroup('primary', '小学', primary),
+				makeGroup('junior', '初中', junior),
+				makeGroup('senior', '高中', senior)
+			].filter(group => group.items.length > 0)
+			const known = new Set([...primary, ...junior, ...senior])
+			const other = this.gradeList.filter(item => !known.has(item))
+			if (other.length > 0) {
+				groups.push({
+					key: 'other',
+					label: '其他',
+					items: other
+				})
+			}
+			return groups
 		},
 		recentReviews() {
 			return this.teacherInfo.recent_reviews || []
@@ -398,8 +552,12 @@ export default {
 			setTimeout(() => uni.navigateBack(), 1500)
 			return
 		}
-		this.fetchUserLocation()
-		this.loadDetail()
+		// 优先让首屏渲染完成，再异步加载详情和定位，避免 onLoad 阶段被 cloud / 定位授权阻塞
+		// 触发微信小程序 navigateTo:fail timeout（5 秒未完成 onLoad 就会报）
+		setTimeout(() => {
+			this.loadDetail()
+			this.fetchUserLocation()
+		}, 0)
 	},
 	onShareAppMessage() {
 		// 分享教师详情给好友
@@ -801,6 +959,16 @@ export default {
 			if (!rating && rating !== 0) return '5.0'
 			return Number(rating).toFixed(1)
 		},
+		teacherGenderText(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return '男'
+			if (gender === 'female' || gender === 2 || gender === '2') return '女'
+			return ''
+		},
+		teacherGenderClass(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return 'male'
+			if (gender === 'female' || gender === 2 || gender === '2') return 'female'
+			return ''
+		},
 		async fetchUserLocation() {
 			try {
 				const res = await uni.getLocation({ type: 'gcj02' })
@@ -934,81 +1102,435 @@ export default {
 
 <style scoped>
 .teacher-detail-page {
-	background: linear-gradient(180deg, #f7f9fc 0%, #f3f6fb 100%);
+	background: #f4f7fb;
 	min-height: 100vh;
 }
 
 .scroll {
 	flex: 1;
-	height: calc(100vh - 500rpx);
+	height: calc(100vh - 430rpx);
 	padding-bottom: 200rpx;
 }
 
 .page-content {
-	padding-bottom: 190rpx;
+	padding-bottom: 210rpx;
 }
 
 .detail-hero {
-	padding: 32rpx 24rpx 12rpx;
-	background: linear-gradient(135deg, #4f7bff 0%, #3b8cff 55%, #61a7ff 100%);
+	padding: 34rpx 26rpx 38rpx;
+	background: linear-gradient(145deg, #2563eb 0%, #3b82f6 52%, #60a5fa 100%);
+	overflow: hidden;
 }
 
-.hero-overlay {
+.hero-orb {
 	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
-	left: 0;
-	background: radial-gradient(circle at top right, rgba(255,255,255,0.22), transparent 40%);
+	border-radius: 999rpx;
+	background: rgba(255, 255, 255, 0.18);
+	filter: blur(2rpx);
+}
+
+.hero-orb--left {
+	width: 260rpx;
+	height: 260rpx;
+	left: -90rpx;
+	top: 38rpx;
+}
+
+.hero-orb--right {
+	width: 360rpx;
+	height: 360rpx;
+	right: -160rpx;
+	top: -110rpx;
 }
 
 .hero-card {
-	padding: 28rpx;
-	border-radius: 32rpx;
-	background: rgba(255, 255, 255, 0.12);
-	backdrop-filter: blur(16rpx);
-	box-shadow: 0 20rpx 40rpx rgba(27, 72, 168, 0.18);
+	padding: 30rpx;
+	border-radius: 36rpx;
+	background: rgba(255, 255, 255, 0.16);
+	border: 1rpx solid rgba(255, 255, 255, 0.28);
+	box-shadow: 0 24rpx 52rpx rgba(30, 64, 175, 0.22);
+}
+
+.hero-top {
+	display: flex;
+	align-items: flex-start;
+}
+
+.hero-main {
+	flex: 1;
+	min-width: 0;
+	margin-left: 24rpx;
 }
 
 .avatar-shell {
-	width: 170rpx;
-	height: 170rpx;
+	width: 166rpx;
+	height: 166rpx;
 	padding: 8rpx;
-	background: rgba(255,255,255,0.14);
-	box-shadow: 0 12rpx 28rpx rgba(15, 23, 42, 0.12);
+	background: rgba(255, 255, 255, 0.18);
+	box-shadow: 0 16rpx 30rpx rgba(30, 64, 175, 0.2);
+}
+
+.hero-avatar {
+	width: 150rpx;
+	height: 150rpx;
+	border: 4rpx solid rgba(255, 255, 255, 0.42);
+}
+
+.hero-name-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	padding-right: 70rpx;
+}
+
+.hero-name {
+	color: #fff;
+	font-size: 38rpx;
+	font-weight: 800;
+	line-height: 1.35;
+	letter-spacing: 1rpx;
 }
 
 .hero-subtitle {
-	opacity: 0.9;
+	display: block;
+	margin-top: 8rpx;
+	color: rgba(255, 255, 255, 0.86);
+	font-size: 25rpx;
 	line-height: 1.5;
+}
+
+.hero-subject-line {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-top: 18rpx;
+}
+
+.hero-subject-text {
+	max-width: 420rpx;
+	padding: 8rpx 18rpx;
+	border-radius: 999rpx;
+	background: rgba(255, 255, 255, 0.18);
+	color: #fff;
+	font-size: 24rpx;
+	line-height: 1.4;
+}
+
+.hero-subject-more {
+	margin-left: 10rpx;
+	padding: 8rpx 12rpx;
+	border-radius: 999rpx;
+	background: rgba(15, 23, 42, 0.16);
+	color: #fff;
+	font-size: 22rpx;
+	line-height: 1.4;
 }
 
 .hero-metrics {
 	display: flex;
-	margin-top: 8rpx;
+	align-items: stretch;
+	margin-top: 30rpx;
+	padding: 22rpx 10rpx;
+	border-radius: 28rpx;
+	background: rgba(255, 255, 255, 0.14);
+	border: 1rpx solid rgba(255, 255, 255, 0.2);
 }
 
 .hero-metric-item {
 	flex: 1;
+	text-align: center;
+}
+
+.hero-metric-value {
+	display: block;
+	color: #fff;
+	font-size: 31rpx;
+	font-weight: 800;
+	line-height: 1.25;
 }
 
 .hero-metric-label {
-	opacity: 0.76;
+	display: block;
+	margin-top: 8rpx;
+	color: rgba(255, 255, 255, 0.72);
+	font-size: 23rpx;
+	line-height: 1.25;
+}
+
+.hero-metric-divider {
+	width: 1rpx;
+	margin: 6rpx 0;
+	background: rgba(255, 255, 255, 0.24);
 }
 
 .favorite-btn {
-	width: 76rpx;
-	height: 76rpx;
+	flex-shrink: 0;
+	width: 72rpx;
+	height: 72rpx;
 	border-radius: 999rpx;
-	background: rgba(255,255,255,0.16);
-	backdrop-filter: blur(12rpx);
-	box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.12);
+	background: rgba(255, 255, 255, 0.2);
+	border: 1rpx solid rgba(255, 255, 255, 0.26);
+	box-shadow: 0 10rpx 24rpx rgba(30, 64, 175, 0.16);
+}
+
+.favorite-icon {
+	width: 46rpx;
+	height: 46rpx;
+}
+
+.detail-gender-chip {
+	margin-left: 12rpx;
+	padding: 6rpx 16rpx;
+	border-radius: 999rpx;
+	font-size: 20rpx;
+	line-height: 1.4;
+	font-weight: 600;
+}
+
+.detail-gender-chip.male {
+	color: #1677ff;
+	background: rgba(230, 244, 255, 0.92);
+}
+
+.detail-gender-chip.female {
+	color: #eb2f96;
+	background: rgba(255, 240, 246, 0.92);
+}
+
+.hero-verify {
+	margin-left: 12rpx;
+	padding: 7rpx 16rpx;
+	border-radius: 999rpx;
+	color: #0f766e;
+	background: rgba(240, 253, 250, 0.94);
+	font-size: 21rpx;
+	font-weight: 700;
+	line-height: 1.35;
 }
 
 .detail-card {
-	border-radius: 28rpx;
+	position: relative;
+	border-radius: 30rpx;
 	overflow: hidden;
-	box-shadow: 0 10rpx 26rpx rgba(15, 23, 42, 0.05);
+	background: #fff;
+	box-shadow: 0 14rpx 34rpx rgba(15, 23, 42, 0.06);
+	border: 1rpx solid rgba(226, 232, 240, 0.9);
+}
+
+.detail-zone {
+	position: relative;
+	margin-bottom: 30rpx;
+	padding: 26rpx 22rpx 24rpx;
+	border-radius: 34rpx;
+	border: 1rpx solid rgba(226, 232, 240, 0.95);
+	box-shadow: 0 18rpx 42rpx rgba(15, 23, 42, 0.055);
+	overflow: hidden;
+}
+
+.detail-zone::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 10rpx;
+	z-index: 1;
+}
+
+.detail-zone--primary {
+	background: linear-gradient(180deg, #eff6ff 0%, #ffffff 30%, #f8fbff 100%);
+}
+
+.detail-zone--primary::before {
+	background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.detail-zone--profile {
+	background: linear-gradient(180deg, #f8fafc 0%, #ffffff 34%, #fbfdff 100%);
+}
+
+.detail-zone--profile::before {
+	background: linear-gradient(90deg, #64748b, #22c55e);
+}
+
+.detail-zone--interaction {
+	background: linear-gradient(180deg, #fff7ed 0%, #ffffff 34%, #fffaf3 100%);
+}
+
+.detail-zone--interaction::before {
+	background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.zone-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	margin-bottom: 22rpx;
+	padding: 4rpx 4rpx 0;
+}
+
+.zone-title {
+	display: block;
+	color: #0f172a;
+	font-size: 34rpx;
+	font-weight: 900;
+	line-height: 1.25;
+	letter-spacing: 1rpx;
+}
+
+.zone-subtitle {
+	display: block;
+	margin-top: 8rpx;
+	color: #64748b;
+	font-size: 24rpx;
+	line-height: 1.45;
+}
+
+.zone-badge {
+	flex-shrink: 0;
+	margin-left: 20rpx;
+	padding: 9rpx 18rpx;
+	border-radius: 999rpx;
+	color: #1d4ed8;
+	background: #dbeafe;
+	font-size: 23rpx;
+	font-weight: 700;
+	line-height: 1.3;
+}
+
+.zone-badge--muted {
+	color: #475569;
+	background: #e2e8f0;
+}
+
+.zone-badge--warm {
+	color: #c2410c;
+	background: #ffedd5;
+}
+
+.detail-zone .detail-card {
+	margin-top: 20rpx;
+}
+
+.detail-zone .detail-card:first-of-type {
+	margin-top: 0;
+}
+
+.detail-card::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 8rpx;
+	background: #dbeafe;
+	z-index: 1;
+}
+
+.detail-card--blue::before {
+	background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.detail-card--gold::before {
+	background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+.detail-card--green::before {
+	background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.detail-card--slate::before {
+	background: linear-gradient(90deg, #64748b, #94a3b8);
+}
+
+.detail-card--purple::before {
+	background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+
+.detail-card--cyan::before {
+	background: linear-gradient(90deg, #0891b2, #22d3ee);
+}
+
+.detail-card--pink::before {
+	background: linear-gradient(90deg, #db2777, #f472b6);
+}
+
+.section-title {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding-top: 4rpx;
+}
+
+.section-title--between {
+	justify-content: space-between;
+}
+
+.section-title__left {
+	display: flex;
+	align-items: center;
+}
+
+.section-title__mark {
+	width: 12rpx;
+	height: 42rpx;
+	border-radius: 999rpx;
+	margin-right: 16rpx;
+	background: #2563eb;
+}
+
+.section-title__mark--blue {
+	background: linear-gradient(180deg, #2563eb, #60a5fa);
+}
+
+.section-title__mark--gold {
+	background: linear-gradient(180deg, #f59e0b, #fbbf24);
+}
+
+.section-title__mark--green {
+	background: linear-gradient(180deg, #10b981, #34d399);
+}
+
+.section-title__mark--slate {
+	background: linear-gradient(180deg, #64748b, #94a3b8);
+}
+
+.section-title__mark--purple {
+	background: linear-gradient(180deg, #7c3aed, #a78bfa);
+}
+
+.section-title__mark--cyan {
+	background: linear-gradient(180deg, #0891b2, #22d3ee);
+}
+
+.section-title__mark--pink {
+	background: linear-gradient(180deg, #db2777, #f472b6);
+}
+
+.section-title__text {
+	display: block;
+	font-size: 31rpx;
+	font-weight: 800;
+	color: #0f172a;
+	line-height: 1.25;
+}
+
+.section-title__sub {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 23rpx;
+	color: #94a3b8;
+	line-height: 1.3;
+}
+
+.section-title__link {
+	flex-shrink: 0;
+	padding: 8rpx 16rpx;
+	border-radius: 999rpx;
+	background: #eff6ff;
+	color: #2563eb;
+	font-size: 24rpx;
+	line-height: 1.3;
 }
 
 .detail-tag {
@@ -1023,10 +1545,132 @@ export default {
 	border: 1rpx solid #dfe6f2;
 }
 
+.teaching-scope-card {
+	overflow: visible;
+}
+
+.scope-panel {
+	border-radius: 26rpx;
+	background: linear-gradient(180deg, #f8fbff 0%, #f3f7ff 100%);
+	border: 1rpx solid #e7eefb;
+	padding: 24rpx;
+}
+
+.scope-section {
+	padding: 0;
+}
+
+.scope-section--with-divider {
+	margin-top: 24rpx;
+	padding-top: 24rpx;
+	border-top: 1rpx dashed #dce6f5;
+}
+
+.scope-section__head {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	margin-bottom: 18rpx;
+}
+
+.scope-section__title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 700;
+	color: #162033;
+	line-height: 1.35;
+}
+
+.scope-section__desc {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 24rpx;
+	color: #8a97ab;
+	line-height: 1.45;
+}
+
+.scope-count {
+	flex-shrink: 0;
+	margin-left: 20rpx;
+	padding: 6rpx 16rpx;
+	border-radius: 999rpx;
+	font-size: 22rpx;
+	color: #2f6bff;
+	background: #edf4ff;
+	border: 1rpx solid #dbe8ff;
+	line-height: 1.4;
+}
+
+.scope-count--muted {
+	color: #64748b;
+	background: #f1f5f9;
+	border-color: #e2e8f0;
+}
+
+.scope-tags {
+	display: flex;
+	flex-wrap: wrap;
+	margin: -8rpx;
+}
+
+.scope-tag {
+	margin: 8rpx;
+	padding: 15rpx 24rpx;
+	border-radius: 999rpx;
+	font-size: 26rpx;
+	line-height: 1.35;
+	font-weight: 500;
+}
+
+.scope-tag--subject {
+	color: #1d4ed8;
+	background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+	border: 1rpx solid #bfdbfe;
+	box-shadow: 0 6rpx 14rpx rgba(37, 99, 235, 0.06);
+}
+
+.scope-tag--grade {
+	color: #334155;
+	background: #fff;
+	border: 1rpx solid #e2e8f0;
+}
+
+.grade-groups {
+	display: flex;
+	flex-direction: column;
+	gap: 18rpx;
+}
+
+.grade-group {
+	padding: 18rpx;
+	border-radius: 22rpx;
+	background: rgba(255, 255, 255, 0.9);
+	border: 1rpx solid #e8eef7;
+	box-shadow: 0 8rpx 18rpx rgba(30, 64, 175, 0.035);
+}
+
+.grade-group__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 12rpx;
+}
+
+.grade-group__title {
+	font-size: 27rpx;
+	font-weight: 700;
+	color: #1f2937;
+}
+
+.grade-group__count {
+	font-size: 22rpx;
+	color: #94a3b8;
+}
+
 .highlight-grid {
 	display: flex;
 	flex-wrap: wrap;
-	margin: 0 -9rpx;
+	margin: 0 -8rpx;
 }
 
 .secondary-grid {
@@ -1035,31 +1679,34 @@ export default {
 }
 
 .highlight-item {
-	width: calc(25% - 18rpx);
-	margin: 0 9rpx 18rpx;
-	padding: 24rpx 12rpx;
-	border-radius: 24rpx;
-	background: linear-gradient(180deg, #fafcff 0%, #f5f8fc 100%);
-	border: 1rpx solid #edf2f7;
+	width: calc(25% - 16rpx);
+	margin: 0 8rpx 16rpx;
+	padding: 24rpx 10rpx;
+	border-radius: 26rpx;
+	background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+	border: 1rpx solid #e6eefc;
+	box-shadow: 0 8rpx 18rpx rgba(30, 64, 175, 0.04);
 }
 
 .secondary-grid .highlight-item {
-	width: calc(33.3333% - 18rpx);
+	width: calc(33.3333% - 16rpx);
 }
 
 .intro-box {
-	padding: 22rpx 24rpx;
-	border-radius: 24rpx;
-	background: linear-gradient(180deg, #fafcff 0%, #f7f9fd 100%);
+	padding: 26rpx;
+	border-radius: 26rpx;
+	background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+	border: 1rpx solid #edf2f7;
 }
 
 .intro-text {
 	line-height: 1.8;
+	color: #475569;
 }
 
 .info-list {
 	border-radius: 24rpx;
-	background: linear-gradient(180deg, #fbfcff 0%, #f7f9fd 100%);
+	background: #f8fafc;
 	border: 1rpx solid #edf2f7;
 	overflow: hidden;
 }
@@ -1068,8 +1715,13 @@ export default {
 	display: flex;
 	justify-content: space-between;
 	align-items: flex-start;
-	padding: 24rpx;
+	padding: 26rpx 24rpx;
 	border-bottom: 1rpx solid #edf2f7;
+	background: #fff;
+}
+
+.info-row:nth-child(2n) {
+	background: #fbfdff;
 }
 
 .info-row.no-border {
@@ -1090,29 +1742,135 @@ export default {
 }
 
 .schedule-item {
-	background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
-	border: 1rpx solid #dfe8ff;
+	background: linear-gradient(180deg, #f8fbff 0%, #eff6ff 100%);
+	border: 1rpx solid #dbeafe;
+	box-shadow: 0 8rpx 16rpx rgba(37, 99, 235, 0.04);
+	position: relative;
+	padding-left: 28rpx !important;
+}
+
+.schedule-item::before {
+	content: "";
+	position: absolute;
+	left: 12rpx;
+	top: 50%;
+	width: 8rpx;
+	height: 34rpx;
+	border-radius: 999rpx;
+	background: #3b82f6;
+	transform: translateY(-50%);
 }
 
 .review-card {
-	background: linear-gradient(180deg, #fafcff 0%, #f6f8fb 100%);
+	background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
 	border: 1rpx solid #edf2f7;
+	box-shadow: 0 8rpx 16rpx rgba(15, 23, 42, 0.035);
+	position: relative;
+	padding-left: 28rpx !important;
+}
+
+.review-card::before {
+	content: "";
+	position: absolute;
+	left: 12rpx;
+	top: 24rpx;
+	bottom: 24rpx;
+	width: 6rpx;
+	border-radius: 999rpx;
+	background: #f59e0b;
 }
 
 .action-bar {
+	display: flex;
+	align-items: center;
+	left: 0;
+	right: 0;
+	bottom: 0;
 	background: rgba(255,255,255,0.94);
 	backdrop-filter: blur(18rpx);
 	border-top: 1rpx solid rgba(226, 232, 240, 0.92);
 	box-shadow: 0 -10rpx 30rpx rgba(15, 23, 42, 0.06);
-	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+	padding: 22rpx 28rpx;
+	padding-bottom: calc(22rpx + env(safe-area-inset-bottom));
+	z-index: 100;
+}
+
+.action-price {
+	flex: 1;
+	min-width: 0;
+}
+
+.action-price__label {
+	display: block;
+	font-size: 23rpx;
+	color: #94a3b8;
+	line-height: 1.3;
+}
+
+.action-price__row {
+	display: flex;
+	align-items: baseline;
+	margin-top: 4rpx;
+}
+
+.action-price__amount {
+	color: #2563eb;
+	font-size: 38rpx;
+	font-weight: 800;
+	line-height: 1.2;
+}
+
+.action-price__unit {
+	margin-left: 4rpx;
+	color: #64748b;
+	font-size: 24rpx;
+}
+
+.action-buttons {
+	display: flex;
+	align-items: center;
+	gap: 14rpx;
+}
+
+.action-button {
+	min-width: 164rpx;
+	height: 78rpx;
+	padding: 0 26rpx;
+	border-radius: 999rpx;
+	font-size: 28rpx;
+	font-weight: 700;
+	line-height: 78rpx;
+}
+
+.action-button::after {
+	border: none;
 }
 
 .secondary-action-btn {
-	background: #fff;
+	color: #2563eb;
+	background: #eef5ff;
+	border: 1rpx solid #bfdbfe;
+	box-shadow: none;
 }
 
 .primary-action-btn {
-	box-shadow: 0 14rpx 24rpx rgba(79, 123, 255, 0.18);
+	color: #fff;
+	background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+	border: none;
+	box-shadow: 0 14rpx 24rpx rgba(37, 99, 235, 0.22);
+}
+
+.trial-tip {
+	min-width: 164rpx;
+	height: 72rpx;
+	padding: 0 18rpx;
+	border-radius: 999rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #f1f5f9;
+	color: #94a3b8;
+	font-size: 24rpx;
 }
 
 /* 统计标签样式 */

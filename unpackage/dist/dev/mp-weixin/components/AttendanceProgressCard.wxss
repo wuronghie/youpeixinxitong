@@ -1,0 +1,104 @@
+
+.attendance-progress {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+}
+.attendance-progress__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+.attendance-progress__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #111827;
+}
+.attendance-progress__hint {
+  font-size: 24rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 999rpx;
+}
+.attendance-progress__hint.is-success {
+  background: #d1fae5;
+  color: #047857;
+}
+.attendance-progress__hint.is-progress {
+  background: #fef3c7;
+  color: #b45309;
+}
+.attendance-progress__hint.is-pending {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.attendance-progress__steps {
+  padding: 8rpx 0;
+}
+.attendance-progress__step {
+  display: flex;
+  align-items: flex-start;
+  padding: 12rpx 0;
+}
+.attendance-progress__dot {
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 50%;
+  background: #e5e7eb;
+  margin-right: 20rpx;
+  margin-top: 8rpx;
+  flex-shrink: 0;
+  border: 4rpx solid #fff;
+  box-shadow: 0 0 0 4rpx #e5e7eb;
+}
+.attendance-progress__step.is-active .attendance-progress__dot {
+  background: #f59e0b;
+  box-shadow: 0 0 0 4rpx #fde68a;
+}
+.attendance-progress__step.is-done .attendance-progress__dot {
+  background: #10b981;
+  box-shadow: 0 0 0 4rpx #a7f3d0;
+}
+.attendance-progress__line {
+  width: 4rpx;
+  height: 32rpx;
+  background: #e5e7eb;
+  margin-left: 14rpx;
+}
+.attendance-progress__line.is-done {
+  background: #10b981;
+}
+.attendance-progress__step-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.attendance-progress__step-title {
+  font-size: 28rpx;
+  color: #111827;
+  font-weight: 500;
+}
+.attendance-progress__step-time {
+  font-size: 24rpx;
+  color: #374151;
+  margin-top: 4rpx;
+}
+.attendance-progress__step-time--muted {
+  color: #9ca3af;
+}
+.attendance-progress__step-addr {
+  font-size: 22rpx;
+  color: #6b7280;
+  margin-top: 4rpx;
+}
+.attendance-progress__footer {
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 2rpx dashed #e5e7eb;
+}
+.attendance-progress__footer-text {
+  font-size: 24rpx;
+  color: #6b7280;
+}

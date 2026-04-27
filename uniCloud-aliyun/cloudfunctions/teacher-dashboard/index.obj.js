@@ -183,6 +183,27 @@ module.exports = {
         })
         .count()
 
+      // 打卡待办：confirmed/in_progress + 已支付信息费 + 未上课/未下课
+      // 前端展示徽章数量；具体筛选时间窗口由前端结合排课时间判断
+      const needClockInRes = await db.collection('appointments')
+        .where({
+          teacher_id,
+          status: dbCmd.in(['confirmed', 'in_progress']),
+          deposit_paid: true,
+          class_started_at: dbCmd.exists(false)
+        })
+        .count()
+
+      const needClockOutRes = await db.collection('appointments')
+        .where({
+          teacher_id,
+          status: 'in_progress',
+          deposit_paid: true,
+          class_started_at: dbCmd.exists(true),
+          class_ended_at: dbCmd.exists(false)
+        })
+        .count()
+
       return success({
         profile: teacherProfile,
         stats: {
@@ -190,7 +211,9 @@ module.exports = {
           monthIncome,
           totalStudents,
           upcoming3Days: upcoming3Res.total || 0,
-          upcoming7Days: upcoming7Res.total || 0
+          upcoming7Days: upcoming7Res.total || 0,
+          needClockIn: needClockInRes.total || 0,
+          needClockOut: needClockOutRes.total || 0
         },
         pendingAppointments
       })
@@ -256,8 +279,8 @@ module.exports = {
         console.warn('[云函数] 教师资料不存在')
         return success({
           isComplete: false,
-          missingFields: ['display_name', 'subjects', 'grades', 'hourly_rate', 'experience_years', 'introduction', 'qualifications'],
-          missingFieldsText: ['姓名', '教学科目', '适合年级', '课时费', '教龄', '自我介绍', '资质证书截图']
+          missingFields: ['display_name', 'gender', 'avatar', 'contact_mobile', 'subjects', 'grades', 'hourly_rate', 'experience_years', 'introduction', 'qualifications'],
+          missingFieldsText: ['姓名', '性别', '本人头像', '联系手机号', '教学科目', '适合年级', '课时费', '教龄', '自我介绍', '资质证书截图']
         }, '教师资料不存在')
       }
 
@@ -275,6 +298,34 @@ module.exports = {
       if (!profile.display_name || profile.display_name.trim() === '') {
         missingFields.push('display_name')
         missingFieldsText.push('姓名')
+      }
+
+      // 性别必填（新规则）
+      if (!profile.gender || !['male', 'female'].includes(profile.gender)) {
+        missingFields.push('gender')
+        missingFieldsText.push('性别')
+      }
+
+      // 头像必填（新规则：本人证件照或自拍照）
+      if (!profile.avatar || !String(profile.avatar).trim()) {
+        missingFields.push('avatar')
+        missingFieldsText.push('本人头像')
+      }
+
+      // 检查联系手机号：家长/后台通过手机号联系教师，必填
+      // 兼容 number / string 两种存储类型
+      const mobileReg = /^1[3-9]\d{9}$/
+      const rawMobile = profile.contact_mobile
+      const contactMobile = (rawMobile !== null && rawMobile !== undefined && rawMobile !== '')
+        ? String(rawMobile).trim()
+        : ''
+      console.log('[云函数] contact_mobile 原值:', rawMobile, '(type:', typeof rawMobile, ') 处理后:', contactMobile)
+      if (!contactMobile) {
+        missingFields.push('contact_mobile')
+        missingFieldsText.push('联系手机号')
+      } else if (!mobileReg.test(contactMobile)) {
+        missingFields.push('contact_mobile')
+        missingFieldsText.push('联系手机号格式不正确')
       }
 
       if (!profile.subjects || !Array.isArray(profile.subjects) || profile.subjects.length === 0) {

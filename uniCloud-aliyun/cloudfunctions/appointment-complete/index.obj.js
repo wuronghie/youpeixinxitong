@@ -1,6 +1,21 @@
 /**
  * 完成课程云对象
- * 功能：课程完成、试课结算、退款处理
+ * 功能：课程完成、试课结算、信息费处理
+ *
+ * 交易结算规则（最新版 2026/04）：
+ * 1) 教师信息费（order_type='deposit'，金额=hourly_rate × 2）在聊天开启时支付：
+ *    · 试课成功 → 信息费归平台收取，不退回
+ *    · 试课失败 → 信息费全额退回教师钱包（teacher-wallet.deposit_refunded）
+ * 2) 试课费固定 70/30 分账（成功/失败都执行）：
+ *    · 教师收入 = 0.7 × original_amount（试课总价，不论家长实际预付多少）
+ *    · 平台费   = max(0, actualPaidAmount - teacherIncome)
+ *    · 不再"仅首次试课成功收一节中介费"的旧逻辑
+ *    · 不再因试课失败给家长自动退款（异常退款走 payment-refund.apply 由管理员审核）
+ * 3) 对外接口：
+ *    · confirmTrialSuccess(appointment_id) — 家长确认试课满意
+ *    · confirmTrialFail(appointment_id, reason) — 家长确认试课不满意（仅结算，不退家长）
+ *    · requestRefund(...) — [DEPRECATED] 旧自动退款入口，已禁用，请改用 payment-refund.apply
+ *    · completeCourse(appointment_id) — 正式课程完成
  */
 
 // 工具函数（内嵌）
@@ -87,26 +102,6 @@ function buildSettlementResult(appointment, paymentOrder) {
 }
 
 /**
- * 该家长-教师对是否已有过试课成功记录（不含当前预约）
- * 用于判断是否收取“一节试课完整费用”作为中介费（仅首单试课成功收取）
- */
-async function hasPriorTrialSuccess(db, parentId, teacherId, excludeAppointmentId) {
-  const dbCmd = db.command
-  const res = await db.collection('appointments')
-    .where({
-      parent_id: parentId,
-      teacher_id: teacherId,
-      course_type: 'trial',
-      status: 'completed',
-      trial_result: 'success',
-      _id: dbCmd.neq(excludeAppointmentId)
-    })
-    .limit(1)
-    .count()
-  return (res.total || 0) > 0
-}
-
-/**
  * 确保教师钱包存在，如果不存在则创建
  * @param {String} teacherId 教师ID
  * @returns {Object} 钱包对象
@@ -145,7 +140,7 @@ async function ensureTeacherWallet(teacherId) {
  * 更新教师钱包余额，并记录一条交易流水
  * @param {String} teacherId 教师ID
  * @param {Number} income 收入金额
- * @param {Number} depositAmount 保证金金额（可选）
+ * @param {Number} depositAmount 信息费退还金额（可选，仅试课失败场景）
  * @param {Object} meta 额外信息：{ appointment_id, course_type, source }
  */
 async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, meta = {}) {
@@ -205,11 +200,12 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
     console.log(`[钱包更新] 收入: ${incomeRounded}元, 余额: ${updateData.balance}元, 总收入: ${updateData.total_income}元`)
   }
   
+  let depositRounded = 0
   if (depositNum > 0) {
-    const depositRounded = Number(depositNum.toFixed(2))
+    depositRounded = Number(depositNum.toFixed(2))
     updateData.balance = Number(((updateData.balance || wallet.balance || 0) + depositRounded).toFixed(2))
     updateData.deposit_refunded = Number(((wallet.deposit_refunded || 0) + depositRounded).toFixed(2))
-    console.log(`[钱包更新] 保证金退还: ${depositRounded}元`)
+    console.log(`[钱包更新] 信息费退还: ${depositRounded}元`)
   }
   
   await db.collection('teacher-wallet').doc(wallet._id).update(updateData)
@@ -246,8 +242,37 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
     // 不影响主流程
   }
 
+  // 信息费退还也写一条教师钱包流水，便于收支明细展示
+  try {
+    if (depositRounded > 0) {
+      const now = Date.now()
+      const transaction = {
+        teacher_id: teacherId,
+        type: 'refund',
+        title: '信息费退还',
+        description: meta.appointment_id
+          ? `预约 ${meta.appointment_id} 试课未成功，信息费已退回`
+          : '信息费退还',
+        amount: depositRounded,
+        status: 'completed',
+        appointment_id: meta.appointment_id || null,
+        source: meta.source || 'info_fee_refund',
+        create_time: now,
+        update_time: now
+      }
+      await transactionCollection.add(transaction)
+      console.log('[钱包更新] 已写入信息费退还流水:', {
+        teacher_id: teacherId,
+        amount: depositRounded,
+        appointment_id: meta.appointment_id
+      })
+    }
+  } catch (e) {
+    console.error('[钱包更新] 写入信息费退还流水失败:', e)
+  }
+
   return {
-    settled: incomeRounded > 0 || depositNum > 0,
+    settled: incomeRounded > 0 || depositRounded > 0,
     duplicate: false,
     wallet
   }
@@ -297,20 +322,20 @@ module.exports = {
       if (Date.now() < endTimestamp) {
         return error('课程尚未结束，请在课程结束后再确认')
       }
-      
+      // 4.2 必须老师已完成下课打卡才允许确认结算
+      if (!appointment.class_ended_at) {
+        return error('教师尚未下课打卡，无法确认结果，请稍后再试')
+      }
+
       // 4. 查询支付订单，获取原价和优惠金额（如果使用了优惠券）
       const paymentOrder = await getLatestPaidCourseOrder(db, appointment_id)
       const settlement = buildSettlementResult(appointment, paymentOrder)
-      // 中介费规则：收取一节试课完整费用作为中介费，仅在该家长-教师对首次试课成功时收取
-      const isFirstTrialSuccess = !(await hasPriorTrialSuccess(db, appointment.parent_id, appointment.teacher_id, appointment_id))
-      if (isFirstTrialSuccess) {
-        const oneTrialFee = Math.min(settlement.originalAmount, settlement.actualPaidAmount)
-        settlement.platformFee = roundCurrency(oneTrialFee)
-        settlement.teacherIncome = roundCurrency(Math.max(0, settlement.actualPaidAmount - settlement.platformFee))
-      } else {
-        settlement.platformFee = 0
-        settlement.teacherIncome = roundCurrency(settlement.actualPaidAmount > 0 ? settlement.actualPaidAmount : settlement.originalAmount)
-      }
+      // 70/30 分账规则（试课成功）：
+      // - 教师收入 = 0.7 × original_amount（不论家长预付多少）
+      // - 平台费   = max(0, actualPaid - teacherIncome)
+      const teacherShareRate = 0.7
+      settlement.teacherIncome = roundCurrency(settlement.originalAmount * teacherShareRate)
+      settlement.platformFee = roundCurrency(Math.max(0, settlement.actualPaidAmount - settlement.teacherIncome))
       
       console.log('[confirmTrialSuccess] 支付订单信息:', {
         appointment_id,
@@ -325,16 +350,14 @@ module.exports = {
         } : null
       })
       
-      console.log('[confirmTrialSuccess] 试课结算计算结果:', {
+      console.log('[confirmTrialSuccess] 试课成功结算（70/30 分账）:', {
         appointment_id,
         course_type: appointment.course_type,
-        isFirstTrialSuccess,
         originalAmount: settlement.originalAmount,
-        discountAmount: settlement.discountAmount,
-        hasCoupon: settlement.hasCoupon,
         actualPaidAmount: settlement.actualPaidAmount,
-        platformFee: settlement.platformFee,
-        teacherIncome: settlement.teacherIncome
+        teacherShareRate,
+        teacherIncome: settlement.teacherIncome,
+        platformFee: settlement.platformFee
       })
       
       // 6. 更新预约状态与结算字段
@@ -413,99 +436,169 @@ module.exports = {
   },
   
   /**
-   * 家长确认试课不满意，申请退款
+   * 家长确认试课不满意（新流程：仅结算，不退家长任何钱）
+   *
+   * 结算规则：
+   *   · 教师收入 = 0.7 × original_amount（与成功一致）
+   *   · 平台费   = max(0, actualPaid - teacherIncome)
+   *   · 信息费   = 退回教师钱包（teacher-wallet.deposit_refunded += info_fee）
+   *   · 家长     = 不退任何钱（如需异常退款请走 payment-refund.apply 由管理员审核）
+   *
    * @param {Object} params
    * @param {String} params.appointment_id 预约ID
-   * @param {String} params.reason 不满意原因
+   * @param {String} [params.reason] 不满意原因（写入 trial_fail_reason）
    * @returns {Object}
    */
-  async requestRefund(params) {
-    const { appointment_id, reason = '' } = params
-    
+  async confirmTrialFail(params) {
+    const { appointment_id, reason = '' } = params || {}
+
     try {
       const db = uniCloud.database()
-      
-      // 1. 验证用户登录状态（解析 uniIdToken，兼容简单 token）
-      const token = this.getClientInfo().uniIdToken
-      let parent_id
-      if (!token) {
-        return error('请先登录')
+
+      // 1. 解析家长身份（与 confirmTrialSuccess 保持一致：调用方需自行鉴权或通过 token）
+      const token = (this.getUniIdToken && this.getUniIdToken()) || ''
+      let parent_id = null
+      if (token) {
+        try {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8')
+          const parts = decoded.split('_')
+          parent_id = parts.length >= 1 ? parts[0] : null
+        } catch (e) {
+          // ignore
+        }
       }
-      try {
-        const decoded = Buffer.from(token, 'base64').toString('utf-8')
-        const parts = decoded.split('_')
-        parent_id = parts.length >= 1 ? parts[0] : null
-      } catch (e) {
-        console.error('解析token失败:', e)
-        return error('token验证失败，请重新登录')
-      }
-      if (!parent_id) {
-        return error('token验证失败，请重新登录')
-      }
-      
+
       // 2. 查询预约
       const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
-      
       if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
         return error('预约不存在')
       }
-      
       const appointment = appointmentDoc.data[0]
-      
-      // 3. 验证权限和状态
-      if (appointment.parent_id !== parent_id) {
+
+      // 3. 校验权限 + 状态
+      if (parent_id && appointment.parent_id !== parent_id) {
         return error('只能操作自己的预约')
       }
-      
       if (appointment.course_type !== 'trial') {
-        return error('只有试课可以申请退款')
+        return error('只有试课可以确认结果')
       }
-      
       if (appointment.status !== 'confirmed' && appointment.status !== 'in_progress') {
-        return error('当前预约状态不允许退款')
+        return error('当前预约状态不允许确认结果')
       }
-      
-      // 4. 获取退款比例配置
-      const configDoc = await db.collection('system-config')
-        .where({ config_key: 'trial_refund_rate' })
-        .get()
-      
-      const refundRate = configDoc.data[0]?.config_value || 0.5
-      
-      // 5. 计算退款金额（50%，即1小时费用）
-      // 试课价格为2小时费用，不满意退款50%即1小时费用
-      const refundAmount = appointment.total_amount * refundRate
-      
-      // 6. 更新预约状态
+
+      // 4. 校验课程已结束
+      const endTimestamp = getAppointmentEndTimestamp(appointment)
+      if (!endTimestamp) {
+        return error('课程时间信息缺失，暂不可确认')
+      }
+      if (Date.now() < endTimestamp) {
+        return error('课程尚未结束，请在课程结束后再确认')
+      }
+      // 4.1 必须老师已完成下课打卡才允许确认结算
+      if (!appointment.class_ended_at) {
+        return error('教师尚未下课打卡，无法确认结果，请稍后再试')
+      }
+
+      // 5. 试课费 70/30 分账（与 confirmTrialSuccess 保持一致）
+      const paymentOrder = await getLatestPaidCourseOrder(db, appointment_id)
+      const settlement = buildSettlementResult(appointment, paymentOrder)
+      const teacherShareRate = 0.7
+      settlement.teacherIncome = roundCurrency(settlement.originalAmount * teacherShareRate)
+      settlement.platformFee = roundCurrency(Math.max(0, settlement.actualPaidAmount - settlement.teacherIncome))
+
+      console.log('[confirmTrialFail] 试课失败结算（70/30 + 信息费退老师）:', {
+        appointment_id,
+        originalAmount: settlement.originalAmount,
+        actualPaidAmount: settlement.actualPaidAmount,
+        teacherShareRate,
+        teacherIncome: settlement.teacherIncome,
+        platformFee: settlement.platformFee
+      })
+
+      // 6. 更新预约状态：completed + trial_result=fail（不再是 refunded）
+      const settlementTime = Date.now()
       await db.collection('appointments').doc(appointment_id).update({
-        status: 'refunded',
-        refund_time: Date.now(),
-        refund_reason: reason,
-        refund_amount: refundAmount,
+        status: 'completed',
+        complete_time: settlementTime,
         trial_result: 'fail',
+        trial_fail_reason: reason || '',
+        platform_fee: settlement.platformFee,
+        teacher_income: settlement.teacherIncome,
+        wallet_settled: false,
+        wallet_settlement_amount: settlement.teacherIncome,
+        update_time: settlementTime
+      })
+
+      // 7. 教师钱包：发放 70% 试课收入
+      const walletResult = await updateTeacherWallet(
+        appointment.teacher_id,
+        settlement.teacherIncome,
+        0,
+        {
+          appointment_id,
+          course_type: appointment.course_type,
+          source: 'trial_fail_complete'
+        }
+      )
+      await db.collection('appointments').doc(appointment_id).update({
+        wallet_settled: !!(walletResult.settled || walletResult.duplicate),
+        wallet_settlement_time: Date.now(),
+        wallet_settlement_amount: settlement.teacherIncome,
         update_time: Date.now()
       })
-      
-      // 7. 创建退款订单
-      const refundOrder = {
-        order_no: 'RFD' + Date.now() + Math.floor(Math.random() * 10000),
-        appointment_id,
-        payer_id: 'platform',
-        payee_id: parent_id,
-        order_type: 'refund',
-        total_amount: refundAmount,
-        status: 'paid',
-        payment_time: Date.now(),
-        create_time: Date.now(),
-        update_time: Date.now()
+
+      // 8. 信息费退回教师钱包（订单标记 info_fee_refunded）
+      try {
+        const refundCmd = db.command
+        const infoFeeOrderDoc = await db.collection('payment-orders')
+          .where({
+            appointment_id,
+            order_type: 'deposit',
+            status: refundCmd.in(['paid', 'success'])
+          })
+          .orderBy('payment_time', 'desc')
+          .limit(1)
+          .get()
+        const infoFeeOrder = infoFeeOrderDoc.data && infoFeeOrderDoc.data.length > 0
+          ? infoFeeOrderDoc.data[0]
+          : null
+        const infoFeeAmount = infoFeeOrder ? roundCurrency(infoFeeOrder.amount || 0) : 0
+        if (infoFeeOrder && infoFeeAmount > 0 && !infoFeeOrder.info_fee_refunded) {
+          await updateTeacherWallet(
+            appointment.teacher_id,
+            0,
+            infoFeeAmount,
+            {
+              appointment_id,
+              course_type: appointment.course_type,
+              source: 'info_fee_refund'
+            }
+          )
+          await db.collection('payment-orders').doc(infoFeeOrder._id).update({
+            info_fee_refunded: true,
+            info_fee_refund_amount: infoFeeAmount,
+            info_fee_refund_time: Date.now(),
+            update_time: Date.now()
+          })
+          console.log('[confirmTrialFail] 信息费已退回教师钱包:', {
+            appointment_id,
+            teacher_id: appointment.teacher_id,
+            infoFeeOrderNo: infoFeeOrder.order_no,
+            infoFeeAmount
+          })
+        } else {
+          console.warn('[confirmTrialFail] 跳过信息费退回:', {
+            appointment_id,
+            hasOrder: !!infoFeeOrder,
+            infoFeeAmount,
+            alreadyRefunded: infoFeeOrder && infoFeeOrder.info_fee_refunded
+          })
+        }
+      } catch (refundInfoErr) {
+        console.error('[confirmTrialFail] 退回信息费失败（不影响主流程）:', refundInfoErr)
       }
-      
-      await db.collection('payment-orders').add(refundOrder)
-      
-      // 8. 扣除教师保证金（不退还）
-      // 保证金作为违约金不予退还
-      
-      // 9. 更新教师试课统计数据
+
+      // 9. 更新教师试课统计
       const dbCmd = db.command
       const trialAppointments = await db.collection('appointments')
         .where({
@@ -514,18 +607,15 @@ module.exports = {
           status: dbCmd.in(['completed', 'refunded', 'cancelled'])
         })
         .get()
-      
       const trialCount = trialAppointments.data ? trialAppointments.data.length : 0
       const trialSuccessCount = trialAppointments.data
         ? trialAppointments.data.filter(a => {
             const isCompleted = a.status === 'completed'
-            // 兼容历史数据：早期已完成试课可能没有写入 trial_result，也视为成功
             const isSuccess = !a.trial_result || a.trial_result === 'success'
             return isCompleted && isSuccess
           }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
-      
       await db.collection('teacher-profiles')
         .where({ teacher_id: appointment.teacher_id })
         .update({
@@ -534,22 +624,42 @@ module.exports = {
           trial_success_rate: Number(trialSuccessRate.toFixed(2)),
           update_time: Date.now()
         })
-      
-      console.log('退款申请已处理，退款50%')
-      
+
       return success({
         appointment_id,
-        status: 'refunded',
-        refund_amount: refundAmount,
-        refund_rate: refundRate
-      }, `退款成功，已退还${refundRate * 100}%费用`)
-      
+        status: 'completed',
+        trial_result: 'fail',
+        teacher_income: settlement.teacherIncome,
+        platform_fee: settlement.platformFee,
+        info_fee_refunded: true,
+        can_review: true
+      }, '已确认试课不满意，教师收入与信息费已结算；如需退款请联系平台')
     } catch (e) {
-      console.error('申请退款失败:', e)
-      return error(e.message || '退款失败')
+      console.error('[confirmTrialFail] 试课失败确认异常:', e)
+      return error(e.message || '操作失败')
     }
   },
-  
+
+  /**
+   * @deprecated 旧版自动退款流程，已废弃。
+   *
+   * 新版规则：试课不满意请调 confirmTrialFail（仅结算，不退家长）；
+   * 异常退款（如教师爽约/欺诈）请调用 payment-refund.apply 提交退款申请，由管理员审核。
+   * 该方法保留以避免老版本客户端调用失败，调用时直接返回引导信息。
+   *
+   * @param {Object} params
+   * @param {String} params.appointment_id 预约ID
+   * @param {String} [params.reason] 不满意原因
+   * @returns {Object}
+   */
+  async requestRefund(params) {
+    console.warn('[requestRefund][deprecated] 旧自动退款入口被调用，已禁用:', params)
+    return error(
+      '该入口已升级：试课不满意请使用「确认试课不满意」（confirmTrialFail）。如需异常退款（教师爽约等），请通过订单详情页提交退款申请，由管理员审核。',
+      4090
+    )
+  },
+
   /**
    * 正式课程完成
    * @param {Object} params
@@ -603,7 +713,13 @@ module.exports = {
         })
         return error('当前预约状态不允许完成')
       }
-      
+
+      // 3.1 正式课同样要求教师已完成下课打卡
+      if (!appointment.class_ended_at) {
+        console.warn('[completeCourse] 教师尚未下课打卡:', { appointment_id })
+        return error('教师尚未下课打卡，无法确认完成')
+      }
+
       // 4. 查询支付订单，获取原价和优惠金额
       const paymentOrder = await getLatestPaidCourseOrder(db, appointment_id)
       const settlement = buildSettlementResult(appointment, paymentOrder)

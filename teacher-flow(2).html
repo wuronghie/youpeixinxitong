@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>老师流程图</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            color: rgba(255,255,255,0.9);
+            font-size: 16px;
+        }
+
+        .flow-chart {
+            position: relative;
+            padding: 20px 0;
+        }
+
+        .flow-step {
+            position: relative;
+            margin-bottom: 30px;
+            padding-left: 80px;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .flow-step:nth-child(1) { animation-delay: 0.1s; }
+        .flow-step:nth-child(2) { animation-delay: 0.2s; }
+        .flow-step:nth-child(3) { animation-delay: 0.3s; }
+        .flow-step:nth-child(4) { animation-delay: 0.4s; }
+        .flow-step:nth-child(5) { animation-delay: 0.5s; }
+        .flow-step:nth-child(6) { animation-delay: 0.6s; }
+        .flow-step:nth-child(7) { animation-delay: 0.7s; }
+        .flow-step:nth-child(8) { animation-delay: 0.8s; }
+        .flow-step:nth-child(9) { animation-delay: 0.9s; }
+        .flow-step:nth-child(10) { animation-delay: 1.0s; }
+
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .flow-step::before {
+            content: '';
+            position: absolute;
+            left: 30px;
+            top: 0;
+            bottom: -30px;
+            width: 4px;
+            background: linear-gradient(to bottom, #4facfe, #00f2fe);
+            border-radius: 2px;
+        }
+
+        .flow-step:last-child::before {
+            display: none;
+        }
+
+        .step-number {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
+            z-index: 1;
+        }
+
+        .step-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.2);
+        }
+
+        .step-card h3 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-card p {
+            color: #666;
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        .step-card .icon {
+            font-size: 24px;
+        }
+
+        .action-button {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .action-button:active {
+            transform: scale(0.98);
+        }
+
+        .action-button.confirmed {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+
+        .choice-container {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .choice-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 15px 25px;
+            border: 3px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            border-color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .choice-btn.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .result-box {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f8f9fa;
+            display: none;
+        }
+
+        .result-box.show {
+            display: block;
+            animation: slideIn 0.4s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .result-box.success {
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.1));
+            border-left: 4px solid #11998e;
+        }
+
+        .result-box.fail {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 195, 113, 0.1));
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .result-box h4 {
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .result-box.success h4 {
+            color: #11998e;
+        }
+
+        .result-box.fail h4 {
+            color: #ff6b6b;
+        }
+
+        .result-box ul {
+            margin-left: 20px;
+            color: #555;
+        }
+
+        .result-box li {
+            margin-bottom: 5px;
+        }
+
+        .highlight {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .payment-info {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 15px;
+            background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+            border-radius: 8px;
+            color: #f57f17;
+            font-weight: 500;
+        }
+
+        .branch-container {
+            margin-top: 20px;
+        }
+
+        .branch {
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            position: relative;
+        }
+
+        .branch.success-branch {
+            background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.05));
+            border: 2px solid #11998e;
+        }
+
+        .branch.fail-branch {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.1), rgba(255, 195, 113, 0.05));
+            border: 2px solid #ff6b6b;
+        }
+
+        .branch h4 {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .branch.success-branch h4 {
+            color: #11998e;
+        }
+
+        .branch.fail-branch h4 {
+            color: #ff6b6b;
+        }
+
+        @media (max-width: 600px) {
+            .flow-step {
+                padding-left: 60px;
+            }
+
+            .step-number {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .step-card {
+                padding: 15px;
+            }
+
+            .step-card h3 {
+                font-size: 18px;
+            }
+
+            .choice-container {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>👩‍🏫 老师端流程</h1>
+            <p>从收到邀请到完成试课的完整流程指南</p>
+        </div>
+
+        <div class="flow-chart">
+            <div class="flow-step">
+                <div class="step-number">1</div>
+                <div class="step-card">
+                    <h3><span class="icon">📩</span> 收到家长邀请</h3>
+                    <p>老师收到家长发出的试课邀请通知，可以查看家长的详细需求和课程信息。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">2</div>
+                <div class="step-card">
+                    <h3><span class="icon">💳</span> 支付信息费</h3>
+                    <p>老师需要支付信息费来<span class="highlight">开启聊天窗口</span>或<span class="highlight">开启与家长聊天的权限</span>。</p>
+                    <div class="payment-info">💡 信息费将在试课成功后由系统收取</div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">3</div>
+                <div class="step-card">
+                    <h3><span class="icon">💬</span> 正常沟通</h3>
+                    <p>与家长进行充分沟通，了解学生情况、学习目标、时间安排等详细信息。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">4</div>
+                <div class="step-card">
+                    <h3><span class="icon">📝</span> 收到试课要求</h3>
+                    <p>家长发来试课要求后，老师需要确认是否接受试课邀请。</p>
+                    <button class="action-button" onclick="confirmTrial(this)">✓ 确认试课</button>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">5</div>
+                <div class="step-card">
+                    <h3><span class="icon">📍</span> 上门签到</h3>
+                    <p>老师到达家长家中后，进行<span class="highlight">签到</span>操作，并提醒家长<span class="highlight">预付试课费用（正式上课费用的70%）</span>。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">6</div>
+                <div class="step-card">
+                    <h3><span class="icon">📚</span> 正常上课</h3>
+                    <p>按照约定的时间和内容进行试课教学，展现专业能力。</p>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">7</div>
+                <div class="step-card">
+                    <h3><span class="icon">⏰</span> 下课签退</h3>
+                    <p>下课后提醒家长进行<span class="highlight">签退</span>操作，并选择试课结果。</p>
+                    <div class="choice-container">
+                        <button class="choice-btn">✓ 试课成功</button>
+                        <button class="choice-btn">✗ 试课失败</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-step">
+                <div class="step-number">8</div>
+                <div class="step-card">
+                    <h3><span class="icon">💰</span> 费用结算</h3>
+                    <div class="branch-container">
+                        <div class="branch success-branch">
+                            <h4>✓ 试课成功</h4>
+                            <ul>
+                                <li>试课费用（正式上课费用的70%）正常流入老师钱包</li>
+                                <li>信息费自动由系统收取</li>
+                            </ul>
+                        </div>
+                        <div class="branch fail-branch">
+                            <h4>✗ 试课失败</h4>
+                            <ul>
+                                <li>信息费退还给老师</li>
+                                <li>试课费用（正式上课费用的70%）仍然发放给老师</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function confirmTrial(button) {
+            if (!button.classList.contains('confirmed')) {
+                button.classList.add('confirmed');
+                button.innerHTML = '✓ 已确认';
+                alert('试课已确认！请按时到达家长家中进行授课。');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.animationPlayState = 'running';
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.flow-step').forEach(step => {
+                observer.observe(step);
+            });
+        });
+    </script>
+</body>
+</html>

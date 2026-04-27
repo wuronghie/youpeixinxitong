@@ -1,6 +1,6 @@
 /**
  * 教师确认预约云对象
- * 功能：教师确认预约，需支付保证金
+ * 功能：教师确认预约，需支付信息费
  */
 
 // 工具函数（内嵌）
@@ -91,8 +91,8 @@ module.exports = {
   },
   
   /**
-   * 教师确认预约（需要先支付保证金）
-   * 这个方法仅检查状态，实际确认在支付保证金后自动完成
+   * 教师确认预约（需要先支付信息费）
+   * 这个方法仅检查状态，实际确认在支付信息费后自动完成
    * @param {Object} params
    * @param {String} params.appointment_id 预约ID
    * @returns {Object}
@@ -130,21 +130,21 @@ module.exports = {
         return error('当前预约状态不允许确认')
       }
       
-      // 4. 获取保证金金额
+      // 4. 获取信息费金额
       const configDoc = await db.collection('system-config')
         .where({ config_key: 'teacher_deposit_amount' })
         .get()
       
       const depositAmount = configDoc.data[0]?.config_value || 1
       
-      // 5. 返回需要支付保证金的信息
+      // 5. 返回需要支付信息费的信息
       return success({
         appointment_id,
         appointment_no: appointment.appointment_no,
         deposit_amount: depositAmount,
         need_pay_deposit: true,
-        tips: '请先支付保证金以确认预约并开启聊天功能'
-      }, '请支付保证金')
+        tips: '请先支付信息费以确认预约并开启聊天功能'
+      }, '请支付信息费')
       
     } catch (e) {
       console.error('确认预约失败:', e)

@@ -4,6 +4,9 @@
   "enableShareTimeline": true,
   "usingComponents": {
     "card": "../../components/common/card",
+    "attendance-clock-card": "../../components/AttendanceClockCard",
+    "appointment-basic-card": "../../components/AppointmentBasicCard",
+    "appointment-fee-card": "../../components/AppointmentFeeCard",
     "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
   }
 }

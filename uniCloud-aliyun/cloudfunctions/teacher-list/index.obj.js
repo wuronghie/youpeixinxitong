@@ -389,7 +389,7 @@ module.exports = {
       const [userResult, reviewsResult, scheduleResult, trialAppointments] = await Promise.all([
         db.collection('uni-id-users')
           .doc(userId)
-          .field({ nickname: true, avatar: true })
+          .field({ nickname: true, avatar: true, gender: true })
           .get(),
         db.collection('reviews')
           .where({ teacher_id: userId })
@@ -429,6 +429,7 @@ module.exports = {
         name: profile.display_name || profile.name || userInfo.nickname || '教师',
         display_name: profile.display_name || userInfo.nickname || '教师',
         avatar: profile.avatar || userInfo.avatar || '',
+        gender: profile.gender || userInfo.gender || '',
         nickname: userInfo.nickname || profile.display_name || '教师',
         title: profile.title || '专业教师', // 可能不存在，使用默认值
         teacher_id: profile.teacher_id || userId,

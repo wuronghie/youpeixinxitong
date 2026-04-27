@@ -59,6 +59,7 @@
 					<view class="chip-row">
 						<text class="chip subject-chip">{{ item.subject }}</text>
 						<text class="chip">{{ item.student_grade }}</text>
+						<text v-if="studentGenderText(item.student_gender)" class="chip gender-chip">{{ studentGenderText(item.student_gender) }}</text>
 						<text class="chip">{{ item.lesson_mode === 'online' ? '线上' : '线下' }}</text>
 						<text v-if="item.lesson_mode === 'offline' && addressText(item)" class="chip address-chip">{{ addressText(item) }}</text>
 					</view>
@@ -140,6 +141,11 @@ export default {
 			}
 			if (admin && rawName.startsWith(admin)) return rawName
 			return admin ? `${admin}${rawName}`.trim() : rawName
+		},
+		studentGenderText(gender) {
+			if (gender === 'male' || gender === 1 || gender === '1') return '男孩'
+			if (gender === 'female' || gender === 2 || gender === '2') return '女孩'
+			return ''
 		},
 		reload() {
 			this.page = 1
@@ -338,6 +344,10 @@ export default {
 	color: #60708c;
 	background: #f3f6fb;
 }
+.gender-chip {
+	color: #8a4fff;
+	background: rgba(138, 79, 255, 0.08);
+}
 .address-chip {
 	max-width: 100%;
 	white-space: normal;
@@ -374,6 +384,7 @@ export default {
 }
 .line-clamp-2 {
 	display: -webkit-box;
+	line-clamp: 2;
 	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
 	overflow: hidden;

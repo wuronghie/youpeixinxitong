@@ -32,6 +32,41 @@ async function createPaymentOrderProd(options) {
     throw error;
   }
 }
+const MOCK_PAY_STORAGE_KEY = "__dev_mock_pay__";
+function isDevMode() {
+  try {
+    return common_vendor.index.getStorageSync(MOCK_PAY_STORAGE_KEY) === true;
+  } catch (e) {
+    return false;
+  }
+}
+function enableMockPayForDev() {
+  try {
+    common_vendor.index.setStorageSync(MOCK_PAY_STORAGE_KEY, true);
+    common_vendor.index.__f__("warn", "at utils/payment.js:103", "[支付] 已开启「模拟支付」模式，所有支付将跳过真实收银台。生产环境请勿启用！");
+  } catch (e) {
+    common_vendor.index.__f__("warn", "at utils/payment.js:105", "[支付] 开启模拟支付失败:", e);
+  }
+}
+function disableMockPayForDev() {
+  try {
+    common_vendor.index.removeStorageSync(MOCK_PAY_STORAGE_KEY);
+    common_vendor.index.__f__("info", "at utils/payment.js:112", "[支付] 已关闭「模拟支付」模式，恢复真实支付。");
+  } catch (e) {
+    common_vendor.index.__f__("warn", "at utils/payment.js:114", "[支付] 关闭模拟支付失败:", e);
+  }
+}
+function isMockPayEnabled() {
+  return isDevMode();
+}
+try {
+  if (typeof common_vendor.index !== "undefined") {
+    common_vendor.index.$enableMockPay = enableMockPayForDev;
+    common_vendor.index.$disableMockPay = disableMockPayForDev;
+    common_vendor.index.$isMockPayEnabled = isMockPayEnabled;
+  }
+} catch (e) {
+}
 function payWithUniPay(payComponent, options) {
   if (!payComponent) {
     throw new Error("uni-pay 组件未找到，请确保页面中已引入 uni-pay 组件");
@@ -91,9 +126,9 @@ async function createAndPayWithUniPay(payComponent, options) {
     throw new Error("uni-pay 组件未找到");
   }
   try {
-    common_vendor.index.__f__("log", "at utils/payment.js:191", "[支付流程] 开始创建业务订单...");
+    common_vendor.index.__f__("log", "at utils/payment.js:240", "[支付流程] 开始创建业务订单...");
     const amountInYuan = parseFloat((amount / 100).toFixed(2));
-    common_vendor.index.__f__("log", "at utils/payment.js:197", "[支付流程] 金额转换:", {
+    common_vendor.index.__f__("log", "at utils/payment.js:246", "[支付流程] 金额转换:", {
       原始金额_分: amount,
       转换后金额_元: amountInYuan
     });
@@ -120,7 +155,7 @@ async function createAndPayWithUniPay(payComponent, options) {
     const orderInfo = createRes.data;
     const order_no = orderInfo.order_no;
     const order_id = orderInfo.order_id;
-    common_vendor.index.__f__("log", "at utils/payment.js:229", "[支付流程] 业务订单创建成功:", {
+    common_vendor.index.__f__("log", "at utils/payment.js:278", "[支付流程] 业务订单创建成功:", {
       order_id,
       order_no,
       amount: orderInfo.amount
@@ -133,7 +168,7 @@ async function createAndPayWithUniPay(payComponent, options) {
       // 使用短支付单号
       total_fee: amount,
       // uni-pay 需要的是分
-      description: description || (payment_type === "deposit" ? "支付保证金" : "支付课程费用"),
+      description: description || (payment_type === "deposit" ? "支付信息费" : "支付课程费用"),
       type: "appointment",
       provider,
       // 不传则打开收银台
@@ -154,7 +189,7 @@ async function createAndPayWithUniPay(payComponent, options) {
       }
     };
   } catch (error) {
-    common_vendor.index.__f__("error", "at utils/payment.js:265", "[支付流程] 失败:", error);
+    common_vendor.index.__f__("error", "at utils/payment.js:314", "[支付流程] 失败:", error);
     throw error;
   }
 }
@@ -166,14 +201,15 @@ async function createAndPay(options) {
       message: "支付参数不完整"
     };
   }
-  {
+  const isDev = isDevMode();
+  if (isDev) {
     return new Promise((resolve) => {
       common_vendor.index.hideLoading();
       setTimeout(() => {
         common_vendor.index.showModal({
           title: "模拟支付",
           content: `预约ID：${appointment_id}
-支付类型：${payment_type === "deposit" ? "保证金" : "课程费"}
+支付类型：${payment_type === "deposit" ? "信息费" : "课程费"}
 金额：¥${(amount / 100).toFixed(2)}
 
 这是开发模式，点击确认模拟支付成功`,
@@ -205,7 +241,7 @@ async function createAndPay(options) {
                   data: mockRes.data
                 });
               } catch (e) {
-                common_vendor.index.__f__("error", "at utils/payment.js:335", "模拟支付失败:", e);
+                common_vendor.index.__f__("error", "at utils/payment.js:384", "模拟支付失败:", e);
                 return resolve({
                   code: -1,
                   message: e.message || "支付失败"
@@ -219,7 +255,7 @@ async function createAndPay(options) {
             }
           },
           fail: (err) => {
-            common_vendor.index.__f__("error", "at utils/payment.js:350", "显示支付弹窗失败:", err);
+            common_vendor.index.__f__("error", "at utils/payment.js:399", "显示支付弹窗失败:", err);
             resolve({
               code: 0,
               message: "支付成功（模拟，弹窗显示失败）",
@@ -234,6 +270,11 @@ async function createAndPay(options) {
       }, 100);
     });
   }
+  return {
+    code: -1,
+    message: "当前环境无法发起支付，请稍后重试或联系客服",
+    errorType: "NO_PAY_CHANNEL"
+  };
 }
 exports.createAndPay = createAndPay;
 exports.createAndPayWithUniPay = createAndPayWithUniPay;

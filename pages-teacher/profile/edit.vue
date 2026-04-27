@@ -12,18 +12,22 @@
 				</view>
 
 				<!-- 头像和基本信息 -->
-				<card class="mb-3 profile-card" :class="{ 'error-highlight': errors.name }">
+				<card class="mb-3 profile-card" :class="{ 'error-highlight': errors.name || errors.avatar || errors.gender || errors.contact_mobile }">
 					<view class="profile-hero p-3">
-						<view class="avatar-picker d-flex flex-column a-center mr-4" @click="chooseAvatar">
+						<view class="avatar-picker d-flex flex-column a-center mr-4" :class="{ 'avatar-error': errors.avatar }" id="field-avatar" @click="chooseAvatar">
 							<view class="avatar-ring rounded-circle d-flex a-center j-center">
 								<image class="rounded-circle" :src="formData.avatar || defaultAvatar" mode="aspectFill" style="width: 140rpx;height: 140rpx;"></image>
 							</view>
-							<text class="main-text-color font-sm mt-2">{{ avatarUploading ? '上传中...' : '点击更换头像' }}</text>
-							<text class="font-xs text-light-muted mt-1">默认优先使用微信头像</text>
+							<view class="d-flex a-center mt-2">
+								<text class="main-text-color font-sm">{{ avatarUploading ? '上传中...' : (formData.avatar ? '点击更换头像' : '点击上传头像') }}</text>
+								<text class="required-star ml-1">*</text>
+							</view>
+							<text class="font-xs text-danger mt-1" style="text-align:center;line-height:1.5;">请上传本人证件照或自拍照，便于家长识别与审核</text>
+							<text v-if="errors.avatar" class="error-text mt-1">{{ errors.avatar }}</text>
 						</view>
 						<view class="flex-1">
 							<view class="font-lg font-weight mb-1 main-text-color">教师主页信息</view>
-							<text class="font-sm text-light-muted d-block mb-3">家长会先看到你的头像、姓名、科目与介绍，建议尽量完整填写。</text>
+							<text class="font-sm text-light-muted d-block mb-3">家长会先看到你的头像、姓名、性别与介绍，建议尽量完整填写。</text>
 							<view class="d-flex a-center j-sb py-3 form-item" :class="{ 'error-item': errors.name }" id="field-name">
 								<view class="d-flex a-center">
 									<text class="font-md required-label">姓名</text>
@@ -31,6 +35,29 @@
 								</view>
 								<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.name }" v-model.trim="formData.name" placeholder="请输入真实姓名" placeholder-class="text-light-muted" @input="clearError('name')" />
 							</view>
+							<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.gender }" id="field-gender">
+								<view class="d-flex a-center">
+									<text class="font-md required-label">性别</text>
+									<text class="required-star">*</text>
+								</view>
+								<view class="d-flex a-center">
+									<view class="gender-item rounded px-3 py-1 mr-2 font-sm"
+										:class="formData.gender === 'male' ? 'gender-selected male' : 'gender-default'"
+										@click="selectGender('male')">男</view>
+									<view class="gender-item rounded px-3 py-1 font-sm"
+										:class="formData.gender === 'female' ? 'gender-selected female' : 'gender-default'"
+										@click="selectGender('female')">女</view>
+								</view>
+							</view>
+							<text v-if="errors.gender" class="error-text ml-3">{{ errors.gender }}</text>
+							<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.contact_mobile }" id="field-contact-mobile">
+								<view class="d-flex a-center">
+									<text class="font-md required-label">联系手机号</text>
+									<text class="required-star">*</text>
+								</view>
+								<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.contact_mobile }" v-model="formData.contact_mobile" type="number" maxlength="11" placeholder="方便家长/管理员联系你的手机号" placeholder-class="text-light-muted" @input="clearError('contact_mobile')" />
+							</view>
+							<text v-if="errors.contact_mobile" class="error-text ml-3">{{ errors.contact_mobile }}</text>
 						</view>
 					</view>
 				</card>
@@ -306,6 +333,8 @@ export default {
 				avatar: '',
 				avatarFileId: '',
 				name: '',
+				gender: '', // 性别（必填）：male / female
+				contact_mobile: '', // 联系手机号（必填），供家长/后台联系
 				introduction: '',
 				subjects: [],
 				grades: [],
@@ -389,14 +418,16 @@ export default {
 					const schoolValue = teacher.school || teacher.education?.school || ''
 					
 					const defaultAvatarData = this.resolveAvatarData(teacher.avatar || '', {})
-					this.formData = {
-						avatar: defaultAvatarData.avatar,
-						avatarFileId: defaultAvatarData.avatarFileId,
-						name: teacher.display_name || teacher.name || '',
-						introduction: teacher.introduction || '',
-						subjects: teacher.subjects || [],
-						grades: teacher.grades || [],
-						hourly_rate: teacher.hourly_rate || 0,
+				this.formData = {
+					avatar: defaultAvatarData.avatar,
+					avatarFileId: defaultAvatarData.avatarFileId,
+					name: teacher.display_name || teacher.name || '',
+					gender: teacher.gender || '',
+					contact_mobile: teacher.contact_mobile || '',
+					introduction: teacher.introduction || '',
+					subjects: teacher.subjects || [],
+					grades: teacher.grades || [],
+					hourly_rate: teacher.hourly_rate || 0,
 						experience_years: teacher.experience_years || 0,
 						school: schoolValue,
 						experience: teacher.experience || '',
@@ -492,11 +523,13 @@ export default {
 					// 兼容旧数据：如果 school 字段为空但 education.school 有值，则使用 education.school
 					const schoolValue = p.school || p.education?.school || ''
 					
-					this.formData = {
-						avatar: avatarUrl,
-						avatarFileId,
-						name: p.display_name || p.name || '',
-						introduction: p.introduction || '',
+				this.formData = {
+					avatar: avatarUrl,
+					avatarFileId,
+					name: p.display_name || p.name || '',
+					gender: p.gender || '',
+					contact_mobile: p.contact_mobile || '',
+					introduction: p.introduction || '',
 						subjects: p.subjects || [],
 						grades: p.grades || [],
 						hourly_rate: p.hourly_rate || 0,
@@ -599,6 +632,11 @@ export default {
 				console.error('获取头像临时链接失败:', error)
 			}
 			return fileId
+		},
+		selectGender(gender) {
+			if (gender !== 'male' && gender !== 'female') return
+			this.formData.gender = gender
+			this.clearError('gender')
 		},
 		toggleSubject(subject) {
 			const idx = this.formData.subjects.indexOf(subject)
@@ -931,11 +969,42 @@ export default {
 			let firstErrorField = ''
 			const missingFields = []
 
+			// 验证头像（必填，要求本人证件照或自拍照）
+			if (!this.formData.avatar || !String(this.formData.avatar).trim()) {
+				this.errors.avatar = '请上传本人证件照或自拍照'
+				missingFields.push('本人头像')
+				if (!firstErrorField) firstErrorField = 'field-avatar'
+				isValid = false
+			}
+
 			// 验证姓名
 			if (!this.formData.name || !this.formData.name.trim()) {
 				this.errors.name = '请填写姓名'
 				missingFields.push('姓名')
 				if (!firstErrorField) firstErrorField = 'field-name'
+				isValid = false
+			}
+
+			// 验证性别
+			if (this.formData.gender !== 'male' && this.formData.gender !== 'female') {
+				this.errors.gender = '请选择性别'
+				missingFields.push('性别')
+				if (!firstErrorField) firstErrorField = 'field-gender'
+				isValid = false
+			}
+
+			// 验证联系手机号（家长/后台通过手机号联系，必填）
+			const mobileReg = /^1[3-9]\d{9}$/
+			const mobileVal = this.formData.contact_mobile ? String(this.formData.contact_mobile).trim() : ''
+			if (!mobileVal) {
+				this.errors.contact_mobile = '请填写联系手机号'
+				missingFields.push('联系手机号')
+				if (!firstErrorField) firstErrorField = 'field-contact-mobile'
+				isValid = false
+			} else if (!mobileReg.test(mobileVal)) {
+				this.errors.contact_mobile = '手机号格式不正确'
+				missingFields.push('手机号格式不正确')
+				if (!firstErrorField) firstErrorField = 'field-contact-mobile'
 				isValid = false
 			}
 
@@ -1039,6 +1108,8 @@ export default {
 				const res = await teacherProfile.submitProfile({
 					avatar: this.formData.avatarFileId || this.formData.avatar,
 					display_name: this.formData.name,
+					gender: this.formData.gender,
+					contact_mobile: String(this.formData.contact_mobile || '').trim(),
 					subjects: this.formData.subjects,
 					grades: this.formData.grades,
 					hourly_rate: Number(this.formData.hourly_rate) || 0,
@@ -1078,9 +1149,20 @@ export default {
 					}
 					// 延迟返回，让用户看到成功提示
 					setTimeout(() => {
-						uni.navigateBack()
 						// 通知首页刷新数据（如果首页有监听）
 						uni.$emit('teacher-profile-updated')
+						// 有上一页则返回；首次被强制跳转到此页时没有上一页，reLaunch 到教师工作台
+						const pages = getCurrentPages()
+						if (pages && pages.length > 1) {
+							uni.navigateBack({
+								delta: 1,
+								fail: () => {
+									uni.reLaunch({ url: '/pages-teacher/index/index' })
+								}
+							})
+						} else {
+							uni.reLaunch({ url: '/pages-teacher/index/index' })
+						}
 					}, 1500)
 				} else {
 					uni.showToast({ title: res.message || '保存失败', icon: 'none' })
@@ -1234,6 +1316,44 @@ export default {
 	color: #333;
 	min-width: 200rpx;
 	text-align: right;
+}
+
+/* 性别选择样式 */
+.gender-item {
+	min-width: 96rpx;
+	text-align: center;
+	transition: all 0.3s;
+	cursor: pointer;
+	border: 2rpx solid #e0e0e0;
+	background-color: #f5f5f5;
+	color: #666;
+	padding: 8rpx 24rpx;
+}
+
+.gender-default {
+	background-color: #f5f5f5;
+	color: #666;
+	border: 2rpx solid #e0e0e0;
+}
+
+.gender-selected.male {
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+	color: #fff;
+	border: 2rpx solid #4A90E2;
+	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
+}
+
+.gender-selected.female {
+	background: linear-gradient(135deg, #ff6b9a 0%, #e04a7c 100%);
+	color: #fff;
+	border: 2rpx solid #ff6b9a;
+	box-shadow: 0 4rpx 12rpx rgba(255, 107, 154, 0.3);
+}
+
+/* 头像错误提示 */
+.avatar-picker.avatar-error .avatar-ring {
+	border: 2rpx solid #ff4757;
+	box-shadow: 0 0 0 4rpx rgba(255, 71, 87, 0.18);
 }
 
 /* 标签样式 */

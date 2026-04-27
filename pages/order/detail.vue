@@ -135,10 +135,10 @@
 			</button>
 			<button 
 				v-if="canApplyRefund" 
-				class="main-bg-color text-white rounded px-4 py-2 font-sm mr-2" 
+				class="border border-warning text-warning rounded px-4 py-2 font-sm mr-2" 
 				@click="goRefund"
 			>
-				申请退款
+				异常情况申请退款
 			</button>
 			<button 
 				v-if="primaryAction === 'pay'" 
@@ -342,7 +342,7 @@ export default {
 			const map = {
 				trial: '试课订单',
 				regular: '正式课程订单',
-				deposit: '保证金',
+				deposit: '信息费',
 				refund: '退款订单'
 			}
 			return map[type] || '课程订单'

@@ -46,6 +46,13 @@ const _sfc_main = {
         return "未通过审核";
       return "";
     },
+    studentGenderText(gender) {
+      if (gender === "male" || gender === 1 || gender === "1")
+        return "男孩";
+      if (gender === "female" || gender === 2 || gender === "2")
+        return "女孩";
+      return "";
+    },
     async load(reset) {
       const seq = ++this._loadSeq;
       if (reset) {
@@ -138,21 +145,25 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       return common_vendor.e({
         a: common_vendor.t(item.subject),
         b: common_vendor.t(item.student_grade),
-        c: common_vendor.t(item.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
-        d: $options.auditHint(item)
+        c: $options.studentGenderText(item.student_gender)
+      }, $options.studentGenderText(item.student_gender) ? {
+        d: common_vendor.t($options.studentGenderText(item.student_gender))
+      } : {}, {
+        e: common_vendor.t(item.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
+        f: $options.auditHint(item)
       }, $options.auditHint(item) ? {
-        e: common_vendor.t($options.auditHint(item).replace("· ", ""))
+        g: common_vendor.t($options.auditHint(item).replace("· ", ""))
       } : {}, {
-        f: common_vendor.t($options.statusText(item)),
-        g: common_vendor.t(item.goal || item.remark || "暂未填写补充说明"),
-        h: common_vendor.t(item.time_note || "时间可沟通"),
-        i: $data.tab === "open" && item.status === "open"
+        h: common_vendor.t($options.statusText(item)),
+        i: common_vendor.t(item.goal || item.remark || "暂未填写补充说明"),
+        j: common_vendor.t(item.time_note || "时间可沟通"),
+        k: $data.tab === "open" && item.status === "open"
       }, $data.tab === "open" && item.status === "open" ? {
-        j: common_vendor.o(($event) => $options.goEdit(item._id), item._id),
-        k: common_vendor.o(($event) => $options.closeItem(item), item._id)
+        l: common_vendor.o(($event) => $options.goEdit(item._id), item._id),
+        m: common_vendor.o(($event) => $options.closeItem(item), item._id)
       } : {}, {
-        l: item._id,
-        m: item.effective_status === "expired" || $data.tab === "ended" ? 1 : ""
+        n: item._id,
+        o: item.effective_status === "expired" || $data.tab === "ended" ? 1 : ""
       });
     }),
     m: $data.loading
