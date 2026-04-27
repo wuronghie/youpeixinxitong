@@ -300,13 +300,12 @@ export default {
 	},
 	methods: {
 		setupDateRange() {
-			// 测试阶段：允许选今天及任意时间，不再限制"必须明天起 / 必须晚于当前时间 + 30 分钟"
 			const today = new Date()
+			const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
 			const oneMonthLater = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())
-			const todayStr = this.formatDate(today)
-			this.dateOptions.start = todayStr
+			this.dateOptions.start = this.formatDate(tomorrow)
 			this.dateOptions.end = this.formatDate(oneMonthLater)
-			this.formData.date = todayStr
+			this.formData.date = this.dateOptions.start
 		},
 		async ensureTeacher() {
 			if (!this.teacherProfileId && !this.teacherUid) {
@@ -520,7 +519,6 @@ export default {
 			if (!this.formData.date || !this.formData.time) {
 				return '请选择上课日期与时间'
 			}
-			// 测试阶段：不再校验"今天的开始时间必须晚于当前 + 30 分钟"
 			if (!this.formData.studentName) {
 				return '请输入学生姓名'
 			}

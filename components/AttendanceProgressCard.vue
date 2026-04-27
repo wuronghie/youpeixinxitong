@@ -75,8 +75,8 @@ const props = defineProps({
   }
 })
 
-const startedAddress = computed(() => (props.classStartedLocation && props.classStartedLocation.address) || '')
-const endedAddress = computed(() => (props.classEndedLocation && props.classEndedLocation.address) || '')
+const startedAddress = computed(() => formatLocationText(props.classStartedLocation))
+const endedAddress = computed(() => formatLocationText(props.classEndedLocation))
 
 const stage = computed(() => {
   if (!props.classStartedAt) return 'in'
@@ -113,6 +113,11 @@ function formatTime(ts) {
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n) => (n < 10 ? '0' + n : '' + n)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function formatLocationText(location) {
+  if (!location) return ''
+  return location.address || ''
 }
 </script>
 

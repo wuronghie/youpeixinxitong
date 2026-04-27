@@ -1,5 +1,6 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
+const utils_reverseGeocode = require("../utils/reverseGeocode.js");
 const _sfc_main = {
   __name: "AttendanceClockCard",
   props: {
@@ -42,8 +43,8 @@ const _sfc_main = {
     const emit = __emit;
     const loading = common_vendor.ref(false);
     const pendingAction = common_vendor.ref("");
-    const startedAddress = common_vendor.computed(() => props.classStartedLocation && props.classStartedLocation.address || "");
-    const endedAddress = common_vendor.computed(() => props.classEndedLocation && props.classEndedLocation.address || "");
+    const startedAddress = common_vendor.computed(() => formatLocationText(props.classStartedLocation));
+    const endedAddress = common_vendor.computed(() => formatLocationText(props.classEndedLocation));
     const canClockIn = common_vendor.computed(() => {
       if (props.classStartedAt)
         return false;
@@ -72,22 +73,52 @@ const _sfc_main = {
       const pad = (n) => n < 10 ? "0" + n : "" + n;
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
+    function formatLocationText(location) {
+      if (!location)
+        return "";
+      return location.address || "";
+    }
+    function resolveAddress(res) {
+      if (!res || !res.address)
+        return "";
+      if (typeof res.address === "string")
+        return res.address;
+      return res.address.formatted_address || [
+        res.address.province,
+        res.address.city,
+        res.address.district,
+        res.address.street,
+        res.address.street_number,
+        res.address.poi_name
+      ].filter(Boolean).join("");
+    }
+    async function resolveAddressByMap(latitude, longitude) {
+      try {
+        const info = await utils_reverseGeocode.reverseGeocode(latitude, longitude);
+        if (!info)
+          return "";
+        return info.address || [info.province, info.city, info.district].filter(Boolean).join("");
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at components/AttendanceClockCard.vue:164", "[打卡定位] 逆地理编码失败:", e);
+        return "";
+      }
+    }
     function getLocation() {
       return new Promise((resolve, reject) => {
         common_vendor.index.getLocation({
           type: "gcj02",
           isHighAccuracy: true,
           geocode: true,
-          success: (res) => {
+          success: async (res) => {
+            const address = resolveAddress(res) || await resolveAddressByMap(res.latitude, res.longitude);
+            if (!address) {
+              reject(new Error("未获取到文字地址，请检查定位授权或地图服务配置后重试"));
+              return;
+            }
             resolve({
               latitude: res.latitude,
               longitude: res.longitude,
-              address: res.address && (res.address.formatted_address || [
-                res.address.province,
-                res.address.city,
-                res.address.district,
-                res.address.street
-              ].filter(Boolean).join("")) || "",
+              address,
               accuracy: res.accuracy || 0
             });
           },
@@ -105,9 +136,11 @@ const _sfc_main = {
       loading.value = true;
       pendingAction.value = "in";
       try {
-        const location = await getLocation().catch(() => null);
+        const location = await getLocation().catch((e) => {
+          common_vendor.index.showToast({ icon: "none", title: e && e.message || "需要授权定位才能打卡" });
+          return null;
+        });
         if (!location) {
-          common_vendor.index.showToast({ icon: "none", title: "需要授权定位才能打卡" });
           return;
         }
         const res = await callAttendance("clockIn", {
@@ -133,9 +166,11 @@ const _sfc_main = {
       loading.value = true;
       pendingAction.value = "out";
       try {
-        const location = await getLocation().catch(() => null);
+        const location = await getLocation().catch((e) => {
+          common_vendor.index.showToast({ icon: "none", title: e && e.message || "需要授权定位才能打卡" });
+          return null;
+        });
         if (!location) {
-          common_vendor.index.showToast({ icon: "none", title: "需要授权定位才能打卡" });
           return;
         }
         const res = await callAttendance("clockOut", {

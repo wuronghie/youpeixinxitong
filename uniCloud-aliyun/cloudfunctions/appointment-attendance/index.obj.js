@@ -60,12 +60,15 @@ function resolveSchedule(appointment) {
 
 function validateLocation(location) {
   if (!location || typeof location !== 'object') return '请上传打卡定位'
-  const { latitude, longitude } = location
+  const { latitude, longitude, address } = location
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     return '定位参数不合法（缺少经纬度）'
   }
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
     return '定位参数超出合法范围'
+  }
+  if (typeof address !== 'string' || !address.trim()) {
+    return '请上传打卡文字地址'
   }
   return null
 }
@@ -74,7 +77,7 @@ function buildLocation(location) {
   return {
     latitude: Number(location.latitude),
     longitude: Number(location.longitude),
-    address: typeof location.address === 'string' ? location.address : '',
+    address: typeof location.address === 'string' ? location.address.trim() : '',
     accuracy: typeof location.accuracy === 'number' ? location.accuracy : 0
   }
 }

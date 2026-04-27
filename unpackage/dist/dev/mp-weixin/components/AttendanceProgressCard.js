@@ -26,8 +26,8 @@ const _sfc_main = {
   },
   setup(__props) {
     const props = __props;
-    const startedAddress = common_vendor.computed(() => props.classStartedLocation && props.classStartedLocation.address || "");
-    const endedAddress = common_vendor.computed(() => props.classEndedLocation && props.classEndedLocation.address || "");
+    const startedAddress = common_vendor.computed(() => formatLocationText(props.classStartedLocation));
+    const endedAddress = common_vendor.computed(() => formatLocationText(props.classEndedLocation));
     const stage = common_vendor.computed(() => {
       if (!props.classStartedAt)
         return "in";
@@ -70,6 +70,11 @@ const _sfc_main = {
         return "";
       const pad = (n) => n < 10 ? "0" + n : "" + n;
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    function formatLocationText(location) {
+      if (!location)
+        return "";
+      return location.address || "";
     }
     return (_ctx, _cache) => {
       return common_vendor.e({
