@@ -3,6 +3,7 @@ const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_location = require("../../utils/location.js");
+const utils_wxContentSecurity = require("../../utils/wxContentSecurity.js");
 const card = () => "../../components/common/card.js";
 const defaultAvatar = utils_imageConfig.getDefaultAvatarUrl();
 const _sfc_main = {
@@ -138,10 +139,10 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "请先以教师身份登录", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:455", "[编辑页面] 开始加载教师资料...");
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:456", "[编辑页面] 开始加载教师资料...");
         const teacherProfile = common_vendor.tr.importObject("teacher-profile", { customUI: true });
         const res = await teacherProfile.getProfile();
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:460", "[编辑页面] 获取资料结果:", {
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:461", "[编辑页面] 获取资料结果:", {
           code: res.code,
           hasData: !!res.data
         });
@@ -179,18 +180,18 @@ const _sfc_main = {
             missingFieldsText.push("资质证书截图");
           }
           if (missingFields.length > 0) {
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:503", "========================================");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:504", "[编辑页面] ⚠️ 检测到缺失的必填字段");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:505", "缺失的字段:", missingFieldsText.join("、"));
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:506", "当前值:");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:507", "  - 姓名:", p.display_name || "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:508", "  - 教学科目:", Array.isArray(p.subjects) ? `[${p.subjects.join(", ")}]` : "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:509", "  - 适合年级:", Array.isArray(p.grades) ? `[${p.grades.join(", ")}]` : "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:510", "  - 课时费:", p.hourly_rate || "0");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:511", "请填写以上必填字段后保存");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:512", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:504", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:505", "[编辑页面] ⚠️ 检测到缺失的必填字段");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:506", "缺失的字段:", missingFieldsText.join("、"));
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:507", "当前值:");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:508", "  - 姓名:", p.display_name || "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:509", "  - 教学科目:", Array.isArray(p.subjects) ? `[${p.subjects.join(", ")}]` : "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:510", "  - 适合年级:", Array.isArray(p.grades) ? `[${p.grades.join(", ")}]` : "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:511", "  - 课时费:", p.hourly_rate || "0");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:512", "请填写以上必填字段后保存");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:513", "========================================");
           } else {
-            common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:514", "[编辑页面] ✓ 所有必填字段已填写");
+            common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:515", "[编辑页面] ✓ 所有必填字段已填写");
           }
           const resolvedAvatar = this.resolveAvatarData(p.avatar || "", userInfo);
           let avatarUrl = resolvedAvatar.avatar;
@@ -225,7 +226,7 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:553", "加载教师资料失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:554", "加载教师资料失败:", error);
       }
     },
     resolveAvatarData(profileAvatar, userInfo = {}) {
@@ -250,6 +251,7 @@ const _sfc_main = {
     chooseAvatar() {
       common_vendor.index.chooseImage({
         count: 1,
+        sizeType: ["compressed"],
         success: async (res) => {
           var _a;
           const localPath = (_a = res.tempFilePaths) == null ? void 0 : _a[0];
@@ -271,6 +273,12 @@ const _sfc_main = {
       }
       try {
         this.avatarUploading = true;
+        try {
+          await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+        } catch (secErr) {
+          common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
+          return;
+        }
         const extIndex = localPath.lastIndexOf(".");
         const ext = extIndex > -1 ? localPath.substring(extIndex) : "";
         const cloudPath = `teacher-avatar/${Date.now()}-${Math.floor(Math.random() * 1e5)}${ext}`;
@@ -287,7 +295,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:613", "上传头像失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:621", "上传头像失败:", error);
         common_vendor.index.showToast({ title: "上传失败", icon: "none" });
       } finally {
         this.avatarUploading = false;
@@ -306,7 +314,7 @@ const _sfc_main = {
           return file.tempFileURL;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:632", "获取头像临时链接失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:640", "获取头像临时链接失败:", error);
       }
       return fileId;
     },
@@ -441,7 +449,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:770", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:778", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -516,7 +524,7 @@ const _sfc_main = {
               processedQ.image = tempUrl;
               processedQ.image_fileId = q.image;
             } catch (e) {
-              common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:849", "获取证书图片URL失败:", e);
+              common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:857", "获取证书图片URL失败:", e);
               processedQ.image = q.image;
               processedQ.image_fileId = q.image;
             }
@@ -573,12 +581,19 @@ const _sfc_main = {
     uploadQualificationImage(index) {
       common_vendor.index.chooseImage({
         count: 1,
+        sizeType: ["compressed"],
         success: async (res) => {
           var _a;
           const localPath = (_a = res.tempFilePaths) == null ? void 0 : _a[0];
           if (!localPath)
             return;
           if (this.useMock) {
+            try {
+              await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+            } catch (secErr) {
+              common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
+              return;
+            }
             this.formData.qualifications[index].image = localPath;
             this.formData.qualifications[index].image_fileId = localPath;
             this.clearError("qualifications");
@@ -595,6 +610,12 @@ const _sfc_main = {
       }
       try {
         this.qualificationUploading = true;
+        try {
+          await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+        } catch (secErr) {
+          common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
+          return;
+        }
         const extIndex = localPath.lastIndexOf(".");
         const ext = extIndex > -1 ? localPath.substring(extIndex) : "";
         const cloudPath = `teacher-cert/${Date.now()}-${Math.floor(Math.random() * 1e5)}${ext}`;
@@ -612,7 +633,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:941", "上传证书图片失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:962", "上传证书图片失败:", error);
         common_vendor.index.showToast({ title: "上传失败", icon: "none" });
       } finally {
         this.qualificationUploading = false;
@@ -721,17 +742,17 @@ const _sfc_main = {
         isValid = false;
       }
       if (!isValid) {
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1060", "========================================");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1061", "[表单验证] ❌ 验证失败，以下字段未填写:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1081", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1082", "[表单验证] ❌ 验证失败，以下字段未填写:");
         missingFields.forEach((field, index) => {
-          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1063", `  ${index + 1}. ${field}`);
+          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1084", `  ${index + 1}. ${field}`);
         });
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1065", "当前表单值:");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1066", "  - 姓名:", this.formData.name || "未填写");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1067", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1068", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1069", "  - 课时费:", this.formData.hourly_rate || "0");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1070", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1086", "当前表单值:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1087", "  - 姓名:", this.formData.name || "未填写");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1088", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1089", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1090", "  - 课时费:", this.formData.hourly_rate || "0");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1091", "========================================");
         if (firstErrorField) {
           this.scrollToError(firstErrorField);
         }
@@ -744,7 +765,7 @@ const _sfc_main = {
           });
         }
       } else {
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1085", "[表单验证] ✓ 所有必填字段验证通过");
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1106", "[表单验证] ✓ 所有必填字段验证通过");
       }
       return isValid;
     },
@@ -822,7 +843,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1171", "保存教师资料失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1192", "保存教师资料失败:", error);
         common_vendor.index.showToast({ title: "保存失败，请稍后重试", icon: "none" });
       } finally {
         this.saving = false;

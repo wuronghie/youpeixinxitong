@@ -103,6 +103,54 @@ function hasProfileChanged(oldProfile, newData) {
   return false
 }
 
+/** 资质证书截图 URL / fileID 列表（用于服务端图片安全比对） */
+function collectQualificationImageUrls(list) {
+  if (!Array.isArray(list)) return []
+  const out = []
+  for (const q of list) {
+    if (q && q.image) {
+      const s = String(q.image).trim()
+      if (s) out.push(s)
+    }
+  }
+  return out
+}
+
+/** 拉取证书图片二进制供 img_sec_check（支持 https、cloud://） */
+async function fetchImageBufferForSecCheck(imageRef) {
+  if (!imageRef || typeof imageRef !== 'string') {
+    throw new Error('证书图片地址无效')
+  }
+  let url = imageRef.trim()
+  if (url.startsWith('wxfile') || url.startsWith('file:')) {
+    throw new Error('证书图片格式无效，请重新上传')
+  }
+  if (url.startsWith('cloud://')) {
+    const tmp = await uniCloud.getTempFileURL({ fileList: [url] })
+    const f = tmp.fileList && tmp.fileList[0]
+    url = f && f.tempFileURL
+    if (!url) {
+      throw new Error('无法解析证书云存储地址')
+    }
+  }
+  const res = await uniCloud.httpclient.request(url, {
+    method: 'GET',
+    dataType: 'arraybuffer',
+    timeout: 35000
+  })
+  if (res.status !== 200) {
+    throw new Error(`拉取证书图片失败(${res.status})`)
+  }
+  const buf = Buffer.from(res.data || [])
+  if (buf.length > 1024 * 1024) {
+    throw new Error('证书图片超过1MB')
+  }
+  if (buf.length < 32) {
+    throw new Error('证书图片数据无效')
+  }
+  return buf
+}
+
 module.exports = {
   _before: function() {
     // 云对象前置方法，初始化 uni-id 实例
@@ -235,6 +283,44 @@ module.exports = {
       if (!hasQualificationImage) {
         return error('请至少上传1张资质证书截图')
       }
+
+      // 文本内容安全（微信 msg_sec_check，需 openid）
+      const wxSec = require('./wx-mp-sec')
+      const userForOpen = await db.collection('uni-id-users')
+        .doc(teacher_id)
+        .field({ wx_openid: true })
+        .get()
+      const openRow = userForOpen.data && userForOpen.data[0]
+      const mpOpenid = openRow && openRow.wx_openid && (openRow.wx_openid.mp || openRow.wx_openid['mp-weixin'])
+      if (mpOpenid) {
+        const textPieces = [
+          introduction,
+          experience,
+          school,
+          teaching_experience && teaching_experience.description
+        ]
+          .map((s) => (s && String(s).trim()) || '')
+          .filter(Boolean)
+        if (Array.isArray(qualifications)) {
+          for (const q of qualifications) {
+            if (q && q.name && String(q.name).trim()) {
+              textPieces.push(String(q.name).trim())
+            }
+            if (q && q.number != null && String(q.number).trim()) {
+              textPieces.push(String(q.number).trim())
+            }
+          }
+        }
+        const clientInfo = this.getClientInfo && this.getClientInfo()
+        for (const piece of textPieces) {
+          const r = await wxSec.msgSecCheck(mpOpenid, piece, 1, clientInfo)
+          if (!r.ok) {
+            return error(wxSec.USER_FACING_HINT, -2)
+          }
+        }
+      } else {
+        console.warn('[teacher-profile] 无微信 openid，跳过文本内容安全（非微信登录环境）')
+      }
       
       // 2. 查询教师资料是否存在
       const profileDoc = await db.collection('teacher-profiles')
@@ -323,6 +409,27 @@ module.exports = {
         is_verified: false,
         available: false,
         update_time: Date.now()
+      }
+
+      // 资质证书截图：服务端再走微信 img_sec_check（仅新增或更换过的图片，防绕过前端）
+      const clientInfoForImg = this.getClientInfo && this.getClientInfo()
+      const oldQualImgSet = new Set(collectQualificationImageUrls(profile.qualifications))
+      const newQualImgs = collectQualificationImageUrls(newData.qualifications)
+      for (const imgRef of newQualImgs) {
+        if (!oldQualImgSet.has(imgRef)) {
+          console.log('[teacher-profile] 资质证书图服务端安全检测', { imgTail: imgRef.slice(-48) })
+          try {
+            const buf = await fetchImageBufferForSecCheck(imgRef)
+            const ct = wxSec.detectContentType(buf)
+            const imgResult = await wxSec.imgSecCheck(buf, ct, clientInfoForImg)
+            if (!imgResult.ok) {
+              return error(wxSec.USER_FACING_HINT, -2)
+            }
+          } catch (e) {
+            console.error('[teacher-profile] 资质证书图安全检测失败', e)
+            return error(e.message || '资质证书图片安全检测失败', -2)
+          }
+        }
       }
 
       await db.collection('teacher-profiles').doc(profile._id).update(updateData)

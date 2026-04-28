@@ -255,6 +255,7 @@ import {
 	openLocation, 
 	requestLocationPermission 
 } from '@/utils/location.js'
+import { wxCheckLocalImageBeforeUpload } from '@/utils/wxContentSecurity.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
@@ -515,6 +516,12 @@ export default {
 		async uploadAvatar(localPath) {
 			try {
 				this.avatarUploading = true
+				try {
+					await wxCheckLocalImageBeforeUpload(localPath)
+				} catch (secErr) {
+					uni.showToast({ title: (secErr && secErr.message) || '图片未通过安全检测', icon: 'none' })
+					return
+				}
 				const extIndex = localPath.lastIndexOf('.')
 				const ext = extIndex > -1 ? localPath.substring(extIndex) : ''
 				const cloudPath = `parent-avatar/${Date.now()}-${Math.floor(Math.random() * 1e5)}${ext}`

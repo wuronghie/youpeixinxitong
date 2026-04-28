@@ -315,6 +315,28 @@ module.exports = {
       }
       // uni-id 约定：1=男, 2=女（0=未知）
       const genderCode = genderStr === 'male' ? 1 : 2
+
+      // 家长侧可编辑文本：微信内容安全（msg_sec_check）
+      const wxSec = require('./wx-mp-sec')
+      const userForOpen = await db.collection('uni-id-users')
+        .doc(uid)
+        .field({ wx_openid: true })
+        .get()
+      const openRow = userForOpen.data && userForOpen.data[0]
+      const mpOpenid = openRow && openRow.wx_openid && (openRow.wx_openid.mp || openRow.wx_openid['mp-weixin'])
+      if (mpOpenid) {
+        const g = (learning_goal && String(learning_goal).trim()) || ''
+        const n = (extra_notes && String(extra_notes).trim()) || ''
+        const clientInfo = this.getClientInfo && this.getClientInfo()
+        for (const piece of [g, n].filter(Boolean)) {
+          const r = await wxSec.msgSecCheck(mpOpenid, piece, 1, clientInfo)
+          if (!r.ok) {
+            return error(wxSec.USER_FACING_HINT, -2)
+          }
+        }
+      } else {
+        console.warn('[updateParentProfile] 无微信 openid，跳过文本内容安全')
+      }
       
       // 构建更新数据
       const updateData = {

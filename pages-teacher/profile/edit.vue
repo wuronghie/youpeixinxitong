@@ -319,6 +319,7 @@ import {
 	openLocation, 
 	requestLocationPermission 
 } from '@/utils/location.js'
+import { wxCheckLocalImageBeforeUpload } from '@/utils/wxContentSecurity.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
@@ -575,6 +576,7 @@ export default {
 		chooseAvatar() {
 			uni.chooseImage({
 				count: 1,
+				sizeType: ['compressed'],
 				success: async (res) => {
 					const localPath = res.tempFilePaths?.[0]
 					if (!localPath) return
@@ -594,6 +596,12 @@ export default {
 			}
 			try {
 				this.avatarUploading = true
+				try {
+					await wxCheckLocalImageBeforeUpload(localPath)
+				} catch (secErr) {
+					uni.showToast({ title: (secErr && secErr.message) || '图片未通过安全检测', icon: 'none' })
+					return
+				}
 				const extIndex = localPath.lastIndexOf('.')
 				const ext = extIndex > -1 ? localPath.substring(extIndex) : ''
 				const cloudPath = `teacher-avatar/${Date.now()}-${Math.floor(Math.random() * 100000)}${ext}`
@@ -901,10 +909,17 @@ export default {
 		uploadQualificationImage(index) {
 			uni.chooseImage({
 				count: 1,
+				sizeType: ['compressed'],
 				success: async (res) => {
 					const localPath = res.tempFilePaths?.[0]
 					if (!localPath) return
 					if (this.useMock) {
+						try {
+							await wxCheckLocalImageBeforeUpload(localPath)
+						} catch (secErr) {
+							uni.showToast({ title: (secErr && secErr.message) || '图片未通过安全检测', icon: 'none' })
+							return
+						}
 						this.formData.qualifications[index].image = localPath
 						this.formData.qualifications[index].image_fileId = localPath
 						this.clearError('qualifications')
@@ -921,6 +936,12 @@ export default {
 			}
 			try {
 				this.qualificationUploading = true
+				try {
+					await wxCheckLocalImageBeforeUpload(localPath)
+				} catch (secErr) {
+					uni.showToast({ title: (secErr && secErr.message) || '图片未通过安全检测', icon: 'none' })
+					return
+				}
 				const extIndex = localPath.lastIndexOf('.')
 				const ext = extIndex > -1 ? localPath.substring(extIndex) : ''
 				const cloudPath = `teacher-cert/${Date.now()}-${Math.floor(Math.random() * 100000)}${ext}`
