@@ -24,6 +24,56 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+/**
+ * 家长端资质证书：cloud fileID → 临时 HTTPS，便于 image 组件与 previewImage
+ */
+async function resolveQualificationImagesForParent(qualifications) {
+  if (!Array.isArray(qualifications) || qualifications.length === 0) {
+    return []
+  }
+  const fileIds = []
+  for (const q of qualifications) {
+    if (!q || typeof q !== 'object') continue
+    const fid = q.image_fileId && String(q.image_fileId).trim()
+    const img = q.image && String(q.image).trim()
+    const cloudRef =
+      fid && !fid.startsWith('http')
+        ? fid
+        : img && !img.startsWith('http')
+          ? img
+          : ''
+    if (cloudRef) fileIds.push(cloudRef)
+  }
+  const unique = [...new Set(fileIds)]
+  const urlMap = {}
+  if (unique.length > 0) {
+    try {
+      const r = await uniCloud.getTempFileURL({ fileList: unique })
+      ;(r.fileList || []).forEach((f) => {
+        if (f && f.fileID) {
+          urlMap[f.fileID] = f.tempFileURL || ''
+        }
+      })
+    } catch (e) {
+      console.error('[teacher-list] qualifications getTempFileURL failed', e)
+    }
+  }
+  return qualifications.map((q) => {
+    if (!q || typeof q !== 'object') return q
+    const copy = { ...q }
+    const fid = copy.image_fileId && String(copy.image_fileId).trim()
+    const img = copy.image && String(copy.image).trim()
+    if (fid && !fid.startsWith('http') && urlMap[fid]) {
+      copy.image_url = urlMap[fid]
+    } else if (img && img.startsWith('http')) {
+      copy.image_url = img
+    } else if (img && !img.startsWith('http') && urlMap[img]) {
+      copy.image_url = urlMap[img]
+    }
+    return copy
+  })
+}
+
 module.exports = {
   _before: function() {
     const clientInfo = this.getClientInfo()
@@ -452,7 +502,7 @@ module.exports = {
         introduction: profile.introduction || '',
         specialties: profile.specialties || [], // 可能不存在
         education: profile.education || null,
-        qualifications: profile.qualifications || [],
+        qualifications: await resolveQualificationImagesForParent(profile.qualifications || []),
         is_verified: profile.is_verified !== undefined ? profile.is_verified : false,
         available: profile.available !== undefined ? profile.available : true,
         teacher_info: userInfo || {},

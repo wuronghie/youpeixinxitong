@@ -190,12 +190,34 @@ const _sfc_main = {
           throw new Error(result.message || "加载失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:617", "加载教师详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:635", "加载教师详情失败:", error);
         this.loadError = error.message || "加载失败，请稍后重试";
         common_vendor.index.showToast({ title: this.loadError, icon: "none" });
       } finally {
         this.isLoading = false;
       }
+    },
+    qualificationDisplayUrl(item) {
+      if (!item)
+        return "";
+      const u = item.image_url || item.image;
+      if (!u || typeof u !== "string")
+        return "";
+      const s = u.trim();
+      return s.startsWith("http") ? s : "";
+    },
+    previewQualificationCertificates(index) {
+      const list = this.teacherInfo.qualifications || [];
+      const urls = list.map((q) => this.qualificationDisplayUrl(q)).filter(Boolean);
+      if (!urls.length) {
+        common_vendor.index.showToast({ title: "暂无可预览图片", icon: "none" });
+        return;
+      }
+      const cur = this.qualificationDisplayUrl(list[index]);
+      common_vendor.index.previewImage({
+        urls,
+        current: cur || urls[0]
+      });
     },
     async handleContactTeacher() {
       var _a, _b, _c, _d, _e;
@@ -239,8 +261,8 @@ const _sfc_main = {
           extra_notes: parentInfo.extra_notes || "",
           address_detail: parentInfo.address_detail || ""
         };
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:670", "[teacher-detail] 联系请求参数:", contactParams);
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:671", "[teacher-detail] parentInfo:", parentInfo);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:708", "[teacher-detail] 联系请求参数:", contactParams);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:709", "[teacher-detail] parentInfo:", parentInfo);
         const appointmentObj = common_vendor.tr.importObject("appointment-create", { customUI: true });
         const result = await appointmentObj.createContactRequest(contactParams);
         if (result.code === 0) {
@@ -279,7 +301,7 @@ const _sfc_main = {
 `;
               messageContent += `
 希望了解您的教学安排，期待您的回复！`;
-              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:720", "[teacher-detail] 发送消息内容:", messageContent);
+              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:758", "[teacher-detail] 发送消息内容:", messageContent);
               const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
               await chatSend.send({
                 conversation_id: conversationId,
@@ -287,7 +309,7 @@ const _sfc_main = {
                 content: messageContent
               });
             } catch (msgError) {
-              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:729", "发送初始消息失败:", msgError);
+              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:767", "发送初始消息失败:", msgError);
             }
           }
           this.hasContacted = true;
@@ -314,7 +336,7 @@ const _sfc_main = {
           throw new Error(result.message || "发送联系请求失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:760", "联系老师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:798", "联系老师失败:", error);
         common_vendor.index.showToast({ title: error.message || "联系失败，请稍后再试", icon: "none" });
       } finally {
         this.isContacting = false;
@@ -359,7 +381,7 @@ const _sfc_main = {
           this.isFavorited = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:801", "查询收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:839", "查询收藏状态失败:", error);
         this.isFavorited = false;
       }
     },
@@ -387,19 +409,19 @@ const _sfc_main = {
           const conversationListRes = await chatSend.getConversationList();
           if (conversationListRes.code === 0 && conversationListRes.data) {
             const conversations = conversationListRes.data.list || conversationListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:835", "[teacher-detail] 会话列表数量:", conversations.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:873", "[teacher-detail] 会话列表数量:", conversations.length);
             const hasConversation = conversations.some((conv) => {
               var _a, _b;
               return conv.teacher_id === teacherId || ((_a = conv.other_user) == null ? void 0 : _a.teacher_id) === teacherId || ((_b = conv.teacher_info) == null ? void 0 : _b.teacher_id) === teacherId;
             });
             this.hasContacted = !!hasConversation;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:845", "[teacher-detail] hasContacted 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:883", "[teacher-detail] hasContacted 计算结果:", {
               teacherId,
               hasConversation
             });
           }
         } catch (chatError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:851", "检查会话列表失败:", chatError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:889", "检查会话列表失败:", chatError);
           this.hasContacted = false;
         }
         try {
@@ -412,9 +434,9 @@ const _sfc_main = {
           });
           if (appointmentListRes.code === 0 && appointmentListRes.data) {
             const appointments = appointmentListRes.data.list || appointmentListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:868", "[teacher-detail] 家长预约总数:", appointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:906", "[teacher-detail] 家长预约总数:", appointments.length);
             const relatedAppointments = appointments.filter((apt) => apt.teacher_id === teacherId);
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:871", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:909", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
             const hasTrialSuccess = relatedAppointments.some((apt) => {
               const isTrialCourse = apt.course_type === "trial";
               const isCompletedStatus = apt.status === "completed";
@@ -422,7 +444,7 @@ const _sfc_main = {
               return isTrialCourse && isCompletedStatus && isSuccessResult;
             });
             this.hasTrialSuccess = !!hasTrialSuccess;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:885", "[teacher-detail] hasTrialSuccess 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:923", "[teacher-detail] hasTrialSuccess 计算结果:", {
               teacherId,
               hasTrialSuccess,
               trialAppointments: relatedAppointments.filter((apt) => apt.course_type === "trial").map((apt) => ({
@@ -435,11 +457,11 @@ const _sfc_main = {
             this.hasTrialSuccess = false;
           }
         } catch (trialError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:900", "检查试课成功记录失败:", trialError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:938", "检查试课成功记录失败:", trialError);
           this.hasTrialSuccess = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:905", "检查联系状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:943", "检查联系状态失败:", error);
         this.hasContacted = false;
         this.hasTrialSuccess = false;
       }
@@ -483,7 +505,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:948", "收藏操作失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:986", "收藏操作失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       } finally {
         this.favoriteLoading = false;
@@ -741,10 +763,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     ag: ($data.teacherInfo.qualifications || []).length
   }, ($data.teacherInfo.qualifications || []).length ? {
     ah: common_vendor.f($data.teacherInfo.qualifications, (item, index, i0) => {
-      return {
+      return common_vendor.e({
         a: common_vendor.t(item.name || "证书"),
-        b: index
-      };
+        b: item.number
+      }, item.number ? {
+        c: common_vendor.t(item.number)
+      } : {}, {
+        d: $options.qualificationDisplayUrl(item)
+      }, $options.qualificationDisplayUrl(item) ? {
+        e: $options.qualificationDisplayUrl(item),
+        f: common_vendor.o(($event) => $options.previewQualificationCertificates(index), index)
+      } : {}, {
+        g: index
+      });
     })
   } : {}) : {}, {
     ai: $options.scheduleSummary.length || $options.recentReviews.length

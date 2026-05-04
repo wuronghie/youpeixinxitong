@@ -313,17 +313,35 @@
 						<view class="section-title__mark section-title__mark--pink"></view>
 						<view>
 							<text class="section-title__text">资质证书</text>
-							<text class="section-title__sub">已提交的教学资质</text>
+							<text class="section-title__sub">已提交的教学资质 · 点击图片全屏查看</text>
 						</view>
 					</view>
-					<view class="d-flex a-center flex-wrap">
-						<text 
-							v-for="(item, index) in teacherInfo.qualifications" 
-							:key="index" 
-							class="detail-tag rounded px-3 py-1 font-sm mr-2 mb-2"
+					<view class="qualification-list">
+						<view
+							v-for="(item, index) in teacherInfo.qualifications"
+							:key="index"
+							class="qualification-block"
 						>
-							{{ item.name || '证书' }}
-						</text>
+							<view class="qualification-block__head">
+								<text class="qualification-block__name">{{ item.name || '证书' }}</text>
+								<text v-if="item.number" class="qualification-block__number">编号 {{ item.number }}</text>
+							</view>
+							<view
+								v-if="qualificationDisplayUrl(item)"
+								class="qualification-block__img-wrap"
+								@click.stop="previewQualificationCertificates(index)"
+							>
+								<image
+									class="qualification-block__img"
+									:src="qualificationDisplayUrl(item)"
+									mode="aspectFill"
+								/>
+								<view class="qualification-block__img-mask">
+									<text class="qualification-block__img-hint">全屏查看</text>
+								</view>
+							</view>
+							<text v-else class="qualification-block__empty font-xs text-light-muted">暂无证书图片</text>
+						</view>
 					</view>
 				</card>
 				</view>
@@ -620,6 +638,26 @@ export default {
 			} finally {
 				this.isLoading = false
 			}
+		},
+		qualificationDisplayUrl(item) {
+			if (!item) return ''
+			const u = item.image_url || item.image
+			if (!u || typeof u !== 'string') return ''
+			const s = u.trim()
+			return s.startsWith('http') ? s : ''
+		},
+		previewQualificationCertificates(index) {
+			const list = this.teacherInfo.qualifications || []
+			const urls = list.map((q) => this.qualificationDisplayUrl(q)).filter(Boolean)
+			if (!urls.length) {
+				uni.showToast({ title: '暂无可预览图片', icon: 'none' })
+				return
+			}
+			const cur = this.qualificationDisplayUrl(list[index])
+			uni.previewImage({
+				urls,
+				current: cur || urls[0]
+			})
 		},
 		async handleContactTeacher() {
 			if (this.isContacting || this.loadError) return
@@ -1702,6 +1740,72 @@ export default {
 .intro-text {
 	line-height: 1.8;
 	color: #475569;
+}
+
+.qualification-list {
+	display: flex;
+	flex-direction: column;
+	gap: 24rpx;
+}
+
+.qualification-block {
+	padding: 22rpx;
+	border-radius: 20rpx;
+	background: linear-gradient(180deg, #fff 0%, #fdf2f8 100%);
+	border: 1rpx solid #fce7f3;
+}
+
+.qualification-block__head {
+	display: flex;
+	flex-direction: column;
+	gap: 6rpx;
+	margin-bottom: 16rpx;
+}
+
+.qualification-block__name {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #831843;
+}
+
+.qualification-block__number {
+	font-size: 24rpx;
+	color: #9d174d;
+	opacity: 0.85;
+}
+
+.qualification-block__img-wrap {
+	position: relative;
+	width: 100%;
+	height: 280rpx;
+	border-radius: 16rpx;
+	overflow: hidden;
+	background: #fce7f3;
+}
+
+.qualification-block__img {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+
+.qualification-block__img-mask {
+	position: absolute;
+	right: 16rpx;
+	bottom: 16rpx;
+	padding: 10rpx 20rpx;
+	border-radius: 999rpx;
+	background: rgba(0, 0, 0, 0.45);
+}
+
+.qualification-block__img-hint {
+	font-size: 22rpx;
+	color: #fff;
+}
+
+.qualification-block__empty {
+	display: block;
+	padding: 16rpx 0;
 }
 
 .info-list {
