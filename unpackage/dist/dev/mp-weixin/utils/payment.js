@@ -117,6 +117,50 @@ function generateOutTradeNo(appointment_id, payment_type) {
   const timestamp = String(Date.now()).slice(-10);
   return `${typeShort}${timestamp}${aptIdShort}`.slice(0, 32);
 }
+async function payExistingOrderWithUniPay(payComponent, options) {
+  const {
+    order_no,
+    appointment_id,
+    payment_type,
+    amount,
+    description,
+    order_id,
+    provider
+  } = options;
+  if (!order_no || !appointment_id || amount == null || amount < 0) {
+    throw new Error("支付参数不完整");
+  }
+  if (!payComponent) {
+    throw new Error("uni-pay 组件未找到");
+  }
+  const amountInYuan = parseFloat((amount / 100).toFixed(2));
+  if (amountInYuan <= 0 || isNaN(amountInYuan)) {
+    throw new Error(`支付金额必须大于0，当前金额：${amount}分（${amountInYuan}元）`);
+  }
+  const out_trade_no = generateOutTradeNo(appointment_id, payment_type || "course_fee");
+  payWithUniPay(payComponent, {
+    order_no,
+    out_trade_no,
+    total_fee: amount,
+    description: description || (payment_type === "deposit" ? "支付信息费" : "支付课程费用"),
+    type: "appointment",
+    provider,
+    custom: {
+      appointment_id,
+      payment_type: payment_type || "course_fee",
+      order_id
+    }
+  });
+  return {
+    code: 0,
+    message: "请完成支付",
+    data: {
+      order_no,
+      out_trade_no,
+      order_id
+    }
+  };
+}
 async function createAndPayWithUniPay(payComponent, options) {
   const { appointment_id, payment_type, amount, description, provider, user_coupon_id } = options;
   if (!appointment_id || amount == null || amount < 0) {
@@ -126,9 +170,9 @@ async function createAndPayWithUniPay(payComponent, options) {
     throw new Error("uni-pay 组件未找到");
   }
   try {
-    common_vendor.index.__f__("log", "at utils/payment.js:240", "[支付流程] 开始创建业务订单...");
+    common_vendor.index.__f__("log", "at utils/payment.js:303", "[支付流程] 开始创建业务订单...");
     const amountInYuan = parseFloat((amount / 100).toFixed(2));
-    common_vendor.index.__f__("log", "at utils/payment.js:246", "[支付流程] 金额转换:", {
+    common_vendor.index.__f__("log", "at utils/payment.js:309", "[支付流程] 金额转换:", {
       原始金额_分: amount,
       转换后金额_元: amountInYuan
     });
@@ -155,7 +199,7 @@ async function createAndPayWithUniPay(payComponent, options) {
     const orderInfo = createRes.data;
     const order_no = orderInfo.order_no;
     const order_id = orderInfo.order_id;
-    common_vendor.index.__f__("log", "at utils/payment.js:278", "[支付流程] 业务订单创建成功:", {
+    common_vendor.index.__f__("log", "at utils/payment.js:341", "[支付流程] 业务订单创建成功:", {
       order_id,
       order_no,
       amount: orderInfo.amount
@@ -189,93 +233,25 @@ async function createAndPayWithUniPay(payComponent, options) {
       }
     };
   } catch (error) {
-    common_vendor.index.__f__("error", "at utils/payment.js:314", "[支付流程] 失败:", error);
+    common_vendor.index.__f__("error", "at utils/payment.js:377", "[支付流程] 失败:", error);
     throw error;
   }
 }
 async function createAndPay(options) {
-  const { appointment_id, payment_type, amount, user_coupon_id } = options;
+  const { appointment_id, amount } = options;
   if (!appointment_id || amount == null || amount < 0) {
     return {
       code: -1,
       message: "支付参数不完整"
     };
   }
-  const isDev = isDevMode();
-  if (isDev) {
-    return new Promise((resolve) => {
-      common_vendor.index.hideLoading();
-      setTimeout(() => {
-        common_vendor.index.showModal({
-          title: "模拟支付",
-          content: `预约ID：${appointment_id}
-支付类型：${payment_type === "deposit" ? "信息费" : "课程费"}
-金额：¥${(amount / 100).toFixed(2)}
-
-这是开发模式，点击确认模拟支付成功`,
-          confirmText: "确认支付",
-          cancelText: "取消",
-          success: async (res) => {
-            if (res.confirm) {
-              try {
-                const amountInYuan = parseFloat((amount / 100).toFixed(2));
-                const createRes = await createPaymentOrderProd({
-                  appointment_id,
-                  payment_type,
-                  amount: amountInYuan,
-                  user_coupon_id
-                });
-                if (createRes.code !== 0 || !createRes.data || !createRes.data.order_no) {
-                  return resolve({
-                    code: -1,
-                    message: createRes.message || "创建支付订单失败"
-                  });
-                }
-                const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
-                const mockRes = await paymentCreate.mockPaySuccess({
-                  order_no: createRes.data.order_no
-                });
-                return resolve({
-                  code: mockRes.code,
-                  message: mockRes.message,
-                  data: mockRes.data
-                });
-              } catch (e) {
-                common_vendor.index.__f__("error", "at utils/payment.js:384", "模拟支付失败:", e);
-                return resolve({
-                  code: -1,
-                  message: e.message || "支付失败"
-                });
-              }
-            } else {
-              resolve({
-                code: -1,
-                message: "用户取消支付"
-              });
-            }
-          },
-          fail: (err) => {
-            common_vendor.index.__f__("error", "at utils/payment.js:399", "显示支付弹窗失败:", err);
-            resolve({
-              code: 0,
-              message: "支付成功（模拟，弹窗显示失败）",
-              data: {
-                order_no: `ORDER_${Date.now()}`,
-                transaction_id: `TXN_${Date.now()}`,
-                pay_time: (/* @__PURE__ */ new Date()).toISOString()
-              }
-            });
-          }
-        });
-      }, 100);
-    });
-  }
   return {
     code: -1,
-    message: "当前环境无法发起支付，请稍后重试或联系客服",
+    message: "请通过支付界面完成支付",
     errorType: "NO_PAY_CHANNEL"
   };
 }
 exports.createAndPay = createAndPay;
 exports.createAndPayWithUniPay = createAndPayWithUniPay;
+exports.payExistingOrderWithUniPay = payExistingOrderWithUniPay;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/utils/payment.js.map

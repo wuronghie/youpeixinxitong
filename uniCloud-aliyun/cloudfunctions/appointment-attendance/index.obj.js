@@ -2,6 +2,7 @@
  * 教师上课/下课打卡云对象
  *
  * 业务规则（打卡时间与排课时间解耦，任意时刻可打，只落库时间 + 定位便于查询）：
+ *   0. 前置条件：家长已支付本单课程费（parent_paid / 已支付订单），试课须先付后打
  *   1. 上课打卡（clockIn）：
  *      - 仅教师本人可调用
  *      - 预约状态必须为 confirmed 或 in_progress
@@ -12,7 +13,7 @@
  *   2. 下课打卡（clockOut）：
  *      - 仅教师本人可调用
  *      - 须已存在上课打卡，且未重复下课打卡
- *      - 状态须为 in_progress
+ *      - 家长须已支付本单课程费
  *      - 必须上传定位；不限制相对排课结束时间多久
  *      - 成功后写入 class_ended_at + class_ended_location
  *
@@ -121,6 +122,41 @@ async function resolveUserId(ctx) {
   }
 }
 
+async function isParentCourseFeePaid(db, appointment) {
+  if (!appointment) return false
+  if (appointment.parent_paid === true || appointment.parent_paid === 'true') return true
+  if (appointment.parent_payment_time || appointment.payment_time || appointment.parent_payment_order_id) {
+    return true
+  }
+  try {
+    const dbCmd = db.command
+    const orderDoc = await db.collection('payment-orders')
+      .where({
+        appointment_id: appointment._id,
+        status: dbCmd.in(['paid', 'success'])
+      })
+      .limit(10)
+      .get()
+    return (orderDoc.data || []).some((order) => {
+      const type = order.order_type || order.fee_kind || 'course_fee'
+      return ['course_fee', 'trial', 'regular'].includes(type) || !type
+    })
+  } catch (e) {
+    console.warn('[appointment-attendance] isParentCourseFeePaid query failed:', e)
+    return false
+  }
+}
+
+function canClockInByStatus(status) {
+  return ['confirmed', 'in_progress'].includes(status)
+}
+
+async function resolveParentPaid(db, appointment) {
+  const paid = await isParentCourseFeePaid(db, appointment)
+  appointment.parent_paid = paid
+  return paid
+}
+
 module.exports = {
   _before() {
     // 提前建好 uni-id 实例，方法里直接用 this.uniID
@@ -166,9 +202,13 @@ module.exports = {
         return error('已经上课打卡，不可重复打卡')
       }
 
-      // 打卡仅做履约留痕；测试/兼容场景下 pending_confirm 也允许上课打卡
-      if (!['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)) {
-        return error(`当前状态（${appointment.status}）不允许上课打卡`)
+      const parentPaid = await resolveParentPaid(db, appointment)
+      if (!parentPaid) {
+        return error('家长尚未支付试课费，请等待家长完成支付后再打卡')
+      }
+
+      if (!canClockInByStatus(appointment.status)) {
+        return error(`当前状态（${appointment.status}）不允许上课打卡，请等待家长支付并确认预约`)
       }
 
       const now = Date.now()
@@ -225,6 +265,11 @@ module.exports = {
 
       if (appointment.class_ended_at) {
         return error('已完成下课打卡，不可重复打卡')
+      }
+
+      const parentPaid = await resolveParentPaid(db, appointment)
+      if (!parentPaid) {
+        return error('家长尚未支付试课费，无法完成下课打卡')
       }
 
       const now = Date.now()
@@ -289,14 +334,20 @@ module.exports = {
 
       const { startTs, endTs, ok } = resolveSchedule(appointment)
       const now = Date.now()
-      const canClockIn = !appointment.class_started_at && ['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)
-      const canClockOut = !!appointment.class_started_at && !appointment.class_ended_at
+      const parentPaid = await resolveParentPaid(db, appointment)
+      const canClockIn = parentPaid &&
+        !appointment.class_started_at &&
+        canClockInByStatus(appointment.status)
+      const canClockOut = parentPaid &&
+        !!appointment.class_started_at &&
+        !appointment.class_ended_at
       console.log('[appointment-attendance.getStatus] 查询打卡状态:', {
         appointment_id,
         callerUid: teacherId,
         appointmentTeacherId: appointment.teacher_id,
         appointmentParentId: appointment.parent_id,
         status: appointment.status,
+        parent_paid: parentPaid,
         class_started_at: appointment.class_started_at || null,
         class_ended_at: appointment.class_ended_at || null,
         can_clock_in: canClockIn,
@@ -304,6 +355,7 @@ module.exports = {
       })
       return success({
         status: appointment.status,
+        parent_paid: parentPaid,
         class_started_at: appointment.class_started_at || null,
         class_started_location: appointment.class_started_location || null,
         class_ended_at: appointment.class_ended_at || null,

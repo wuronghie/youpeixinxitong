@@ -132,10 +132,10 @@ module.exports = async (obj) => {
       }
     } else {
       // 家长课程费（默认）
-      // 判断下一个状态：参考 payment-create 的逻辑
-      // 如果已经支付了信息费或已经是 confirmed，则直接 confirmed；否则 pending_confirm
-      const nextStatus = (appointment.deposit_paid || appointment.status === 'confirmed') 
-        ? 'confirmed' 
+      // 老师发起的试课：家长支付后直接进入 confirmed，无需教师再次确认
+      const isTeacherInvitedTrial = appointment.course_type === 'trial' && appointment.invited_by === 'teacher';
+      const nextStatus = (isTeacherInvitedTrial || appointment.deposit_paid || appointment.status === 'confirmed')
+        ? 'confirmed'
         : 'pending_confirm';
       
       updateData = {

@@ -45,6 +45,9 @@ const _sfc_main = {
     this.loadAppointments();
   },
   methods: {
+    async refreshData() {
+      await this.loadAppointments();
+    },
     formatDateString(dateObj) {
       const year = dateObj.getFullYear();
       const month = String(dateObj.getMonth() + 1).padStart(2, "0");
@@ -161,7 +164,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/calendar.vue:262", "加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/calendar.vue:265", "加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败", icon: "none" });
       }
     },

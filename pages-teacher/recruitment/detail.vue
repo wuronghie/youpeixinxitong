@@ -78,8 +78,6 @@
 </template>
 
 <script>
-import { createAndPay } from '@/utils/payment.js'
-
 export default {
 	data() {
 		return {
@@ -94,6 +92,9 @@ export default {
 		this.load()
 	},
 	methods: {
+		async refreshData() {
+			await this.load()
+		},
 		async load() {
 			if (!this.id) return
 			const rc = uniCloud.importObject('recruitment-center', { customUI: true })
@@ -155,22 +156,6 @@ export default {
 				url: `/pages-teacher/chat/conversation?${query}`
 			})
 		},
-		async ensureDepositBeforeChat(appointmentId) {
-			if (!appointmentId) {
-				uni.showToast({ title: '未找到预约信息', icon: 'none' })
-				return false
-			}
-			const payResult = await createAndPay({
-				appointment_id: appointmentId,
-				payment_type: 'deposit',
-				amount: 100
-			})
-			if (payResult.code !== 0) {
-				uni.showToast({ title: payResult.message || '支付未完成', icon: 'none' })
-				return false
-			}
-			return true
-		},
 		async onInvite() {
 			if (this.busy || !this.id) return
 			this.busy = true
@@ -180,10 +165,6 @@ export default {
 				if (res.code !== 0) {
 					uni.showToast({ title: res.message || '失败', icon: 'none' })
 					return
-				}
-				if (res.data.need_deposit) {
-					const ok = await this.ensureDepositBeforeChat(res.data.appointment_id)
-					if (!ok) return
 				}
 				this.goChat(res.data.conversation_id, res.data.appointment_id)
 				await this.load()
@@ -201,10 +182,6 @@ export default {
 				if (!mr || !mr.appointment_id || !mr.conversation_id) {
 					uni.showToast({ title: '数据异常', icon: 'none' })
 					return
-				}
-				if (this.detail.need_deposit) {
-					const ok = await this.ensureDepositBeforeChat(mr.appointment_id)
-					if (!ok) return
 				}
 				this.goChat(mr.conversation_id, mr.appointment_id)
 			} catch (e) {

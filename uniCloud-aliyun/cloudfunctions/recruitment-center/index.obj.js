@@ -69,13 +69,18 @@ function isParentProfileComplete(userDoc) {
   )
 }
 
+function isFullTimeTeacher(profile) {
+  return !!(profile && profile.school === '专职老师')
+}
+
 function isTeacherProfileComplete(profile) {
   if (!profile) return false
   const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some((item) => item && item.image)
+  const gradesOk = isFullTimeTeacher(profile) || (Array.isArray(profile.grades) && profile.grades.length > 0)
   return !!(
     String(profile.display_name || '').trim() &&
     Array.isArray(profile.subjects) && profile.subjects.length > 0 &&
-    Array.isArray(profile.grades) && profile.grades.length > 0 &&
+    gradesOk &&
     Number(profile.hourly_rate || 0) > 0 &&
     Number((profile.teaching_experience && profile.teaching_experience.years) || 0) > 0 &&
     String(profile.introduction || '').trim() &&
@@ -164,6 +169,8 @@ async function teacherPaidDepositForParent(db, teacher_id, parent_id) {
 /**
  * 创建试课邀请预约 + 会话（与 appointment-create.inviteTrial 对齐）
  */
+const MIN_HOURLY_RATE = 120
+
 async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
   const teacherProfileDoc = await db
     .collection('teacher-profiles')
@@ -174,8 +181,15 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
 
   const teacherProfile =
     teacherProfileDoc.data && teacherProfileDoc.data.length > 0 ? teacherProfileDoc.data[0] : {}
-  const hourlyRate = Number(teacherProfile.hourly_rate || 100)
-  const trialAmount = hourlyRate * 2
+  const profileHourlyRate = Number(teacherProfile.hourly_rate || MIN_HOURLY_RATE)
+  let hourlyRate = profileHourlyRate
+  if (extras.trial_hourly_rate != null && extras.trial_hourly_rate !== '') {
+    hourlyRate = Number(extras.trial_hourly_rate)
+  }
+  if (!hourlyRate || hourlyRate < MIN_HOURLY_RATE) {
+    throw new Error(`试课课时费不能低于${MIN_HOURLY_RATE}元/小时`)
+  }
+  const trialAmount = Number((hourlyRate * 2).toFixed(2))
   const appointmentNo = generateAppointmentNo()
   const now = Date.now()
 
@@ -186,6 +200,7 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
     course_type: 'trial',
     status: 'trial_invited',
     hourly_rate: hourlyRate,
+    trial_invite_hourly_rate: hourlyRate,
     total_amount: trialAmount,
     duration: 2,
     create_time: now,
@@ -233,7 +248,8 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
     appointment_id: result.id,
     appointment_no: appointmentNo,
     conversation_id: conversationId,
-    trial_amount: trialAmount
+    trial_amount: trialAmount,
+    trial_hourly_rate: hourlyRate
   }
 }
 

@@ -5,6 +5,11 @@
  */
 
 const uniID = require('uni-id-common')
+const {
+  resolveAppointmentAttendance,
+  applyNormalizedAttendance,
+  normalizeTimestamp
+} = require('./appointment-attendance-resolver.js')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -23,6 +28,45 @@ function error(message = 'error', code = -1, data = null) {
     data,
     timestamp: Date.now()
   }
+}
+
+async function resolveUserIdFromCtx(ctx) {
+  const token = ctx.getUniIdToken && ctx.getUniIdToken()
+  if (!token) return null
+  if (ctx.uniID && typeof ctx.uniID.checkToken === 'function') {
+    try {
+      const payload = await ctx.uniID.checkToken(token)
+      if (payload && !payload.code && payload.uid) {
+        return payload.uid
+      }
+    } catch (e) {
+      // 回落 base64 兜底
+    }
+  }
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const parts = decoded.split('_')
+    return parts.length >= 1 && parts[0] ? parts[0] : null
+  } catch (e) {
+    return null
+  }
+}
+
+async function enrichAppointmentDetail(db, appointment) {
+  try {
+    const reviewDoc = await db.collection('reviews')
+      .where({ appointment_id: appointment._id })
+      .field({ _id: true })
+      .limit(1)
+      .get()
+    appointment.has_review = !!(reviewDoc.data && reviewDoc.data.length > 0)
+  } catch (e) {
+    console.warn('[appointment-query] enrich has_review failed:', e)
+    appointment.has_review = !!appointment.has_review
+  }
+
+  await resolveAppointmentAttendance(db, appointment, { persistHeal: true })
+  return appointment
 }
 
 module.exports = {
@@ -189,6 +233,8 @@ module.exports = {
       
       const appointment = appointmentDoc.data[0]
       
+      await enrichAppointmentDetail(db, appointment)
+      
       // 关联教师信息，保证详情页展示的教师数据与实际老师一致
       if (appointment.teacher_id) {
         try {
@@ -206,11 +252,17 @@ module.exports = {
           
           if (teacherRes.data && teacherRes.data.length > 0) {
             const t = teacherRes.data[0]
+            const appointmentHourlyRate = Number(
+              appointment.trial_invite_hourly_rate || appointment.hourly_rate || 0
+            )
+            const displayHourlyRate = (appointment.course_type === 'trial' && appointmentHourlyRate > 0)
+              ? appointmentHourlyRate
+              : (t.hourly_rate || 0)
             appointment.teacher_info = {
               name: t.display_name || '教师',
               display_name: t.display_name || '教师',
               avatar: t.avatar || '',
-              hourly_rate: t.hourly_rate || 0,
+              hourly_rate: displayHourlyRate,
               subjects: t.subjects || []
             }
           }
@@ -223,6 +275,8 @@ module.exports = {
       console.log('[appointment-query.getAppointmentDetail] 返回预约详情:', {
         appointment_id,
         returnedAppointmentId: appointment._id,
+        confirm_appointment_id: appointment.confirm_appointment_id || appointment._id,
+        attendance_source_appointment_id: appointment.attendance_source_appointment_id || null,
         teacher_id: appointment.teacher_id,
         parent_id: appointment.parent_id,
         status: appointment.status,
@@ -238,6 +292,54 @@ module.exports = {
     } catch (e) {
       console.error('获取预约详情失败:', e)
       return error(e.message || '获取失败')
+    }
+  },
+
+  /**
+   * 查询预约打卡状态（家长/教师均可调用）
+   * @param {Object} params
+   * @param {String} params.appointment_id 预约ID
+   */
+  async getAttendanceStatus(params = {}) {
+    const { appointment_id } = params
+
+    try {
+      const db = uniCloud.database()
+      if (!appointment_id) {
+        return error('缺少预约ID')
+      }
+
+      const userId = await resolveUserIdFromCtx(this)
+      if (!userId) {
+        return error('未获取到token，请先登录')
+      }
+
+      const doc = await db.collection('appointments').doc(appointment_id).get()
+      if (!doc.data || doc.data.length === 0) {
+        return error('预约不存在')
+      }
+
+      const appointment = doc.data[0]
+      if (appointment.teacher_id !== userId && appointment.parent_id !== userId) {
+        return error('无权查看')
+      }
+
+      applyNormalizedAttendance(appointment)
+      await resolveAppointmentAttendance(db, appointment, { persistHeal: true })
+
+      return success({
+        status: appointment.status,
+        parent_paid: !!appointment.parent_paid,
+        parent_paid_from_order: !!appointment.parent_paid_from_order,
+        class_started_at: appointment.class_started_at || null,
+        class_started_location: appointment.class_started_location || null,
+        class_ended_at: appointment.class_ended_at || null,
+        class_ended_location: appointment.class_ended_location || null,
+        attendance_source_appointment_id: appointment.attendance_source_appointment_id || null
+      })
+    } catch (e) {
+      console.error('[appointment-query.getAttendanceStatus]', e)
+      return error(e.message || '查询打卡状态失败')
     }
   },
   
@@ -296,14 +398,31 @@ module.exports = {
         return error('只有家长可以查看预约列表')
       }
       
-      // 构建查询条件
-      const where = {
+      // 构建查询条件（pending_payment 需整体替换为 and/or 组合，故用 let）
+      let where = {
         parent_id: parent_id
       }
       
       // 状态筛选（支持单个状态或状态数组）
       if (status !== 'all' && status !== undefined) {
-        if (Array.isArray(status)) {
+        if (status === 'pending_payment') {
+          // 待支付：包含 pending_payment，以及老师发起试课中家长尚未支付的情况
+          where = dbCmd.and([
+            { parent_id: parent_id },
+            dbCmd.or([
+              { parent_paid: false },
+              { parent_paid: dbCmd.exists(false) }
+            ]),
+            dbCmd.or([
+              { status: 'pending_payment' },
+              {
+                status: dbCmd.in(['pending_confirm', 'confirmed']),
+                course_type: 'trial',
+                invited_by: 'teacher'
+              }
+            ])
+          ])
+        } else if (Array.isArray(status)) {
           where.status = dbCmd.in(status)
         } else {
           where.status = status
@@ -609,6 +728,16 @@ module.exports = {
       if (appointment.parent_id !== parent_id) {
         return error('无权操作该预约')
       }
+
+      await resolveAppointmentAttendance(db, appointment, { persistHeal: true })
+
+      if (!appointment.parent_paid) {
+        return error('课程费用尚未支付，无法确认完成')
+      }
+
+      if (!appointment.class_ended_at) {
+        return error('教师尚未下课打卡，无法确认结果，请稍后再试')
+      }
       
       // 允许 confirmed / in_progress；对于已支付但仍处于 pending_confirm 的情况，前端已放开按钮，这里也一并允许，具体业务安全由后续结算逻辑控制
       if (!['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)) {
@@ -626,7 +755,8 @@ module.exports = {
         status: appointment.status,
         total_amount: appointment.total_amount,
         teacher_id: appointment.teacher_id,
-        parent_id: appointment.parent_id
+        parent_id: appointment.parent_id,
+        class_ended_at: appointment.class_ended_at || null
       })
       
       // 根据课程类型 + is_satisfied 调用不同的结算逻辑：
@@ -916,11 +1046,15 @@ module.exports = {
         const isSuccessResult = !apt.trial_result || apt.trial_result === 'success'
         return isCompleted && isSuccessResult
       })
+
+      const activeStatuses = ['trial_invited', 'pending_payment', 'pending_confirm', 'confirmed', 'in_progress']
+      const hasActiveTrial = trials.some(apt => activeStatuses.includes(apt.status))
       
       const lastTrial = trials.length > 0 ? trials[0] : null
       
       return success({
         hasTrialSuccess,
+        hasActiveTrial,
         trialCount: trials.length,
         lastTrialStatus: lastTrial ? {
           id: lastTrial._id,
@@ -932,6 +1066,115 @@ module.exports = {
     } catch (e) {
       console.error('[appointment-query] 检查试课状态失败:', e)
       return error(e.message || '查询试课状态失败')
+    }
+  },
+
+  /**
+   * 家长待确认试课结果列表（已下课打卡、尚未确认 success/fail）
+   * @returns {Object} { list: [{ _id, teacher_name, ... }] }
+   */
+  async listPendingTrialConfirmations() {
+    try {
+      const db = uniCloud.database()
+      const dbCmd = db.command
+
+      const token = this.getUniIdToken()
+      let parent_id
+      if (!token) {
+        return error('未获取到token，请先登录')
+      }
+      try {
+        const payload = await this.uniID.checkToken(token)
+        if (payload.code) {
+          const decoded = Buffer.from(token, 'base64').toString('utf-8')
+          parent_id = decoded.split('_')[0] || null
+        } else {
+          parent_id = payload.uid
+        }
+      } catch (checkError) {
+        const decoded = Buffer.from(token, 'base64').toString('utf-8')
+        parent_id = decoded.split('_')[0] || null
+      }
+      if (!parent_id) {
+        return error('token验证失败，请重新登录')
+      }
+
+      const userDoc = await db.collection('uni-id-users').doc(parent_id).field({ role: true }).get()
+      if (!userDoc.data || userDoc.data.length === 0 || userDoc.data[0].role !== 'parent') {
+        return success({ list: [] }, '非家长角色')
+      }
+
+      const aptDoc = await db.collection('appointments')
+        .where({
+          parent_id,
+          course_type: 'trial',
+          parent_paid: true,
+          status: dbCmd.in(['pending_confirm', 'confirmed', 'in_progress']),
+          class_ended_at: dbCmd.gt(0),
+          trial_result: dbCmd.in([null, ''])
+        })
+        .orderBy('class_ended_at', 'desc')
+        .limit(10)
+        .get()
+
+      let rows = aptDoc.data || []
+
+      // 旧数据兼容：已支付但打卡写在兄弟预约上的记录，尝试自愈后再纳入提醒列表
+      if (rows.length < 10) {
+        const pendingDoc = await db.collection('appointments')
+          .where({
+            parent_id,
+            course_type: 'trial',
+            status: dbCmd.in(['pending_confirm', 'confirmed', 'in_progress']),
+            trial_result: dbCmd.in([null, ''])
+          })
+          .orderBy('update_time', 'desc')
+          .limit(20)
+          .get()
+        const existingIds = new Set(rows.map(item => item._id))
+        for (const item of (pendingDoc.data || [])) {
+          if (existingIds.has(item._id)) continue
+          if (!item.parent_paid) continue
+          if (normalizeTimestamp(item.class_ended_at)) continue
+          await resolveAppointmentAttendance(db, item, { persistHeal: true })
+          if (!item.parent_paid || !normalizeTimestamp(item.class_ended_at)) continue
+          rows.push(item)
+          existingIds.add(item._id)
+          if (rows.length >= 10) break
+        }
+        rows.sort((a, b) => (normalizeTimestamp(b.class_ended_at) || 0) - (normalizeTimestamp(a.class_ended_at) || 0))
+      }
+
+      if (!rows.length) {
+        return success({ list: [] })
+      }
+
+      const teacherIds = [...new Set(rows.map(r => r.teacher_id).filter(Boolean))]
+      const teacherNameMap = {}
+      if (teacherIds.length) {
+        const profileDoc = await db.collection('teacher-profiles')
+          .where({ teacher_id: dbCmd.in(teacherIds) })
+          .field({ teacher_id: true, display_name: true })
+          .get()
+        ;(profileDoc.data || []).forEach(p => {
+          teacherNameMap[p.teacher_id] = p.display_name || ''
+        })
+      }
+
+      const list = rows.map(row => ({
+        _id: row._id,
+        appointment_no: row.appointment_no,
+        teacher_id: row.teacher_id,
+        teacher_name: teacherNameMap[row.teacher_id] || '老师',
+        class_ended_at: row.class_ended_at,
+        date: row.date,
+        start_time: row.start_time
+      }))
+
+      return success({ list })
+    } catch (e) {
+      console.error('[appointment-query] listPendingTrialConfirmations failed:', e)
+      return error(e.message || '查询失败')
     }
   },
   
@@ -1097,6 +1340,10 @@ module.exports = {
       }
       
       const appointment = appointmentDoc.data[0]
+
+      if (appointment.course_type === 'trial' && appointment.invited_by === 'teacher') {
+        return error('试课预约无需教师确认，请等待家长支付试课费用')
+      }
       
       console.log('[appointment-query][confirmAppointment] 读取到预约信息:', {
         appointment_id,

@@ -36,13 +36,18 @@ function isParentProfileComplete(userDoc) {
   return !!(String(parentInfo.student_name || '').trim() && String(parentInfo.student_grade || '').trim())
 }
 
+function isFullTimeTeacher(profile) {
+  return !!(profile && profile.school === '专职老师')
+}
+
 function isTeacherProfileComplete(profile) {
   if (!profile) return false
   const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some((item) => item && item.image)
+  const gradesOk = isFullTimeTeacher(profile) || (Array.isArray(profile.grades) && profile.grades.length > 0)
   return !!(
     String(profile.display_name || '').trim() &&
     Array.isArray(profile.subjects) && profile.subjects.length > 0 &&
-    Array.isArray(profile.grades) && profile.grades.length > 0 &&
+    gradesOk &&
     Number(profile.hourly_rate || 0) > 0 &&
     Number((profile.teaching_experience && profile.teaching_experience.years) || 0) > 0 &&
     String(profile.introduction || '').trim() &&

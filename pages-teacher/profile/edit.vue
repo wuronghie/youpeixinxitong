@@ -65,7 +65,7 @@
 				<!-- 教学信息 -->
 				<card headTitle="教学信息" class="mb-3 section-card" :class="{ 'error-highlight': errors.subjects || errors.grades || errors.hourly_rate || errors.experience_years }">
 					<view class="p-3">
-						<text class="section-tip d-block mb-3">选择你擅长的科目、年级，并补充课时费与教龄，方便家长快速判断是否匹配。</text>
+						<text class="section-tip d-block mb-3">{{ isFullTimeTeacher ? '专职教师无需填写适合年级；请选择擅长科目并补充课时费与教龄。' : '选择你擅长的科目、年级，并补充课时费与教龄，方便家长快速判断是否匹配。' }}</text>
 						<view class="mb-4" :class="{ 'error-item': errors.subjects }" id="field-subjects">
 							<view class="d-flex a-center mb-3">
 								<text class="font-md required-label">教学科目</text>
@@ -84,7 +84,7 @@
 							</view>
 							<text v-if="errors.subjects" class="error-text">{{ errors.subjects }}</text>
 						</view>
-						<view class="mb-4" :class="{ 'error-item': errors.grades }" id="field-grades">
+						<view v-if="!isFullTimeTeacher" class="mb-4" :class="{ 'error-item': errors.grades }" id="field-grades">
 							<view class="d-flex a-center mb-3">
 								<text class="font-md required-label">适合年级</text>
 								<text class="required-star">*</text>
@@ -160,8 +160,8 @@
 						</view>
 						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-experience">
 							<text class="font-md">教师资历</text>
-							<picker :range="experienceOptions" range-key="label" @change="onExperienceChange">
-								<view class="font-sm picker-view" :class="formData.experience ? '' : 'text-light-muted'">{{ getExperienceLabel(formData.experience) || '请选择教师资历（可选）' }}</view>
+							<picker :range="filteredExperienceOptions" range-key="label" @change="onExperienceChange">
+								<view class="font-sm picker-view" :class="formData.experience ? '' : 'text-light-muted'">{{ getExperienceLabel(formData.experience) || (isFullTimeTeacher ? '请选择专职教龄（可选）' : '请选择在读年级/资历（可选）') }}</view>
 							</picker>
 						</view>
 						<view class="d-flex a-center j-sb py-3 border-bottom form-item">
@@ -374,12 +374,15 @@ export default {
 				{ label: '其他985/211', value: '其他985/211' },
 				{ label: '专职老师', value: '专职老师' }
 			],
-			// 教师资历选项
-			experienceOptions: [
+			// 在校学生资历选项
+			studentExperienceOptions: [
 				{ label: '大一（高考刚结束）', value: '大一（高考刚结束）' },
 				{ label: '大二至大四（1年以内）', value: '大二至大四（1年以内）' },
 				{ label: '大二至大四（1-2年）', value: '大二至大四（1-2年）' },
-				{ label: '大二至大四（2年以上）', value: '大二至大四（2年以上）' },
+				{ label: '大二至大四（2年以上）', value: '大二至大四（2年以上）' }
+			],
+			// 专职教师资历选项
+			fullTimeExperienceOptions: [
 				{ label: '专职老师（1-3年）', value: '专职老师（1-3年）' },
 				{ label: '专职老师（3-5年）', value: '专职老师（3-5年）' },
 				{ label: '专职老师（5年以上）', value: '专职老师（5年以上）' }
@@ -403,6 +406,14 @@ export default {
 			avatarUploading: false,
 			qualificationUploading: false,
 			adminWechat: 'chen18148503231'
+		}
+	},
+	computed: {
+		isFullTimeTeacher() {
+			return this.formData.school === '专职老师'
+		},
+		filteredExperienceOptions() {
+			return this.isFullTimeTeacher ? this.fullTimeExperienceOptions : this.studentExperienceOptions
 		}
 	},
 	onLoad() {
@@ -478,7 +489,8 @@ export default {
 						missingFields.push('subjects')
 						missingFieldsText.push('教学科目')
 					}
-					if (!p.grades || !Array.isArray(p.grades) || p.grades.length === 0) {
+					const isFullTime = (p.school || p.education?.school || '') === '专职老师'
+					if (!isFullTime && (!p.grades || !Array.isArray(p.grades) || p.grades.length === 0)) {
 						missingFields.push('grades')
 						missingFieldsText.push('适合年级')
 					}
@@ -523,6 +535,7 @@ export default {
 					
 					// 兼容旧数据：如果 school 字段为空但 education.school 有值，则使用 education.school
 					const schoolValue = p.school || p.education?.school || ''
+					const isFullTimeProfile = schoolValue === '专职老师'
 					
 				this.formData = {
 					avatar: avatarUrl,
@@ -532,7 +545,7 @@ export default {
 					contact_mobile: p.contact_mobile || '',
 					introduction: p.introduction || '',
 						subjects: p.subjects || [],
-						grades: p.grades || [],
+						grades: isFullTimeProfile ? [] : (p.grades || []),
 						hourly_rate: p.hourly_rate || 0,
 						experience_years: p.teaching_experience?.years || 0,
 						school: schoolValue,
@@ -670,12 +683,25 @@ export default {
 		},
 		onSchoolChange(event) {
 			const idx = Number(event.detail.value)
-			this.formData.school = this.schoolOptions[idx]?.value || ''
+			const prevSchool = this.formData.school
+			const newSchool = this.schoolOptions[idx]?.value || ''
+			const prevFullTime = prevSchool === '专职老师'
+			const nowFullTime = newSchool === '专职老师'
+			this.formData.school = newSchool
+			if (nowFullTime) {
+				this.formData.grades = []
+				this.clearError('grades')
+				if (this.formData.experience && !String(this.formData.experience).startsWith('专职老师')) {
+					this.formData.experience = ''
+				}
+			} else if (prevFullTime && this.formData.experience && String(this.formData.experience).startsWith('专职老师')) {
+				this.formData.experience = ''
+			}
 			this.clearError('school')
 		},
 		onExperienceChange(event) {
 			const idx = Number(event.detail.value)
-			this.formData.experience = this.experienceOptions[idx]?.value || ''
+			this.formData.experience = this.filteredExperienceOptions[idx]?.value || ''
 			this.clearError('experience')
 		},
 		toggleTag(tagValue) {
@@ -691,7 +717,8 @@ export default {
 			return option ? option.label : ''
 		},
 		getExperienceLabel(value) {
-			const option = this.experienceOptions.find(opt => opt.value === value)
+			const allOptions = [...this.studentExperienceOptions, ...this.fullTimeExperienceOptions]
+			const option = allOptions.find(opt => opt.value === value)
 			return option ? option.label : ''
 		},
 		addTeachingArea() {
@@ -1037,8 +1064,8 @@ export default {
 				isValid = false
 			}
 
-			// 验证适合年级
-			if (!this.formData.grades || this.formData.grades.length === 0) {
+			// 在校学生需填写适合年级；专职教师无需填写
+			if (!this.isFullTimeTeacher && (!this.formData.grades || this.formData.grades.length === 0)) {
 				this.errors.grades = '请选择至少一个适合年级'
 				missingFields.push('适合年级')
 				if (!firstErrorField) firstErrorField = 'field-grades'
@@ -1048,6 +1075,11 @@ export default {
 			// 验证课时费
 			if (!this.formData.hourly_rate || this.formData.hourly_rate <= 0) {
 				this.errors.hourly_rate = '请填写正确的课时费'
+				missingFields.push('课时费')
+				if (!firstErrorField) firstErrorField = 'field-hourly_rate'
+				isValid = false
+			} else if (Number(this.formData.hourly_rate) < 120) {
+				this.errors.hourly_rate = '课时费不能低于120元/小时'
 				missingFields.push('课时费')
 				if (!firstErrorField) firstErrorField = 'field-hourly_rate'
 				isValid = false
@@ -1132,7 +1164,7 @@ export default {
 					gender: this.formData.gender,
 					contact_mobile: String(this.formData.contact_mobile || '').trim(),
 					subjects: this.formData.subjects,
-					grades: this.formData.grades,
+					grades: this.isFullTimeTeacher ? [] : this.formData.grades,
 					hourly_rate: Number(this.formData.hourly_rate) || 0,
 					introduction: this.formData.introduction,
 					school: this.formData.school,
@@ -1160,6 +1192,8 @@ export default {
 					
 					if (res.data && res.data.status === 'no_change') {
 						uni.showToast({ title: '资料未修改', icon: 'success' })
+					} else if (res.data && res.data.status === 'price_updated') {
+						uni.showToast({ title: '课时费已更新', icon: 'success' })
 					} else {
 						// 资料已提交，系统消息已发送
 						uni.showToast({ 

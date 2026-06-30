@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "完善信息",
+  "enablePullDownRefresh": false,
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {

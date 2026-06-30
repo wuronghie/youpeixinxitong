@@ -140,6 +140,9 @@ export default {
 		}
 	},
 	methods: {
+		async refreshData() {
+			await this.loadAppointments()
+		},
 		/**
 		 * 计算每条预约的"打卡待办"徽章
 		 * 返回 { text, className } 或 null
@@ -153,6 +156,7 @@ export default {
 			const status = item.status
 			if (!['confirmed', 'in_progress', 'completed'].includes(status)) return null
 			if (!(item.deposit_paid === true || item.deposit_paid === 'true')) return null
+			if (!(item.parent_paid === true || item.parent_paid === 'true')) return null
 
 			const startTs = this.parseScheduleStart(item)
 			const endTs = this.parseScheduleEnd(item, startTs)

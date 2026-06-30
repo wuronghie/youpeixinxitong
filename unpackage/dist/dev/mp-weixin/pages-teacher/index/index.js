@@ -171,14 +171,10 @@ const _sfc_main = {
   onUnload() {
     common_vendor.index.$off("teacher-profile-updated");
   },
-  /**
-   * 下拉刷新触发
-   * 功能：重新加载工作台数据
-   */
-  onPullDownRefresh() {
-    this.loadData(true);
-  },
   methods: {
+    async refreshData() {
+      await this.loadData(true);
+    },
     /**
      * 加载工作台数据
      * @param {Boolean} fromPullDown - 是否来自下拉刷新
@@ -192,16 +188,16 @@ const _sfc_main = {
      *   - 修改数据来源：修改云函数调用
      */
     async loadData(fromPullDown = false) {
-      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:324", "[首页] loadData 被调用, fromPullDown:", fromPullDown, "loading:", this.loading);
+      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:320", "[首页] loadData 被调用, fromPullDown:", fromPullDown, "loading:", this.loading);
       if (this.loading) {
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:326", "[首页] 正在加载中，跳过本次调用");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:322", "[首页] 正在加载中，跳过本次调用");
         return;
       }
       this.loading = true;
-      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:330", "[首页] 开始加载数据...");
+      common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:326", "[首页] 开始加载数据...");
       try {
         if (this.useMock) {
-          common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:333", "[首页] 使用模拟数据");
+          common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:329", "[首页] 使用模拟数据");
           await new Promise((resolve) => setTimeout(resolve, 200));
           this.profile = {
             display_name: "张老师",
@@ -232,24 +228,24 @@ const _sfc_main = {
           return;
         }
         const userInfo = common_vendor.index.getStorageSync("userInfo") || {};
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:365", "[首页] 用户信息:", {
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:361", "[首页] 用户信息:", {
           hasUid: !!userInfo.uid,
           role: userInfo.role,
           uid: userInfo.uid
         });
         if (!userInfo.uid || userInfo.role !== "teacher") {
-          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:372", "[首页] 用户未登录或不是教师角色");
+          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:368", "[首页] 用户未登录或不是教师角色");
           common_vendor.index.showToast({ title: "请先以教师身份登录", icon: "none" });
           return;
         }
         const dashboard = common_vendor.tr.importObject("teacher-dashboard", { customUI: true });
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:379", "[首页] 开始检查教师信息完善状态...");
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:380", "[首页] 调用 dashboard.checkProfileComplete()...");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:375", "[首页] 开始检查教师信息完善状态...");
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:376", "[首页] 调用 dashboard.checkProfileComplete()...");
         const [overviewRes, profileCheckRes] = await Promise.all([
           dashboard.getOverview(),
           dashboard.checkProfileComplete()
         ]);
-        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:388", "[首页] 检查结果:", {
+        common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:384", "[首页] 检查结果:", {
           overviewCode: overviewRes.code,
           overviewMessage: overviewRes.message,
           checkCode: profileCheckRes.code,
@@ -270,23 +266,23 @@ const _sfc_main = {
             missingFieldsText: profileCheckRes.data.missingFieldsText || []
           };
           if (!this.profileComplete.isComplete) {
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:414", "========================================");
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:415", "[首页] ⚠️ 教师信息未完善");
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:416", "缺失的字段:", this.profileComplete.missingFieldsText.join("、"));
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:417", "缺失字段数量:", this.profileComplete.missingFields.length);
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:418", "请前往编辑页面完善以下信息:");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:410", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:411", "[首页] ⚠️ 教师信息未完善");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:412", "缺失的字段:", this.profileComplete.missingFieldsText.join("、"));
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:413", "缺失字段数量:", this.profileComplete.missingFields.length);
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:414", "请前往编辑页面完善以下信息:");
             this.profileComplete.missingFieldsText.forEach((field, index) => {
-              common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:420", `  ${index + 1}. ${field}`);
+              common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:416", `  ${index + 1}. ${field}`);
             });
-            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:422", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:418", "========================================");
           } else {
-            common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:424", "[首页] ✓ 教师信息已完善");
+            common_vendor.index.__f__("log", "at pages-teacher/index/index.vue:420", "[首页] ✓ 教师信息已完善");
           }
         } else {
-          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:427", "[首页] 检查信息完善状态失败:", profileCheckRes.message);
+          common_vendor.index.__f__("warn", "at pages-teacher/index/index.vue:423", "[首页] 检查信息完善状态失败:", profileCheckRes.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/index/index.vue:430", "教师工作台加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/index/index.vue:426", "教师工作台加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;

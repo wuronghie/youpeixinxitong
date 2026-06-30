@@ -248,7 +248,8 @@
 									</text>
 									<view class="d-flex a-center flex-wrap">
 										<text class="text-warning font-sm mr-1">⭐</text>
-										<text class="font-sm text-danger font-weight mr-2">{{ getPositiveRate(teacher) }}%好评</text>
+										<text v-if="hasReviewStats(teacher)" class="font-sm text-danger font-weight mr-2">{{ getPositiveRate(teacher) }}%好评</text>
+										<text v-else class="font-sm text-light-muted mr-2">暂无评价</text>
 										<text v-if="teacher.trial_count > 0" class="font-sm text-light-muted mr-2">试课{{ teacher.trial_count }}次</text>
 										<text v-if="(teacher.trial_success_count || 0) > 0" class="font-sm text-success mr-2">试课成功{{ teacher.trial_success_count }}次</text>
 										<text v-if="teacher.trial_success_rate > 0" class="font-sm text-success">成功率{{ formatPercent(teacher.trial_success_rate) }}</text>
@@ -316,6 +317,7 @@ import { useMockData, mockTeachers } from '@/utils/mockData.js'
 import ParentTabBar from '@/components/ParentTabBar.vue'
 import LocationBar from '@/components/LocationBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
+import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
 import { getDefaultAvatarUrl, getIconUrl } from '@/utils/imageConfig.js'
 
 export default {
@@ -600,6 +602,9 @@ export default {
 		this.loadTeachers(true)
 			}, 50)
 		})
+	},
+	onShow() {
+		checkPendingTrialConfirmReminder()
 	},
 	onShareAppMessage() {
 		return {
@@ -1078,23 +1083,17 @@ export default {
 			if (gender === 'female' || gender === 2 || gender === '2') return 'female'
 			return ''
 		},
+		hasReviewStats(teacher) {
+			return (teacher.review_count || 0) > 0
+		},
 		/**
-		 * 获取好评率
+		 * 获取好评率（4 星及以上占比，由后端根据真实评价计算）
 		 * @param {Object} teacher - 教师对象
 		 * @returns {Number} 好评率（百分比）
 		 */
 		getPositiveRate(teacher) {
-			// 如果有好评率数据，直接使用
-			if (teacher.positive_rate !== undefined) {
-				return Math.round(teacher.positive_rate)
-			}
-			// 根据评分估算好评率（4星及以上算好评）
-			const rating = teacher.rating || 5.0
-			if (rating >= 4.5) return 98
-			if (rating >= 4.0) return 95
-			if (rating >= 3.5) return 90
-			if (rating >= 3.0) return 85
-			return 80
+			if (!this.hasReviewStats(teacher)) return 0
+			return Math.round(teacher.positive_rate || 0)
 		},
 		/** 获取用户位置（用于距离计算） */
 		async fetchUserLocation() {

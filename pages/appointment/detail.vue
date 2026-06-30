@@ -157,14 +157,14 @@
 				</button>
 				<!-- 已支付课程费 + 老师已下课打卡后，单一“去评价并确认结果”入口（合并 家长确认 + 评价） -->
 				<button
-					v-if="!canPayCourse && canConfirmCompletion && appointment.class_ended_at"
+					v-if="canShowConfirmButton"
 					class="action-btn action-btn-primary"
 					@click="goReviewAndConfirm"
 				>
 					{{ appointment.course_type === 'trial' ? '去评价并确认结果' : '去评价并确认完成' }}
 				</button>
 				<view
-					v-else-if="!canPayCourse && canConfirmCompletion && !appointment.class_ended_at"
+					v-else-if="canShowWaitingClockOut"
 					class="action-btn action-btn-disabled"
 				>
 					等待老师下课打卡
@@ -187,7 +187,7 @@
 				
 				<!-- 次要操作按钮（边框）：仅在未支付且待确认时显示“联系老师” -->
 				<button 
-					v-if="appointment.status === 'pending_confirm' && !canPayCourse && !appointment.parent_paid" 
+					v-if="appointment.status === 'pending_confirm' && !canPayCourse && !isParentPaid" 
 					class="action-btn action-btn-outline" 
 					@click="contactTeacher"
 				>
@@ -227,6 +227,7 @@ export default {
 	data() {
 		return {
 			appointmentId: '',
+			confirmAppointmentId: '',
 			appointment: {},
 			// 优惠券相关
 			availableCoupons: [],
@@ -258,8 +259,12 @@ export default {
 	computed: {
 		statusTip() {
 			const map = {
-				pending_payment: '请尽快完成课程费用支付，确认预约信息',
-				pending_confirm: '老师正在确认中，稍后请留意消息',
+				pending_payment: this.isTeacherInvitedTrial
+					? '请尽快完成试课费用支付，支付后即可安排试课'
+					: '请尽快完成课程费用支付，确认预约信息',
+				pending_confirm: this.isTeacherInvitedTrial
+					? '请尽快完成试课费用支付'
+					: '老师正在确认中，稍后请留意消息',
 				confirmed: '预约已确认，等待上课',
 				in_progress: '课程进行中，如有变更请及时联系老师',
 				completed: '课程已完成，欢迎给予评价',
@@ -271,27 +276,45 @@ export default {
 			return map[this.appointment.status] || ''
 		},
 		canConfirmCompletion() {
-			// 可以确认课程完成的条件：
-			// 1. 已支付课程费
-			// 2. 预约状态为 confirmed 或 in_progress（兼容部分场景下 pending_confirm，交由后端再次校验）
-			// 3. 尚未评价（避免已评价后再次确认）
-			if (!this.appointment || !this.appointment.parent_paid) {
+			// 必须同时满足：本单已支付 + 教师已下课打卡 + 未评价
+			if (!this.appointment || !this.isParentPaid) {
+				return false
+			}
+			if (!this.appointment.class_ended_at) {
 				return false
 			}
 			if (this.appointment.has_review) {
 				return false
 			}
-			// 允许 pending_confirm，是为了兼容部分状态未及时更新的场景，实际权限由后端再次校验
-			const allowStatuses = ['pending_confirm', 'confirmed', 'in_progress']
-			return allowStatuses.includes(this.appointment.status)
+			const blockedStatuses = ['completed', 'cancelled', 'refunded', 'refunding', 'rejected', 'pending_payment', 'trial_invited']
+			return !blockedStatuses.includes(this.appointment.status)
+		},
+		isParentPaid() {
+			const apt = this.appointment || {}
+			return apt.parent_paid === true ||
+				apt.parent_paid === 'true' ||
+				!!apt.parent_paid_from_order ||
+				!!apt.parent_paid_from_record ||
+				!!(apt.parent_payment_time || apt.payment_time)
+		},
+		confirmActionId() {
+			return this.appointmentId
 		},
 		canPayCourse() {
-			if (!this.appointment || this.appointment.parent_paid) {
+			if (!this.appointment || this.isParentPaid) {
 				return false
 			}
-			// 只有老师已确认（confirmed）后，家长才能支付课程费
-			const allowStatuses = ['confirmed']
-			return allowStatuses.includes(this.appointment.status)
+			if (['pending_payment', 'confirmed', 'in_progress'].includes(this.appointment.status)) {
+				return true
+			}
+			if (this.isTeacherInvitedTrial) {
+				return ['pending_payment', 'pending_confirm', 'confirmed', 'in_progress'].includes(this.appointment.status)
+			}
+			return false
+		},
+		isTeacherInvitedTrial() {
+			const apt = this.appointment || {}
+			return apt.course_type === 'trial' && apt.invited_by === 'teacher'
 		},
 		// 是否有可用优惠券（根据列表和金额动态判断）
 		canUseCoupon() {
@@ -338,13 +361,7 @@ export default {
 			return '请选择优惠券'
 		},
 		canRefund() {
-			// 可以申请退款（异常情况）的条件：
-			// 1. 已支付课程费
-			// 2. 状态为：pending_confirm / confirmed / in_progress
-			//    —— 一旦家长在合并页点了「去评价并确认结果/完成」，状态会切到 completed，
-			//       此时视为家长已认可本次结果（含 70/30 结算 + 信息费处理），不再允许申请退款。
-			// 3. 已评价（has_review）也不允许，作为兜底
-			if (!this.appointment || !this.appointment.parent_paid) {
+			if (!this.appointment || !this.isParentPaid) {
 				return false
 			}
 			if (this.appointment.has_review) {
@@ -358,11 +375,10 @@ export default {
 			return '支付课程费'
 		},
 		canTrialRefund() {
-			// 试课退款入口：课程已支付，状态为 confirmed / in_progress，尚未评价
 			if (!this.appointment || this.appointment.course_type !== 'trial') {
 				return false
 			}
-			if (!this.appointment.parent_paid) {
+			if (!this.isParentPaid) {
 				return false
 			}
 			if (this.appointment.has_review) {
@@ -372,11 +388,20 @@ export default {
 			return allowStatuses.includes(this.appointment.status)
 		},
 		hasActionButtons() {
-			return this.canPayCourse || 
-			       this.appointment.status === 'pending_confirm' || 
-			       this.canConfirmCompletion ||
-			       (this.appointment.status === 'completed' && !this.appointment.has_review) || 
-			       this.canRefund
+			return this.canPayCourse ||
+			       this.canShowWaitingClockOut ||
+			       this.canShowConfirmButton ||
+			       (this.appointment.status === 'completed' && !this.appointment.has_review) ||
+			       this.canRefund ||
+			       (this.appointment.status === 'pending_confirm' && !this.isParentPaid && !this.canPayCourse)
+		},
+		canShowConfirmButton() {
+			return !this.canPayCourse && this.canConfirmCompletion && !!this.appointment.class_ended_at
+		},
+		canShowWaitingClockOut() {
+			return this.isParentPaid && !this.canPayCourse && !this.appointment.class_ended_at &&
+				!this.appointment.has_review &&
+				['pending_confirm', 'confirmed', 'in_progress'].includes(this.appointment.status)
 		},
 		// 排课结束时间戳（毫秒），仅供打卡进度卡片展示用
 		scheduleEndTs() {
@@ -394,22 +419,32 @@ export default {
 			const duration = Number(schedule.duration || apt.duration || 2)
 			return startTs + duration * 3600 * 1000
 		},
-		// 仅当已支付课程费 + 已确认 / 进行中 / 已完成 时展示打卡进度
+		// 打卡进度：家长已支付后展示
 		showAttendanceProgress() {
 			const apt = this.appointment || {}
-			if (!apt._id) return false
-			if (!apt.parent_paid) return false
-			return ['confirmed', 'in_progress', 'completed'].includes(apt.status)
-		}
+			if (!apt._id || !this.isParentPaid) return false
+			if (apt.class_started_at || apt.class_ended_at) return true
+			return ['confirmed', 'in_progress', 'pending_confirm', 'completed'].includes(apt.status)
+		},
+		hasAttendanceInfo() {
+			const apt = this.appointment || {}
+			return !!(apt.class_started_at || apt.class_ended_at)
+		},
 	},
 	methods: {
+		async refreshData() {
+			if (this.appointmentId) {
+				await this.loadDetail()
+			}
+		},
 		async loadDetail() {
 			if (this.isLoading) return
 			this.isLoading = true
 			
-			// 保存当前支付状态（如果已支付）
-			const currentParentPaid = this.appointment?.parent_paid
-			const currentStatus = this.appointment?.status
+			// 仅在同一条预约刷新时保留本地支付状态，避免串单
+			const isSameAppointment = this.appointment?._id === this.appointmentId
+			const currentParentPaid = isSameAppointment ? this.appointment?.parent_paid : false
+			const currentStatus = isSameAppointment ? this.appointment?.status : null
 			
 			try {
 				const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
@@ -438,19 +473,22 @@ export default {
 						time: data.start_time || data.appointment_time,
 						duration: data.duration,
 						amount: data.total_amount || data.total_fee,
-						houry_rate: data.teacher_info?.hourly_rate,
-						hourly_rate: data.teacher_info?.hourly_rate,
+						houry_rate: data.trial_invite_hourly_rate || data.hourly_rate || data.teacher_info?.hourly_rate,
+						hourly_rate: data.trial_invite_hourly_rate || data.hourly_rate || data.teacher_info?.hourly_rate,
 						address: this.formatAddress(data.lesson_mode, data.address),
 						status: data.status,
 						course_type: data.course_type,
+						invited_by: data.invited_by || '',
 						student_name: data.student_info?.name || data.student_name,
 						student_grade: data.student_info?.grade || data.student_grade,
 						requirements: data.requirements,
 						lesson_mode: data.lesson_mode,
 						// 评价状态（用于控制“退款”和“发表评价”按钮）
 						has_review: !!data.has_review,
-						// 如果本地已标记为已支付，保留状态（云服务可能还没更新）
-						parent_paid: currentParentPaid || !!data.parent_paid,
+						parent_paid: (isSameAppointment && currentParentPaid) || !!data.parent_paid,
+						parent_paid_from_order: !!data.parent_paid_from_order,
+						parent_paid_from_record: !!data.parent_paid_from_record,
+						parent_payment_time: data.parent_payment_time || data.payment_time || null,
 						deposit_paid: !!data.deposit_paid,
 						class_started_at: data.class_started_at || null,
 						class_started_location: data.class_started_location || null,
@@ -460,6 +498,7 @@ export default {
 						flow: this.buildFlow(data),
 						conversation_id: data.conversation_id
 					}
+					this.confirmAppointmentId = data.confirm_appointment_id || data._id || this.appointmentId
 					console.log('[appointment/detail] 映射到页面 appointment:', {
 						pageAppointmentId: this.appointmentId,
 						localAppointmentId: this.appointment._id,
@@ -470,12 +509,14 @@ export default {
 						class_ended_at: this.appointment.class_ended_at
 					})
 					
-					// 如果本地状态是已支付但云服务返回未支付，更新状态
-					if (currentParentPaid && !data.parent_paid) {
+					// 支付刚完成、云端尚未同步时，保留本单已支付状态
+					if (isSameAppointment && currentParentPaid && !data.parent_paid) {
 						this.appointment.parent_paid = true
 						if (currentStatus === 'pending_payment') {
 							this.appointment.status = 'pending_confirm'
 						}
+					} else if (data.parent_paid || data.parent_paid_from_order || data.parent_paid_from_record) {
+						this.appointment.parent_paid = true
 					}
 					await this.syncAttendanceStatus()
 				} else {
@@ -484,7 +525,7 @@ export default {
 			} catch (error) {
 				console.error('获取预约详情失败:', error)
 				// 如果获取失败，保留当前状态（避免覆盖已支付状态）
-				if (currentParentPaid && this.appointment) {
+				if (currentParentPaid && this.appointment && this.appointment._id === this.appointmentId) {
 					this.appointment.parent_paid = currentParentPaid
 					if (currentStatus) {
 						this.appointment.status = currentStatus
@@ -515,9 +556,9 @@ export default {
 					beforeClassStartedAt: this.appointment.class_started_at || null,
 					beforeClassEndedAt: this.appointment.class_ended_at || null
 				})
-				const attendance = uniCloud.importObject('appointment-attendance', { customUI: true })
-				const res = await attendance.getStatus({ appointment_id: this.appointmentId })
-				console.log('[appointment/detail] appointment-attendance.getStatus 返回:', {
+				const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
+				const res = await appointmentQuery.getAttendanceStatus({ appointment_id: this.appointmentId })
+				console.log('[appointment/detail] appointment-query.getAttendanceStatus 返回:', {
 					requestAppointmentId: this.appointmentId,
 					code: res && res.code,
 					message: res && res.message,
@@ -531,10 +572,22 @@ export default {
 				})
 				if (res && res.code === 0 && res.data) {
 					const data = res.data
-					this.appointment.class_started_at = data.class_started_at || null
-					this.appointment.class_started_location = data.class_started_location || null
-					this.appointment.class_ended_at = data.class_ended_at || null
-					this.appointment.class_ended_location = data.class_ended_location || null
+					if (data.class_started_at) {
+						this.appointment.class_started_at = data.class_started_at
+						this.appointment.class_started_location = data.class_started_location || null
+					}
+					if (data.class_ended_at) {
+						this.appointment.class_ended_at = data.class_ended_at
+						this.appointment.class_ended_location = data.class_ended_location || null
+					}
+					if (data.parent_paid === true || data.parent_paid === 'true') {
+						this.appointment.parent_paid = true
+					}
+					if (data.parent_paid_from_order || data.parent_paid_from_record) {
+						this.appointment.parent_paid_from_order = !!data.parent_paid_from_order
+						this.appointment.parent_paid_from_record = !!data.parent_paid_from_record
+						this.appointment.parent_paid = true
+					}
 					if (data.status) {
 						this.appointment.status = data.status
 					}
@@ -1134,19 +1187,21 @@ export default {
 			}
 		},
 		createReview() {
-			if (!this.appointmentId) return
+			const actionId = this.confirmActionId
+			if (!actionId) return
 			const courseType = this.appointment && this.appointment.course_type ? this.appointment.course_type : ''
-			uni.navigateTo({ url: `/pages/review/create?appointmentId=${this.appointmentId}&courseType=${encodeURIComponent(courseType)}` })
+			uni.navigateTo({ url: `/pages/review/create?appointmentId=${actionId}&courseType=${encodeURIComponent(courseType)}` })
 		},
 		// 一步合并入口：去评价页同时完成「确认结果（结算） + 评价」
 		goReviewAndConfirm() {
-			if (!this.appointmentId) return
+			const actionId = this.confirmActionId
+			if (!actionId) return
 			if (!this.appointment.class_ended_at) {
 				uni.showToast({ title: '老师尚未下课打卡', icon: 'none' })
 				return
 			}
 			const courseType = this.appointment && this.appointment.course_type ? this.appointment.course_type : ''
-			uni.navigateTo({ url: `/pages/review/create?appointmentId=${this.appointmentId}&courseType=${encodeURIComponent(courseType)}` })
+			uni.navigateTo({ url: `/pages/review/create?appointmentId=${actionId}&courseType=${encodeURIComponent(courseType)}` })
 		},
 		async handleRefund() {
 			if (!this.appointmentId) return
@@ -1356,7 +1411,7 @@ export default {
 			
 			uni.showModal({
 				title: '确认试课不满意',
-				content: '确认本次试课不满意？\n\n· 教师仍将获得 70% 试课费、平台收取 30%；\n· 教师之前支付的「信息费」会全额退回教师钱包；\n· 您本次支付的费用按规则不再自动退款，如遇老师爽约/欺诈等异常请改用「异常情况申请退款」。',
+				content: '确认本次试课不满意？\n\n· 教师获得 70% 试课费；\n· 您将获得 30% 试课费自动退款；\n· 教师之前支付的信息费会全额退回教师钱包；\n· 教师可再次向您发起试课邀请。',
 				confirmText: '确认不满意',
 				cancelText: '再想想',
 				success: async res => {

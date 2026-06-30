@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "时间设置",
+  "enablePullDownRefresh": false,
   "usingComponents": {
     "card": "../../components/common/card"
   }

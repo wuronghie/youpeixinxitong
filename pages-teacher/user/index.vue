@@ -345,9 +345,11 @@ export default {
 					
 					// 判断资料是否完善：检查必填字段
 					const hasQualificationImage = Array.isArray(profile?.qualifications) && profile.qualifications.some(item => item && item.image)
+					const isFullTimeTeacher = profile?.school === '专职老师'
+					const gradesComplete = isFullTimeTeacher || (profile?.grades && profile.grades.length > 0)
 					const isProfileComplete = profile?.display_name &&
 						profile?.subjects && profile.subjects.length > 0 &&
-						profile?.grades && profile.grades.length > 0 &&
+						gradesComplete &&
 						profile?.hourly_rate && profile.hourly_rate > 0 &&
 						Number(profile?.teaching_experience?.years || 0) > 0 &&
 						profile?.introduction &&

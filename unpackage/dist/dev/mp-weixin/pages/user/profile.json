@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "个人信息",
+  "enablePullDownRefresh": false,
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {

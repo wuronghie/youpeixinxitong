@@ -108,6 +108,9 @@ export default {
 		this.reload()
 	},
 	methods: {
+		async refreshData() {
+			await this.load(true)
+		},
 		onGradePick(e) {
 			this.gradeIndex = Number(e.detail.value)
 			this.filters.student_grade = this.gradeOptions[this.gradeIndex].value

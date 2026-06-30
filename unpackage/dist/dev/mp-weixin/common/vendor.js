@@ -7074,7 +7074,7 @@ function isConsoleWritable() {
 function initRuntimeSocketService() {
   const hosts = "192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
   const port = "8090";
-  const id = "mp-weixin_Vv4YfF";
+  const id = "mp-weixin_bsCss9";
   const lazy = typeof swan !== "undefined";
   let restoreError = lazy ? () => {
   } : initOnError();
@@ -8025,6 +8025,7 @@ const pages = [
     path: "pages/index/index",
     style: {
       navigationBarTitleText: "家教帮",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8034,6 +8035,7 @@ const pages = [
     style: {
       navigationBarTitleText: "登录",
       navigationStyle: "custom",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8042,6 +8044,7 @@ const pages = [
     path: "pages/common/register",
     style: {
       navigationBarTitleText: "完善信息",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8057,7 +8060,8 @@ const pages = [
   {
     path: "pages/common/webview",
     style: {
-      navigationBarTitleText: "网页浏览"
+      navigationBarTitleText: "网页浏览",
+      enablePullDownRefresh: false
     }
   },
   {
@@ -8080,6 +8084,7 @@ const pages = [
     path: "pages/appointment/create",
     style: {
       navigationBarTitleText: "创建预约",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8112,6 +8117,7 @@ const pages = [
     path: "pages/recruitment/edit",
     style: {
       navigationBarTitleText: "发布招募",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8136,6 +8142,7 @@ const pages = [
     path: "pages/order/refund",
     style: {
       navigationBarTitleText: "申请退款",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8144,6 +8151,7 @@ const pages = [
     path: "pages/review/create",
     style: {
       navigationBarTitleText: "发表评价",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8176,6 +8184,7 @@ const pages = [
     path: "pages/user/profile",
     style: {
       navigationBarTitleText: "个人信息",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8208,6 +8217,7 @@ const pages = [
     path: "pages/teacher-profiles/add",
     style: {
       navigationBarTitleText: "新增",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8216,6 +8226,7 @@ const pages = [
     path: "pages/teacher-profiles/edit",
     style: {
       navigationBarTitleText: "编辑",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8232,6 +8243,7 @@ const pages = [
     path: "pages/payment/result",
     style: {
       navigationBarTitleText: "支付结果",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8241,6 +8253,7 @@ const pages = [
     style: {
       navigationBarTitleText: "",
       backgroundColor: "#F8F8F8",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8250,6 +8263,7 @@ const pages = [
     style: {
       navigationBarTitleText: "收银台",
       backgroundColor: "#F8F8F8",
+      enablePullDownRefresh: false,
       enableShareAppMessage: true,
       enableShareTimeline: true
     }
@@ -8302,13 +8316,15 @@ const subPackages = [
       {
         path: "profile/edit",
         style: {
-          navigationBarTitleText: "编辑主页"
+          navigationBarTitleText: "编辑主页",
+          enablePullDownRefresh: false
         }
       },
       {
         path: "profile/schedule",
         style: {
-          navigationBarTitleText: "时间设置"
+          navigationBarTitleText: "时间设置",
+          enablePullDownRefresh: false
         }
       },
       {
@@ -8331,6 +8347,7 @@ const subPackages = [
         path: "wallet/withdraw",
         style: {
           navigationBarTitleText: "提现",
+          enablePullDownRefresh: false,
           enableShareAppMessage: true,
           enableShareTimeline: true
         }
@@ -8398,7 +8415,9 @@ const globalStyle = {
   navigationBarTextStyle: "black",
   navigationBarTitleText: "家教帮",
   navigationBarBackgroundColor: "#FFFFFF",
-  backgroundColor: "#F8F8F8"
+  backgroundColor: "#F8F8F8",
+  enablePullDownRefresh: true,
+  backgroundTextStyle: "dark"
 };
 const lazyCodeLoading = "requiredComponents";
 const uniIdRouter = {};

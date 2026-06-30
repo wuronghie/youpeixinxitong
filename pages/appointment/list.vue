@@ -238,9 +238,6 @@ export default {
 				})
 				if (res.code === 0) {
 					const list = (res.data.list || [])
-						// 过滤掉家长端不需要展示的状态：
-						// 1. "联系请求"状态（contact_request）
-						// 2. "试课邀请"状态（trial_invited）- 邀请试课在家长没有填写并确认预约前不应该显示
 						.filter(item => item.status !== 'contact_request' && item.status !== 'trial_invited')
 						.map(item => ({
 						_id: item._id,
@@ -252,14 +249,18 @@ export default {
 						subject: item.subject || item.student_info?.subject || '',
 						status: item.status,
 						parent_paid: !!item.parent_paid,
-						deposit_paid: !!item.deposit_paid
+						deposit_paid: !!item.deposit_paid,
+						invited_by: item.invited_by || ''
 					}))
 					if (reset) {
 						this.appointmentList = list
 					} else {
 						this.appointmentList = [...this.appointmentList, ...list]
 					}
-					this.hasMore = list.length >= this.pageSize
+					const pagination = res.data.pagination || {}
+					this.hasMore = pagination.hasMore !== undefined
+						? pagination.hasMore
+						: list.length >= this.pageSize
 					this.currentPage += 1
 				} else {
 					throw new Error(res.message || '获取预约失败')
@@ -318,8 +319,9 @@ export default {
 				confirmed: '已确认',
 				in_progress: '进行中',
 				completed: '已完成',
-				rejected: '已取消',
 				cancelled: '已取消',
+				rejected: '已拒绝',
+				trial_invited: '试课邀请',
 				refunding: '退款处理中',
 				refunded: '已退款'
 			}
@@ -364,8 +366,13 @@ export default {
 			if (!item || item.parent_paid) {
 				return false
 			}
-			const allowStatuses = ['pending_payment', 'pending_confirm', 'confirmed']
-			return allowStatuses.includes(item.status)
+			if (item.status === 'pending_payment') {
+				return true
+			}
+			if (item.course_type === 'trial' && item.invited_by === 'teacher') {
+				return ['pending_payment', 'pending_confirm', 'confirmed'].includes(item.status)
+			}
+			return item.status === 'confirmed'
 		},
 		/**
 		 * 跳转到预约详情页

@@ -44,6 +44,73 @@ async function resolveUserId(context) {
   }
 }
 
+/**
+ * 解析聊天会话（与 chat-send.getConversation 逻辑一致）
+ * 同一家长+教师复用会话时，appointment_id 可能已指向较新的预约
+ */
+async function resolveConversationForAdmin(db, options = {}) {
+  const {
+    conversation_id = '',
+    appointment_id = '',
+    teacher_id = '',
+    parent_id = ''
+  } = options
+
+  if (conversation_id) {
+    const doc = await db.collection('chat-conversations').doc(conversation_id).get()
+    if (doc.data && doc.data.length) {
+      return doc.data[0]
+    }
+  }
+
+  if (appointment_id) {
+    const byApt = await db.collection('chat-conversations')
+      .where({ appointment_id })
+      .limit(1)
+      .get()
+    if (byApt.data && byApt.data.length) {
+      return byApt.data[0]
+    }
+
+    const aptDoc = await db.collection('appointments')
+      .doc(appointment_id)
+      .field({ parent_id: true, teacher_id: true, conversation_id: true })
+      .get()
+    if (aptDoc.data && aptDoc.data.length) {
+      const appt = aptDoc.data[0]
+      if (appt.conversation_id) {
+        const linked = await db.collection('chat-conversations').doc(appt.conversation_id).get()
+        if (linked.data && linked.data.length) {
+          return linked.data[0]
+        }
+      }
+      const tid = teacher_id || appt.teacher_id
+      const pid = parent_id || appt.parent_id
+      if (tid && pid) {
+        const byPair = await db.collection('chat-conversations')
+          .where({ parent_id: pid, teacher_id: tid })
+          .limit(1)
+          .get()
+        if (byPair.data && byPair.data.length) {
+          return byPair.data[0]
+        }
+      }
+    }
+  }
+
+  if (teacher_id && parent_id) {
+    const byPair = await db.collection('chat-conversations')
+      .where({ parent_id, teacher_id })
+      .limit(1)
+      .get()
+    if (byPair.data && byPair.data.length) {
+      return byPair.data[0]
+    }
+  }
+
+  return null
+}
+
 module.exports = {
   _before() {
     const clientInfo = this.getClientInfo()
@@ -600,6 +667,491 @@ module.exports = {
     } catch (e) {
       console.error('[payment-refund] 审核退款失败', e)
       return error(e.message || '审核退款失败')
+    }
+  },
+
+  /**
+   * 后台退款列表 KPI
+   */
+  async adminKpi(params = {}) {
+    const { isAdmin = false } = params
+    if (!isAdmin) {
+      return error('无权访问')
+    }
+
+    const db = uniCloud.database()
+    const dbCmd = db.command
+    const collection = db.collection('payment-refunds')
+
+    try {
+      const [
+        totalRes,
+        pendingRes,
+        processingRes,
+        successRes,
+        rejectedRes,
+        waitingTeacherRes,
+        actionableRes
+      ] = await Promise.all([
+        collection.count(),
+        collection.where({ status: 'pending' }).count(),
+        collection.where({ status: 'processing' }).count(),
+        collection.where({ status: dbCmd.in(['success', 'completed']) }).count(),
+        collection.where({ status: 'rejected' }).count(),
+        collection.where(dbCmd.and([
+          { status: dbCmd.in(['pending', 'processing']) },
+          { teacher_review_status: 'pending' }
+        ])).count(),
+        collection.where(dbCmd.and([
+          { status: dbCmd.in(['pending', 'processing']) },
+          { teacher_review_status: dbCmd.neq('pending') }
+        ])).count()
+      ])
+
+      return success({
+        total: totalRes.total || 0,
+        pending: pendingRes.total || 0,
+        processing: processingRes.total || 0,
+        success: successRes.total || 0,
+        rejected: rejectedRes.total || 0,
+        waiting_teacher: waitingTeacherRes.total || 0,
+        actionable: actionableRes.total || 0
+      })
+    } catch (e) {
+      console.error('[payment-refund] adminKpi failed', e)
+      return error(e.message || '查询退款统计失败')
+    }
+  },
+
+  /**
+   * 后台退款列表
+   */
+  async adminList(params = {}) {
+    const {
+      status = 'all',
+      page = 1,
+      pageSize = 20,
+      keyword = '',
+      isAdmin = false
+    } = params
+
+    if (!isAdmin) {
+      return error('无权访问')
+    }
+
+    const db = uniCloud.database()
+    const dbCmd = db.command
+
+    try {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1)
+      const size = Math.min(50, Math.max(1, parseInt(pageSize, 10) || 20))
+
+      let where = {}
+      if (status === 'pending') {
+        where.status = 'pending'
+      } else if (status === 'processing') {
+        where.status = 'processing'
+      } else if (status === 'success') {
+        where.status = dbCmd.in(['success', 'completed'])
+      } else if (status === 'rejected') {
+        where.status = 'rejected'
+      } else if (status === 'waiting_teacher') {
+        where = dbCmd.and([
+          { status: dbCmd.in(['pending', 'processing']) },
+          { teacher_review_status: 'pending' }
+        ])
+      } else if (status === 'actionable') {
+        where = dbCmd.and([
+          { status: dbCmd.in(['pending', 'processing']) },
+          { teacher_review_status: dbCmd.neq('pending') }
+        ])
+      }
+
+      const kw = String(keyword || '').trim()
+      if (kw) {
+        const kwCond = dbCmd.or([
+          { order_no: new RegExp(kw, 'i') },
+          { reason: new RegExp(kw, 'i') }
+        ])
+        where = Object.keys(where).length ? dbCmd.and([where, kwCond]) : kwCond
+      }
+
+      const collection = db.collection('payment-refunds')
+      const countRes = await collection.where(where).count()
+      const listRes = await collection
+        .where(where)
+        .orderBy('create_time', 'desc')
+        .skip((pageNum - 1) * size)
+        .limit(size)
+        .get()
+
+      const list = listRes.data || []
+      const appointmentIds = [...new Set(list.map(item => item.appointment_id).filter(Boolean))]
+      const teacherIds = [...new Set(list.map(item => item.teacher_id).filter(Boolean))]
+      const payerIds = [...new Set(list.map(item => item.payer_id).filter(Boolean))]
+
+      const appointmentMap = {}
+      if (appointmentIds.length) {
+        const aptRes = await db.collection('appointments')
+          .where({ _id: dbCmd.in(appointmentIds) })
+          .field({
+            _id: true,
+            appointment_no: true,
+            conversation_id: true,
+            status: true,
+            refund_status: true,
+            course_type: true,
+            type: true
+          })
+          .get()
+        ;(aptRes.data || []).forEach(item => {
+          appointmentMap[item._id] = item
+        })
+
+        const missingConvAptIds = appointmentIds.filter(id => {
+          const apt = appointmentMap[id]
+          return !apt || !apt.conversation_id
+        })
+        if (missingConvAptIds.length) {
+          const convByAptRes = await db.collection('chat-conversations')
+            .where({ appointment_id: dbCmd.in(missingConvAptIds) })
+            .field({ _id: true, appointment_id: true, chat_enabled: true, status: true })
+            .get()
+          ;(convByAptRes.data || []).forEach(item => {
+            if (appointmentMap[item.appointment_id]) {
+              appointmentMap[item.appointment_id].conversation_id = item._id
+            }
+          })
+        }
+      }
+
+      const teacherNameMap = {}
+      if (teacherIds.length) {
+        const teacherRes = await db.collection('teacher-profiles')
+          .where({ teacher_id: dbCmd.in(teacherIds) })
+          .field({ teacher_id: true, display_name: true })
+          .get()
+        ;(teacherRes.data || []).forEach(item => {
+          teacherNameMap[item.teacher_id] = item.display_name || ''
+        })
+      }
+
+      const userNameMap = {}
+      const allUserIds = [...new Set([...payerIds, ...teacherIds])]
+      if (allUserIds.length) {
+        const userRes = await db.collection('uni-id-users')
+          .where({ _id: dbCmd.in(allUserIds) })
+          .field({ _id: true, nickname: true, username: true })
+          .get()
+        ;(userRes.data || []).forEach(item => {
+          userNameMap[item._id] = item.nickname || item.username || item._id
+        })
+      }
+
+      const conversationIds = [...new Set(
+        list.map(item => {
+          const apt = appointmentMap[item.appointment_id]
+          return apt && apt.conversation_id ? apt.conversation_id : ''
+        }).filter(Boolean)
+      )]
+      const conversationMap = {}
+      if (conversationIds.length) {
+        const convRes = await db.collection('chat-conversations')
+          .where({ _id: dbCmd.in(conversationIds) })
+          .field({ _id: true, appointment_id: true, chat_enabled: true, status: true })
+          .get()
+        ;(convRes.data || []).forEach(item => {
+          conversationMap[item._id] = item
+        })
+      }
+
+      const enriched = list.map(item => {
+        const apt = appointmentMap[item.appointment_id] || null
+        let conversationId = apt && apt.conversation_id ? apt.conversation_id : ''
+        return {
+          ...item,
+          parent_name: userNameMap[item.payer_id] || '',
+          teacher_name: teacherNameMap[item.teacher_id] || userNameMap[item.teacher_id] || '',
+          appointment_no: apt ? apt.appointment_no : '',
+          appointment_status: apt ? apt.status : '',
+          conversation_id: conversationId,
+          chat_enabled: conversationId && conversationMap[conversationId]
+            ? conversationMap[conversationId].chat_enabled
+            : null
+        }
+      })
+
+      for (const item of enriched) {
+        if (item.conversation_id) continue
+        const conv = await resolveConversationForAdmin(db, {
+          appointment_id: item.appointment_id,
+          teacher_id: item.teacher_id,
+          parent_id: item.payer_id
+        })
+        if (conv) {
+          item.conversation_id = conv._id
+          item.chat_enabled = conv.chat_enabled
+        }
+      }
+
+      return success({
+        list: enriched,
+        total: countRes.total || 0,
+        page: pageNum,
+        pageSize: size
+      })
+    } catch (e) {
+      console.error('[payment-refund] adminList failed', e)
+      return error(e.message || '查询退款列表失败')
+    }
+  },
+
+  /**
+   * 后台订单详情
+   */
+  async getOrderDetail(params = {}) {
+    const { order_id, isAdmin = false } = params
+    if (!isAdmin) {
+      return error('无权访问')
+    }
+    if (!order_id) {
+      return error('缺少订单ID')
+    }
+
+    const db = uniCloud.database()
+    const dbCmd = db.command
+
+    try {
+      const orderDoc = await db.collection('payment-orders').doc(order_id).get()
+      if (!orderDoc.data || !orderDoc.data.length) {
+        return error('订单不存在')
+      }
+
+      const order = orderDoc.data[0]
+      let effectiveTeacherId = order.teacher_id || ''
+      let effectiveParentId = order.parent_id || ''
+
+      let appointment = null
+      if (order.appointment_id) {
+        const aptRes = await db.collection('appointments')
+          .doc(order.appointment_id)
+          .field({
+            _id: true,
+            appointment_no: true,
+            conversation_id: true,
+            status: true,
+            course_type: true,
+            type: true,
+            date: true,
+            start_time: true,
+            teacher_id: true,
+            parent_id: true
+          })
+          .get()
+        appointment = aptRes.data && aptRes.data[0] ? aptRes.data[0] : null
+        if (appointment) {
+          effectiveTeacherId = effectiveTeacherId || appointment.teacher_id || ''
+          effectiveParentId = effectiveParentId || appointment.parent_id || ''
+        }
+      }
+
+      // 订单表可能未冗余 teacher_id / parent_id，按订单类型从 payer_id 推断
+      if (!effectiveParentId && ['course_fee', 'trial', 'regular'].includes(order.order_type)) {
+        effectiveParentId = order.payer_id || ''
+      }
+      if (!effectiveTeacherId && order.order_type === 'deposit') {
+        effectiveTeacherId = order.payer_id || ''
+      }
+
+      if (order.appointment_id) {
+        const conv = await resolveConversationForAdmin(db, {
+          conversation_id: appointment && appointment.conversation_id,
+          appointment_id: order.appointment_id,
+          teacher_id: effectiveTeacherId,
+          parent_id: effectiveParentId
+        })
+        if (conv) {
+          if (appointment) {
+            appointment.conversation_id = conv._id
+          } else {
+            appointment = {
+              _id: order.appointment_id,
+              conversation_id: conv._id
+            }
+          }
+          effectiveTeacherId = effectiveTeacherId || conv.teacher_id || ''
+          effectiveParentId = effectiveParentId || conv.parent_id || ''
+        }
+      }
+
+      const userIds = [order.payer_id, effectiveParentId, effectiveTeacherId].filter(Boolean)
+      const userNameMap = {}
+      if (userIds.length) {
+        const userRes = await db.collection('uni-id-users')
+          .where({ _id: dbCmd.in([...new Set(userIds)]) })
+          .field({ _id: true, nickname: true, username: true, mobile: true })
+          .get()
+        ;(userRes.data || []).forEach(item => {
+          userNameMap[item._id] = {
+            name: item.nickname || item.username || item._id,
+            mobile: item.mobile || ''
+          }
+        })
+      }
+
+      let teacherName = ''
+      if (effectiveTeacherId) {
+        const teacherRes = await db.collection('teacher-profiles')
+          .where({ teacher_id: effectiveTeacherId })
+          .field({ display_name: true, teacher_id: true })
+          .limit(1)
+          .get()
+        teacherName = teacherRes.data && teacherRes.data[0]
+          ? (teacherRes.data[0].display_name || '')
+          : ''
+      }
+
+      const parentName = effectiveParentId && userNameMap[effectiveParentId]
+        ? userNameMap[effectiveParentId].name
+        : (order.payer_id && ['course_fee', 'trial', 'regular'].includes(order.order_type) && userNameMap[order.payer_id]
+          ? userNameMap[order.payer_id].name
+          : '')
+
+      return success({
+        ...order,
+        teacher_id: effectiveTeacherId || order.teacher_id || '',
+        parent_id: effectiveParentId || order.parent_id || '',
+        payer_name: userNameMap[order.payer_id] ? userNameMap[order.payer_id].name : '',
+        parent_name: parentName,
+        teacher_name: teacherName || (effectiveTeacherId && userNameMap[effectiveTeacherId]
+          ? userNameMap[effectiveTeacherId].name
+          : ''),
+        appointment
+      })
+    } catch (e) {
+      console.error('[payment-refund] getOrderDetail failed', e)
+      return error(e.message || '查询订单详情失败')
+    }
+  },
+
+  /**
+   * 后台查看会话聊天记录（绕过 clientDB 权限）
+   */
+  async adminGetConversationMessages(params = {}) {
+    const {
+      conversation_id = '',
+      appointment_id = '',
+      teacher_id = '',
+      parent_id = '',
+      page = 1,
+      pageSize = 50,
+      isAdmin = false
+    } = params
+
+    if (!isAdmin) {
+      return error('无权访问')
+    }
+    if (!conversation_id && !appointment_id && !(teacher_id && parent_id)) {
+      return error('缺少会话或预约ID')
+    }
+
+    const db = uniCloud.database()
+    const dbCmd = db.command
+
+    try {
+      const conversation = await resolveConversationForAdmin(db, {
+        conversation_id,
+        appointment_id,
+        teacher_id,
+        parent_id
+      })
+
+      if (!conversation) {
+        return error('未找到关联聊天会话')
+      }
+
+      const conversationId = conversation._id
+      const pageNum = Math.max(1, parseInt(page, 10) || 1)
+      const size = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 50))
+      const skip = (pageNum - 1) * size
+
+      const [msgRes, countRes] = await Promise.all([
+        db.collection('chat-messages')
+          .where({ conversation_id: conversationId })
+          .orderBy('create_time', 'desc')
+          .skip(skip)
+          .limit(size)
+          .get(),
+        db.collection('chat-messages')
+          .where({ conversation_id: conversationId })
+          .count()
+      ])
+
+      const messages = (msgRes.data || []).reverse()
+      const total = countRes.total || 0
+      const userIds = [...new Set([
+        conversation.parent_id,
+        conversation.teacher_id,
+        ...messages.map(item => item.sender_id),
+        ...messages.map(item => item.receiver_id)
+      ].filter(Boolean))]
+
+      const userNameMap = {}
+      const teacherNameMap = {}
+      if (userIds.length) {
+        const [userRes, teacherRes] = await Promise.all([
+          db.collection('uni-id-users')
+            .where({ _id: dbCmd.in(userIds) })
+            .field({ _id: true, nickname: true, username: true })
+            .get(),
+          db.collection('teacher-profiles')
+            .where({ teacher_id: dbCmd.in(userIds) })
+            .field({ teacher_id: true, display_name: true })
+            .get()
+        ])
+        ;(userRes.data || []).forEach(item => {
+          userNameMap[item._id] = item.nickname || item.username || item._id
+        })
+        ;(teacherRes.data || []).forEach(item => {
+          teacherNameMap[item.teacher_id] = item.display_name || ''
+        })
+      }
+
+      const parentName = userNameMap[conversation.parent_id] || '家长'
+      const teacherName = teacherNameMap[conversation.teacher_id] || userNameMap[conversation.teacher_id] || '教师'
+
+      const enrichedMessages = messages.map(item => {
+        const isTeacher = item.sender_role === 'teacher' || item.sender_id === conversation.teacher_id
+        const senderName = isTeacher
+          ? (teacherNameMap[item.sender_id] || userNameMap[item.sender_id] || teacherName)
+          : (userNameMap[item.sender_id] || parentName)
+        return {
+          ...item,
+          sender_name: senderName,
+          sender_label: isTeacher ? '教师' : '家长'
+        }
+      })
+
+      return success({
+        conversation: {
+          _id: conversation._id,
+          appointment_id: conversation.appointment_id,
+          parent_id: conversation.parent_id,
+          teacher_id: conversation.teacher_id,
+          parent_name: parentName,
+          teacher_name: teacherName,
+          chat_enabled: conversation.chat_enabled,
+          status: conversation.status
+        },
+        messages: enrichedMessages,
+        total,
+        page: pageNum,
+        pageSize: size,
+        hasMore: skip + messages.length < total
+      })
+    } catch (e) {
+      console.error('[payment-refund] adminGetConversationMessages failed', e)
+      return error(e.message || '查询聊天记录失败')
     }
   }
 }

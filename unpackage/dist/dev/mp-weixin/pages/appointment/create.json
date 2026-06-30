@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "创建预约",
+  "enablePullDownRefresh": false,
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {

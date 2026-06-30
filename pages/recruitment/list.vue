@@ -98,6 +98,9 @@ export default {
 		this.load(true)
 	},
 	methods: {
+		async refreshData() {
+			await this.load(true)
+		},
 		onTabOpen() {
 			this.tab = 'open'
 			this.load(true)

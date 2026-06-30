@@ -140,6 +140,9 @@ export default {
 		this.loadAppointments()
 	},
 	methods: {
+		async refreshData() {
+			await this.loadAppointments()
+		},
 		formatDateString(dateObj) {
 			const year = dateObj.getFullYear()
 			const month = String(dateObj.getMonth() + 1).padStart(2, '0')

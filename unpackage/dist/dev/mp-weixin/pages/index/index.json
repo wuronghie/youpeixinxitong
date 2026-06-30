@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "家教帮",
+  "enablePullDownRefresh": false,
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {}

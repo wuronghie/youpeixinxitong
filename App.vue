@@ -1,16 +1,20 @@
 <script>
-	export default {
-		onLaunch: function () {
-			console.log('App Launch')
-			// 位置功能后续添加，云服务暂时不管
-		},
-		onShow: function () {
-			console.log('App Show')
-		},
-		onHide: function () {
-			console.log('App Hide')
-		}
+import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
+
+export default {
+	onLaunch: function () {
+		console.log('App Launch')
+	},
+	onShow: function () {
+		console.log('App Show')
+		setTimeout(() => {
+			checkPendingTrialConfirmReminder()
+		}, 600)
+	},
+	onHide: function () {
+		console.log('App Hide')
 	}
+}
 </script>
 
 <style>

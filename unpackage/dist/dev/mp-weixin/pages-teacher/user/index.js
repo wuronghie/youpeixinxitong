@@ -208,7 +208,9 @@ const _sfc_main = {
             this.userInfo.displayName = profile.display_name;
           }
           const hasQualificationImage = Array.isArray(profile == null ? void 0 : profile.qualifications) && profile.qualifications.some((item) => item && item.image);
-          const isProfileComplete = (profile == null ? void 0 : profile.display_name) && (profile == null ? void 0 : profile.subjects) && profile.subjects.length > 0 && (profile == null ? void 0 : profile.grades) && profile.grades.length > 0 && (profile == null ? void 0 : profile.hourly_rate) && profile.hourly_rate > 0 && Number(((_a = profile == null ? void 0 : profile.teaching_experience) == null ? void 0 : _a.years) || 0) > 0 && (profile == null ? void 0 : profile.introduction) && String(profile.introduction).trim() && hasQualificationImage;
+          const isFullTimeTeacher = (profile == null ? void 0 : profile.school) === "专职老师";
+          const gradesComplete = isFullTimeTeacher || (profile == null ? void 0 : profile.grades) && profile.grades.length > 0;
+          const isProfileComplete = (profile == null ? void 0 : profile.display_name) && (profile == null ? void 0 : profile.subjects) && profile.subjects.length > 0 && gradesComplete && (profile == null ? void 0 : profile.hourly_rate) && profile.hourly_rate > 0 && Number(((_a = profile == null ? void 0 : profile.teaching_experience) == null ? void 0 : _a.years) || 0) > 0 && (profile == null ? void 0 : profile.introduction) && String(profile.introduction).trim() && hasQualificationImage;
           let verificationStatus = "pending";
           if (isProfileComplete || (profile == null ? void 0 : profile.is_verified)) {
             verificationStatus = "verified";
@@ -225,7 +227,7 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:375", "加载教师统计失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:377", "加载教师统计失败:", error);
       }
     },
     goToPage(url) {
@@ -273,7 +275,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:425", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:427", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"

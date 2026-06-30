@@ -103,6 +103,11 @@ const _sfc_main = {
     }
   },
   methods: {
+    async refreshData() {
+      if (this.orderId) {
+        await this.loadDetail();
+      }
+    },
     async loadDetail() {
       if (this.isLoading)
         return;
@@ -127,7 +132,7 @@ const _sfc_main = {
         }
         await this.loadRefundDetail();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/order/detail.vue:295", "获取订单详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/order/detail.vue:300", "获取订单详情失败:", error);
         common_vendor.index.showToast({ title: error.message || "获取订单失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -246,7 +251,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "确认失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages/order/detail.vue:409", "确认课程完成失败:", error);
+            common_vendor.index.__f__("error", "at pages/order/detail.vue:414", "确认课程完成失败:", error);
             common_vendor.index.showToast({ title: "确认失败，请稍后重试", icon: "none" });
           }
         }

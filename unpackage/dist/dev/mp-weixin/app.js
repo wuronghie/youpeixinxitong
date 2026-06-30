@@ -1,6 +1,8 @@
 "use strict";
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const common_vendor = require("./common/vendor.js");
+const utils_trialConfirmReminder = require("./utils/trialConfirmReminder.js");
+const utils_pagePullDownRefresh = require("./utils/pagePullDownRefresh.js");
 if (!Math) {
   "./pages/index/index.js";
   "./pages/login/index.js";
@@ -51,17 +53,21 @@ if (!Math) {
 }
 const _sfc_main = {
   onLaunch: function() {
-    common_vendor.index.__f__("log", "at App.vue:4", "App Launch");
+    common_vendor.index.__f__("log", "at App.vue:6", "App Launch");
   },
   onShow: function() {
-    common_vendor.index.__f__("log", "at App.vue:8", "App Show");
+    common_vendor.index.__f__("log", "at App.vue:9", "App Show");
+    setTimeout(() => {
+      utils_trialConfirmReminder.checkPendingTrialConfirmReminder();
+    }, 600);
   },
   onHide: function() {
-    common_vendor.index.__f__("log", "at App.vue:11", "App Hide");
+    common_vendor.index.__f__("log", "at App.vue:15", "App Hide");
   }
 };
 function createApp() {
   const app = common_vendor.createSSRApp(_sfc_main);
+  app.mixin(utils_pagePullDownRefresh.pagePullDownRefreshMixin);
   return {
     app
   };

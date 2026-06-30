@@ -74,6 +74,64 @@ async function resolveQualificationImagesForParent(qualifications) {
   })
 }
 
+/** 4 星及以上视为好评 */
+const POSITIVE_RATING_THRESHOLD = 4
+
+function aggregateReviewStats(reviews) {
+  const statsMap = {}
+  ;(reviews || []).forEach(r => {
+    const tid = r.teacher_id
+    if (!tid) return
+    if (!statsMap[tid]) {
+      statsMap[tid] = { total: 0, positive: 0, sum: 0 }
+    }
+    const rating = Number(r.rating) || 0
+    statsMap[tid].total++
+    statsMap[tid].sum += rating
+    if (rating >= POSITIVE_RATING_THRESHOLD) {
+      statsMap[tid].positive++
+    }
+  })
+  return statsMap
+}
+
+function buildReviewStatsEntry(stats) {
+  const s = stats || { total: 0, positive: 0, sum: 0 }
+  return {
+    review_count: s.total,
+    positive_rate: s.total > 0 ? Math.round((s.positive / s.total) * 100) : 0,
+    rating: s.total > 0 ? Math.round((s.sum / s.total) * 10) / 10 : null
+  }
+}
+
+/** 从单教师的评价列表直接计算统计（不依赖 teacher_id 字段） */
+function buildReviewStatsFromReviewList(reviews) {
+  const list = reviews || []
+  if (list.length === 0) {
+    return { review_count: 0, positive_rate: 0, rating: null }
+  }
+  let sum = 0
+  let positive = 0
+  list.forEach(r => {
+    const rating = Number(r.rating) || 0
+    sum += rating
+    if (rating >= POSITIVE_RATING_THRESHOLD) positive++
+  })
+  return {
+    review_count: list.length,
+    positive_rate: Math.round((positive / list.length) * 100),
+    rating: Math.round((sum / list.length) * 10) / 10
+  }
+}
+
+function applyReviewStatsToTeacher(teacher, statsMap) {
+  const teacherId = teacher.teacher_id || teacher._id
+  const entry = buildReviewStatsEntry(statsMap[teacherId])
+  teacher.review_count = entry.review_count
+  teacher.positive_rate = entry.positive_rate
+  teacher.rating = entry.rating
+}
+
 module.exports = {
   _before: function() {
     const clientInfo = this.getClientInfo()
@@ -346,6 +404,13 @@ module.exports = {
             })
           }
           
+          // 批量查询评价，计算真实评分与好评率（4 星及以上）
+          const reviewsResult = await db.collection('reviews')
+            .where({ teacher_id: dbCmd.in(teacherIds) })
+            .field({ teacher_id: true, rating: true })
+            .get()
+          const reviewStatsMap = aggregateReviewStats(reviewsResult.data)
+
           // 将统计数据添加到每个教师信息中
           listData.forEach(teacher => {
             const teacherId = teacher.teacher_id || teacher._id
@@ -357,6 +422,7 @@ module.exports = {
             teacher.trial_count = stats.trial_count
             teacher.trial_success_count = stats.trial_success_count
             teacher.trial_success_rate = stats.trial_success_rate
+            applyReviewStatsToTeacher(teacher, reviewStatsMap)
           })
         }
       }
@@ -436,7 +502,7 @@ module.exports = {
       const dbCmd = db.command
 
       // 并行请求：用户信息、评价、课表、试课统计，减少串行等待与总耗时
-      const [userResult, reviewsResult, scheduleResult, trialAppointments] = await Promise.all([
+      const [userResult, reviewsResult, allReviewsResult, scheduleResult, trialAppointments] = await Promise.all([
         db.collection('uni-id-users')
           .doc(userId)
           .field({ nickname: true, avatar: true, gender: true })
@@ -445,6 +511,10 @@ module.exports = {
           .where({ teacher_id: userId })
           .orderBy('create_time', 'desc')
           .limit(5)
+          .get(),
+        db.collection('reviews')
+          .where({ teacher_id: userId })
+          .field({ rating: true })
           .get(),
         db.collection('teacher-schedule')
           .where({ teacher_id: userId })
@@ -471,6 +541,7 @@ module.exports = {
           }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
+      const reviewStats = buildReviewStatsFromReviewList(allReviewsResult.data)
       
       // 格式化数据，确保字段名与前端一致
       const formattedData = {
@@ -487,8 +558,9 @@ module.exports = {
         grades: profile.grades || [],
         teaching_methods: profile.teaching_methods || ['online', 'offline'], // 默认支持两种方式
         hourly_rate: profile.hourly_rate || 100,
-        rating: profile.rating || 5.0,
-        review_count: profile.review_count || 0,
+        rating: reviewStats.rating,
+        review_count: reviewStats.review_count,
+        positive_rate: reviewStats.positive_rate,
         total_students: profile.total_students || 0,
         total_courses: profile.total_courses || 0,
         total_hours: profile.total_hours || profile.total_courses * 2 || 0, // 如果没有，用课程数*2估算

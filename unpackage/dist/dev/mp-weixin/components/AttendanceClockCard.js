@@ -35,6 +35,10 @@ const _sfc_main = {
     scheduleEndTs: {
       type: Number,
       default: 0
+    },
+    parentPaid: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ["clocked"],
@@ -48,18 +52,22 @@ const _sfc_main = {
     const canClockIn = common_vendor.computed(() => {
       if (props.classStartedAt)
         return false;
-      return props.status === "pending_confirm" || props.status === "confirmed" || props.status === "in_progress";
+      if (!props.parentPaid)
+        return false;
+      return props.status === "confirmed" || props.status === "in_progress";
     });
     const canClockOut = common_vendor.computed(() => {
       if (!props.classStartedAt || props.classEndedAt)
         return false;
-      return true;
+      return props.parentPaid;
     });
     const headerHint = common_vendor.computed(() => {
       if (props.classStartedAt && props.classEndedAt)
         return "已完成";
       if (props.classStartedAt)
         return "可下课打卡";
+      if (!props.parentPaid)
+        return "待家长支付试课费";
       if (canClockIn.value)
         return "可上课打卡";
       return "暂不可打卡";
@@ -99,7 +107,7 @@ const _sfc_main = {
           return "";
         return info.address || [info.province, info.city, info.district].filter(Boolean).join("");
       } catch (e) {
-        common_vendor.index.__f__("warn", "at components/AttendanceClockCard.vue:164", "[打卡定位] 逆地理编码失败:", e);
+        common_vendor.index.__f__("warn", "at components/AttendanceClockCard.vue:170", "[打卡定位] 逆地理编码失败:", e);
         return "";
       }
     }

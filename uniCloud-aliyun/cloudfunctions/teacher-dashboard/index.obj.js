@@ -31,6 +31,36 @@ function formatDate(date) {
   return `${year}-${month}-${day}`
 }
 
+/** 累计学生 = 试课成功（completed 且 trial_result 非 fail）的去重家长数 */
+async function countSuccessfulTrialStudents(db, teacher_id) {
+  const $ = db.command.aggregate
+  const agg = await db.collection('appointments')
+    .aggregate()
+    .match({
+      teacher_id,
+      course_type: 'trial',
+      status: 'completed'
+    })
+    .group({
+      _id: '$parent_id',
+      hasSuccess: $.max(
+        $.cond({
+          if: $.or([
+            $.eq(['$trial_result', 'success']),
+            $.eq([$.ifNull(['$trial_result', '']), ''])
+          ]),
+          then: 1,
+          else: 0
+        })
+      )
+    })
+    .match({ hasSuccess: 1 })
+    .count('total')
+    .end()
+
+  return agg.data && agg.data.length > 0 ? Number(agg.data[0].total || 0) : 0
+}
+
 module.exports = {
   _before() {
     const clientInfo = this.getClientInfo()
@@ -126,19 +156,8 @@ module.exports = {
         ? Number(monthIncomeAgg.data[0].total || 0)
         : 0
 
-      // 累计学生数量（distinct parent_id）
-      const totalStudentsAgg = await db.collection('appointments')
-        .aggregate()
-        .match({ teacher_id })
-        .group({
-          _id: '$parent_id'
-        })
-        .count('total')
-        .end()
-
-      const totalStudents = totalStudentsAgg.data && totalStudentsAgg.data.length > 0
-        ? Number(totalStudentsAgg.data[0].total || 0)
-        : 0
+      // 累计学生：仅统计试课成功后的去重家长
+      const totalStudents = await countSuccessfulTrialStudents(db, teacher_id)
 
       // 待处理预约（待支付或待确认）
       const pendingAppointmentsRes = await db.collection('appointments')
@@ -190,6 +209,7 @@ module.exports = {
           teacher_id,
           status: dbCmd.in(['confirmed', 'in_progress']),
           deposit_paid: true,
+          parent_paid: true,
           class_started_at: dbCmd.exists(false)
         })
         .count()
@@ -199,6 +219,7 @@ module.exports = {
           teacher_id,
           status: 'in_progress',
           deposit_paid: true,
+          parent_paid: true,
           class_started_at: dbCmd.exists(true),
           class_ended_at: dbCmd.exists(false)
         })
@@ -333,7 +354,8 @@ module.exports = {
         missingFieldsText.push('教学科目')
       }
 
-      if (!profile.grades || !Array.isArray(profile.grades) || profile.grades.length === 0) {
+      const isFullTimeTeacher = profile.school === '专职老师'
+      if (!isFullTimeTeacher && (!profile.grades || !Array.isArray(profile.grades) || profile.grades.length === 0)) {
         missingFields.push('grades')
         missingFieldsText.push('适合年级')
       }
@@ -480,7 +502,6 @@ module.exports = {
         })
         .group({
           _id: null,
-          total_students: $.addToSet('$parent_id'),
           recent_completed: $.sum(
             $.cond({
               if: $.gte(['$create_time', thirtyDaysAgo]),
@@ -496,9 +517,7 @@ module.exports = {
         ? appointmentsAgg.data[0]
         : null
 
-      const totalStudents = appointmentInfo && appointmentInfo.total_students
-        ? appointmentInfo.total_students.length
-        : 0
+      const totalStudents = await countSuccessfulTrialStudents(db, teacher_id)
 
       const recentCompleted = appointmentInfo && appointmentInfo.recent_completed
         ? appointmentInfo.recent_completed

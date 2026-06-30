@@ -22,6 +22,43 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+const POSITIVE_RATING_THRESHOLD = 4
+
+async function updateTeacherReviewStats(db, teacher_id) {
+  const allReviews = await db.collection(REVIEW_COLLECTION)
+    .where({ teacher_id })
+    .field({ rating: true })
+    .get()
+
+  const reviews = allReviews.data || []
+  if (reviews.length === 0) {
+    await db.collection('teacher-profiles')
+      .where({ teacher_id })
+      .update({
+        rating: 0,
+        review_count: 0,
+        positive_rate: 0,
+        update_time: Date.now()
+      })
+    return
+  }
+
+  const total = reviews.length
+  const totalRating = reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0)
+  const positiveCount = reviews.filter(r => Number(r.rating) >= POSITIVE_RATING_THRESHOLD).length
+  const avgRating = Math.round((totalRating / total) * 10) / 10
+  const positiveRate = Math.round((positiveCount / total) * 100)
+
+  await db.collection('teacher-profiles')
+    .where({ teacher_id })
+    .update({
+      rating: avgRating,
+      review_count: total,
+      positive_rate: positiveRate,
+      update_time: Date.now()
+    })
+}
+
 async function resolveTeacherId(context) {
   const token = context.getUniIdToken()
   if (!token) {
@@ -206,6 +243,8 @@ module.exports = {
           review_id: addRes.id,
           update_time: now
         })
+
+      await updateTeacherReviewStats(db, teacher_id)
 
       return success({ review_id: addRes.id }, '评价提交成功')
     } catch (e) {

@@ -6,6 +6,9 @@
 
 const uniID = require('uni-id-common')
 
+/** 课时费下限（元/小时） */
+const MIN_HOURLY_RATE = 120
+
 // 工具函数
 function success(data = null, message = 'success') {
   return {
@@ -70,13 +73,18 @@ function isParentProfileComplete(userDoc) {
   return !!(String(parentInfo.student_name || '').trim() && String(parentInfo.student_grade || '').trim())
 }
 
+function isFullTimeTeacher(profile) {
+  return !!(profile && profile.school === '专职老师')
+}
+
 function isTeacherProfileComplete(profile) {
   if (!profile) return false
   const hasQualificationImage = Array.isArray(profile.qualifications) && profile.qualifications.some((item) => item && item.image)
+  const gradesOk = isFullTimeTeacher(profile) || (Array.isArray(profile.grades) && profile.grades.length > 0)
   return !!(
     String(profile.display_name || '').trim() &&
     Array.isArray(profile.subjects) && profile.subjects.length > 0 &&
-    Array.isArray(profile.grades) && profile.grades.length > 0 &&
+    gradesOk &&
     Number(profile.hourly_rate || 0) > 0 &&
     Number((profile.teaching_experience && profile.teaching_experience.years) || 0) > 0 &&
     String(profile.introduction || '').trim() &&
@@ -114,7 +122,7 @@ module.exports = {
    * @returns {Object}
    */
   async inviteTrial(params) {
-    const { parent_id, recruitment_id, invited_via } = params
+    const { parent_id, recruitment_id, invited_via, trial_hourly_rate } = params
     
     try {
       const db = uniCloud.database()
@@ -138,6 +146,19 @@ module.exports = {
       if (!parent_id) {
         return error('家长ID不能为空')
       }
+
+      const dbCmd = db.command
+      const activeTrialRes = await db.collection('appointments')
+        .where({
+          teacher_id,
+          parent_id,
+          course_type: 'trial',
+          status: dbCmd.in(['trial_invited', 'pending_payment', 'pending_confirm', 'confirmed', 'in_progress'])
+        })
+        .count()
+      if (activeTrialRes.total > 0) {
+        return error('当前有进行中的试课，请等待结束后再发起新邀请')
+      }
       
       // 2. 检查家长是否存在
       const parentDoc = await db.collection('uni-id-users').doc(parent_id).get()
@@ -156,8 +177,15 @@ module.exports = {
         ? teacherProfileDoc.data[0] 
         : {}
       
-      const hourlyRate = Number(teacherProfile.hourly_rate || 100)
-      const trialAmount = hourlyRate * 2 // 试课2小时
+      const profileHourlyRate = Number(teacherProfile.hourly_rate || MIN_HOURLY_RATE)
+      let hourlyRate = profileHourlyRate
+      if (trial_hourly_rate != null && trial_hourly_rate !== '') {
+        hourlyRate = Number(trial_hourly_rate)
+      }
+      if (!hourlyRate || hourlyRate < MIN_HOURLY_RATE) {
+        return error(`试课课时费不能低于${MIN_HOURLY_RATE}元/小时`)
+      }
+      const trialAmount = Number((hourlyRate * 2).toFixed(2)) // 试课2小时
       
       const now = Date.now()
       
@@ -221,6 +249,7 @@ module.exports = {
         course_type: 'trial',
         status: 'trial_invited', // 试课邀请状态
         hourly_rate: hourlyRate,
+        trial_invite_hourly_rate: hourlyRate, // 本次邀请专用单价，不影响教师档案
         total_amount: trialAmount,
         duration: 2,
         create_time: now,
@@ -288,7 +317,8 @@ module.exports = {
         appointment_id: result.id,
         appointment_no: appointmentNo,
         conversation_id: conversationId,
-        trial_amount: trialAmount
+        trial_amount: trialAmount,
+        trial_hourly_rate: hourlyRate
       }, '试课邀请已发送')
       
     } catch (e) {
@@ -452,8 +482,24 @@ module.exports = {
       }
       
       const teacherProfile = teacherProfileDoc.data[0]
-      const hourlyRate = Number(teacherProfile.hourly_rate || 100)
-      const totalAmount = hourlyRate * duration
+      const profileHourlyRate = Number(teacherProfile.hourly_rate || 100)
+      // 试课邀请已约定单价：家长填写信息时保留邀请价，不用教师档案价覆盖
+      let hourlyRate = profileHourlyRate
+      let totalAmount = Number((hourlyRate * duration).toFixed(2))
+      if (invite_id && inviteAppointment) {
+        const inviteHourlyRate = Number(
+          inviteAppointment.trial_invite_hourly_rate || inviteAppointment.hourly_rate || 0
+        )
+        if (inviteHourlyRate > 0) {
+          hourlyRate = inviteHourlyRate
+        }
+        const inviteTotalAmount = Number(inviteAppointment.total_amount || 0)
+        if (inviteTotalAmount > 0) {
+          totalAmount = inviteTotalAmount
+        } else {
+          totalAmount = Number((hourlyRate * duration).toFixed(2))
+        }
+      }
       
       // 5. 生成预约号（如果是邀请创建，使用邀请的预约号；否则生成新的）
       const appointmentNo = inviteAppointment 
@@ -477,7 +523,10 @@ module.exports = {
           student_grade: student_grade || '',
           subject,
           requirements,
-          status: 'pending_payment', // 改为待支付状态
+          hourly_rate: hourlyRate,
+          total_amount: totalAmount,
+          parent_paid: false,
+          status: 'pending_payment', // 家长填写信息后待支付试课费
           update_time: now
           // invited_by: 'teacher' 字段会被保留，因为 update 不会删除未指定的字段
         })

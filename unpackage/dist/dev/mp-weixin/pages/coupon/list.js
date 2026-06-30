@@ -16,10 +16,10 @@ const _sfc_main = {
     }
     this.loadCoupons();
   },
-  onPullDownRefresh() {
-    this.onPullDownRefreshInternal();
-  },
   methods: {
+    async refreshData() {
+      await this.loadCoupons();
+    },
     async onPullDownRefreshInternal() {
       this.refresherTriggered = true;
       await this.loadCoupons();

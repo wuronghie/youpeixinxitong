@@ -11,6 +11,7 @@ const _sfc_main = {
     const tagOptions = ["讲解清晰", "耐心负责", "课堂有趣", "反馈及时", "备课充分", "专业度高", "善于引导", "课堂纪律好"];
     const ratingTips = ["很不满意", "不太满意", "一般般", "比较满意", "非常满意"];
     const appointmentId = common_vendor.ref("");
+    const confirmAppointmentId = common_vendor.ref("");
     const routeCourseType = common_vendor.ref("");
     const useMock = common_vendor.ref(false);
     const isTrial = common_vendor.ref(false);
@@ -82,6 +83,8 @@ const _sfc_main = {
           throw new Error(appointmentRes.message || "获取预约信息失败");
         }
         const appointment = appointmentRes.data;
+        appointmentId.value = appointment._id || appointmentId.value;
+        confirmAppointmentId.value = appointment._id || appointmentId.value;
         isTrial.value = routeCourseType.value === "trial" || appointment.course_type === "trial";
         const subjects = appointment.teacher_info && appointment.teacher_info.subjects || appointment.subjects || appointment.subject;
         const subjectText = Array.isArray(subjects) ? subjects.join(" / ") : subjects || "科目待确认";
@@ -107,7 +110,7 @@ const _sfc_main = {
           }
         }
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:250", "加载评价页面失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:253", "加载评价页面失败:", e);
         common_vendor.index.showToast({ title: e.message || "加载失败", icon: "none" });
       } finally {
         isLoading.value = false;
@@ -158,7 +161,8 @@ const _sfc_main = {
       isSubmitting.value = true;
       try {
         const appointmentQuery = common_vendor.tr.importObject("appointment-query", { customUI: true });
-        const confirmPayload = isTrial.value ? { appointment_id: appointmentId.value, is_satisfied: !!formData.is_satisfied, fail_reason: formData.fail_reason || "" } : { appointment_id: appointmentId.value, is_satisfied: true };
+        const actionId = confirmAppointmentId.value || appointmentId.value;
+        const confirmPayload = isTrial.value ? { appointment_id: actionId, is_satisfied: !!formData.is_satisfied, fail_reason: formData.fail_reason || "" } : { appointment_id: actionId, is_satisfied: true };
         const confirmRes = await appointmentQuery.confirmCompletion(confirmPayload);
         const alreadyCompleted = confirmRes && confirmRes.message && /已完成|已结算/.test(confirmRes.message);
         if (!confirmRes || confirmRes.code !== 0 && !alreadyCompleted) {
@@ -166,7 +170,7 @@ const _sfc_main = {
         }
         const reviewObj = common_vendor.tr.importObject("teacher-review", { customUI: true });
         const reviewRes = await reviewObj.submit({
-          appointment_id: appointmentId.value,
+          appointment_id: actionId,
           rating: formData.rating,
           tags: formData.tags,
           content: formData.content.trim(),
@@ -178,7 +182,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "已提交并完成确认", icon: "success" });
         setTimeout(() => common_vendor.index.navigateBack(), 1e3);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:335", "[review.submit] 失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:339", "[review.submit] 失败:", e);
         common_vendor.index.showToast({ title: e.message || "提交失败", icon: "none" });
       } finally {
         isSubmitting.value = false;

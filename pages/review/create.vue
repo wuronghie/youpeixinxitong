@@ -144,6 +144,7 @@ const textareaPlaceholder = '可以从课堂氛围、讲解质量、作业反馈
 const maxContentLength = 500
 
 const appointmentId = ref('')
+const confirmAppointmentId = ref('')
 const routeCourseType = ref('')
 const useMock = ref(false)
 const isTrial = ref(false)
@@ -217,6 +218,8 @@ async function loadData() {
       throw new Error(appointmentRes.message || '获取预约信息失败')
     }
     const appointment = appointmentRes.data
+    appointmentId.value = appointment._id || appointmentId.value
+    confirmAppointmentId.value = appointment._id || appointmentId.value
     isTrial.value = routeCourseType.value === 'trial' || appointment.course_type === 'trial'
     const subjects = (appointment.teacher_info && appointment.teacher_info.subjects) || appointment.subjects || appointment.subject
     const subjectText = Array.isArray(subjects) ? subjects.join(' / ') : (subjects || '科目待确认')
@@ -305,9 +308,10 @@ async function submit() {
     //   - 试课：根据 is_satisfied 决定调用成功/失败结算
     //   - 正式课：直接 confirmCompletion 结算（is_satisfied 默认 true）
     const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
+    const actionId = confirmAppointmentId.value || appointmentId.value
     const confirmPayload = isTrial.value
-      ? { appointment_id: appointmentId.value, is_satisfied: !!formData.is_satisfied, fail_reason: formData.fail_reason || '' }
-      : { appointment_id: appointmentId.value, is_satisfied: true }
+      ? { appointment_id: actionId, is_satisfied: !!formData.is_satisfied, fail_reason: formData.fail_reason || '' }
+      : { appointment_id: actionId, is_satisfied: true }
 
     const confirmRes = await appointmentQuery.confirmCompletion(confirmPayload)
     // 重复确认（已 completed）也视为成功，继续提交评价
@@ -319,7 +323,7 @@ async function submit() {
     // Step 2：提交评价
     const reviewObj = uniCloud.importObject('teacher-review', { customUI: true })
     const reviewRes = await reviewObj.submit({
-      appointment_id: appointmentId.value,
+      appointment_id: actionId,
       rating: formData.rating,
       tags: formData.tags,
       content: formData.content.trim(),

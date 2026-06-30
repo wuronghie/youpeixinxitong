@@ -267,6 +267,11 @@ export default {
 		}
 	},
 	methods: {
+		async refreshData() {
+			if (this.orderId) {
+				await this.loadDetail()
+			}
+		},
 		async loadDetail() {
 			if (this.isLoading) return
 			this.isLoading = true

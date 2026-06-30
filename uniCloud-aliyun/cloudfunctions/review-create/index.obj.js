@@ -119,20 +119,23 @@ module.exports = {
         .get()
       
       if (allReviews.data && allReviews.data.length > 0) {
-        // 计算平均评分
-        const totalRating = allReviews.data.reduce((sum, r) => sum + r.rating, 0)
-        const avgRating = Math.round((totalRating / allReviews.data.length) * 10) / 10
+        const total = allReviews.data.length
+        const totalRating = allReviews.data.reduce((sum, r) => sum + Number(r.rating || 0), 0)
+        const positiveCount = allReviews.data.filter(r => Number(r.rating) >= 4).length
+        const avgRating = Math.round((totalRating / total) * 10) / 10
+        const positiveRate = Math.round((positiveCount / total) * 100)
         
         // 更新教师主页
         await db.collection('teacher-profiles')
           .where({ teacher_id: appointment.teacher_id })
           .update({
             rating: avgRating,
-            review_count: allReviews.data.length,
+            review_count: total,
+            positive_rate: positiveRate,
             update_time: Date.now()
           })
         
-        console.log(`教师评分已更新：${avgRating}分（${allReviews.data.length}条评价）`)
+        console.log(`教师评分已更新：${avgRating}分，好评率${positiveRate}%（${total}条评价）`)
       }
       
       // 8. 标记预约已评价

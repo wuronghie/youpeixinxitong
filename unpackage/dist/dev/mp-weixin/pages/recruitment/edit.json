@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "发布招募",
+  "enablePullDownRefresh": false,
   "enableShareAppMessage": true,
   "enableShareTimeline": true,
   "usingComponents": {}

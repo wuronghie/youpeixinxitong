@@ -2,6 +2,7 @@
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
+const utils_appointmentTeacherPreview = require("../../utils/appointmentTeacherPreview.js");
 const card = () => "../../components/common/card.js";
 const _sfc_main = {
   name: "TeacherDetail",
@@ -152,6 +153,14 @@ const _sfc_main = {
     };
   },
   methods: {
+    async refreshData() {
+      this.isRefreshing = true;
+      try {
+        await this.loadDetail();
+      } finally {
+        this.isRefreshing = false;
+      }
+    },
     async onRefresh() {
       if (!this.canRefresh || this.scrollTop > 10) {
         this.isRefreshing = false;
@@ -190,7 +199,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:635", "加载教师详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:644", "加载教师详情失败:", error);
         this.loadError = error.message || "加载失败，请稍后重试";
         common_vendor.index.showToast({ title: this.loadError, icon: "none" });
       } finally {
@@ -261,8 +270,8 @@ const _sfc_main = {
           extra_notes: parentInfo.extra_notes || "",
           address_detail: parentInfo.address_detail || ""
         };
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:708", "[teacher-detail] 联系请求参数:", contactParams);
-        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:709", "[teacher-detail] parentInfo:", parentInfo);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:717", "[teacher-detail] 联系请求参数:", contactParams);
+        common_vendor.index.__f__("log", "at pages/teacher/detail.vue:718", "[teacher-detail] parentInfo:", parentInfo);
         const appointmentObj = common_vendor.tr.importObject("appointment-create", { customUI: true });
         const result = await appointmentObj.createContactRequest(contactParams);
         if (result.code === 0) {
@@ -301,7 +310,7 @@ const _sfc_main = {
 `;
               messageContent += `
 希望了解您的教学安排，期待您的回复！`;
-              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:758", "[teacher-detail] 发送消息内容:", messageContent);
+              common_vendor.index.__f__("log", "at pages/teacher/detail.vue:767", "[teacher-detail] 发送消息内容:", messageContent);
               const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
               await chatSend.send({
                 conversation_id: conversationId,
@@ -309,7 +318,7 @@ const _sfc_main = {
                 content: messageContent
               });
             } catch (msgError) {
-              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:767", "发送初始消息失败:", msgError);
+              common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:776", "发送初始消息失败:", msgError);
             }
           }
           this.hasContacted = true;
@@ -336,7 +345,7 @@ const _sfc_main = {
           throw new Error(result.message || "发送联系请求失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:798", "联系老师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:807", "联系老师失败:", error);
         common_vendor.index.showToast({ title: error.message || "联系失败，请稍后再试", icon: "none" });
       } finally {
         this.isContacting = false;
@@ -345,6 +354,19 @@ const _sfc_main = {
     goToAppointment() {
       if (this.loadError)
         return;
+      utils_appointmentTeacherPreview.saveAppointmentTeacherPreview({
+        teacherProfileId: this.teacherId,
+        teacherUid: this.teacherUid,
+        teacher_id: this.teacherUid || this.teacherInfo.teacher_id,
+        display_name: this.teacherInfo.display_name || this.teacherInfo.name,
+        name: this.teacherInfo.name || this.teacherInfo.display_name,
+        avatar: this.teacherInfo.avatar,
+        hourly_rate: this.teacherInfo.hourly_rate,
+        rating: this.teacherInfo.rating,
+        total_students: this.teacherInfo.total_students,
+        trial_count: this.teacherInfo.trial_count,
+        trial_success_rate: this.teacherInfo.trial_success_rate
+      });
       const params = [];
       if (this.teacherId)
         params.push(`teacherProfileId=${this.teacherId}`);
@@ -381,7 +403,7 @@ const _sfc_main = {
           this.isFavorited = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:839", "查询收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:861", "查询收藏状态失败:", error);
         this.isFavorited = false;
       }
     },
@@ -409,19 +431,19 @@ const _sfc_main = {
           const conversationListRes = await chatSend.getConversationList();
           if (conversationListRes.code === 0 && conversationListRes.data) {
             const conversations = conversationListRes.data.list || conversationListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:873", "[teacher-detail] 会话列表数量:", conversations.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:895", "[teacher-detail] 会话列表数量:", conversations.length);
             const hasConversation = conversations.some((conv) => {
               var _a, _b;
               return conv.teacher_id === teacherId || ((_a = conv.other_user) == null ? void 0 : _a.teacher_id) === teacherId || ((_b = conv.teacher_info) == null ? void 0 : _b.teacher_id) === teacherId;
             });
             this.hasContacted = !!hasConversation;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:883", "[teacher-detail] hasContacted 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:905", "[teacher-detail] hasContacted 计算结果:", {
               teacherId,
               hasConversation
             });
           }
         } catch (chatError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:889", "检查会话列表失败:", chatError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:911", "检查会话列表失败:", chatError);
           this.hasContacted = false;
         }
         try {
@@ -434,9 +456,9 @@ const _sfc_main = {
           });
           if (appointmentListRes.code === 0 && appointmentListRes.data) {
             const appointments = appointmentListRes.data.list || appointmentListRes.data || [];
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:906", "[teacher-detail] 家长预约总数:", appointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:928", "[teacher-detail] 家长预约总数:", appointments.length);
             const relatedAppointments = appointments.filter((apt) => apt.teacher_id === teacherId);
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:909", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:931", "[teacher-detail] 与当前老师相关的预约数:", relatedAppointments.length);
             const hasTrialSuccess = relatedAppointments.some((apt) => {
               const isTrialCourse = apt.course_type === "trial";
               const isCompletedStatus = apt.status === "completed";
@@ -444,7 +466,7 @@ const _sfc_main = {
               return isTrialCourse && isCompletedStatus && isSuccessResult;
             });
             this.hasTrialSuccess = !!hasTrialSuccess;
-            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:923", "[teacher-detail] hasTrialSuccess 计算结果:", {
+            common_vendor.index.__f__("log", "at pages/teacher/detail.vue:945", "[teacher-detail] hasTrialSuccess 计算结果:", {
               teacherId,
               hasTrialSuccess,
               trialAppointments: relatedAppointments.filter((apt) => apt.course_type === "trial").map((apt) => ({
@@ -457,11 +479,11 @@ const _sfc_main = {
             this.hasTrialSuccess = false;
           }
         } catch (trialError) {
-          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:938", "检查试课成功记录失败:", trialError);
+          common_vendor.index.__f__("warn", "at pages/teacher/detail.vue:960", "检查试课成功记录失败:", trialError);
           this.hasTrialSuccess = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:943", "检查联系状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:965", "检查联系状态失败:", error);
         this.hasContacted = false;
         this.hasTrialSuccess = false;
       }
@@ -505,7 +527,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:986", "收藏操作失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/detail.vue:1008", "收藏操作失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       } finally {
         this.favoriteLoading = false;
@@ -516,9 +538,12 @@ const _sfc_main = {
         return "0%";
       return `${(Number(rate) * 100).toFixed(0)}%`;
     },
-    formatRating(rating) {
-      if (!rating && rating !== 0)
-        return "5.0";
+    formatRating(rating, reviewCount) {
+      const count = Number(reviewCount) || 0;
+      if (count <= 0)
+        return "暂无";
+      if (rating === null || rating === void 0 || rating === "")
+        return "暂无";
       return Number(rating).toFixed(1);
     },
     teacherGenderText(gender) {
@@ -668,7 +693,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   } : {}) : {}, {
     m: $data.isFavorited ? $data.favoriteFilledUrl : $data.favoriteEmptyUrl,
     n: common_vendor.o((...args) => $options.toggleFavorite && $options.toggleFavorite(...args)),
-    o: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
+    o: common_vendor.t($options.formatRating($data.teacherInfo.rating, $data.teacherInfo.review_count)),
     p: common_vendor.t($data.teacherInfo.hourly_rate || 100),
     q: common_vendor.t($options.formatExperience()),
     r: $options.subjectList.length || $options.gradeGroups.length
@@ -701,7 +726,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     }),
     z: $options.subjectList.length ? 1 : ""
   } : {}) : {}, {
-    A: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
+    A: common_vendor.t($options.formatRating($data.teacherInfo.rating, $data.teacherInfo.review_count)),
     B: common_vendor.t($data.teacherInfo.trial_count || 0),
     C: common_vendor.t($data.teacherInfo.trial_success_count != null ? $data.teacherInfo.trial_success_count : 0),
     D: common_vendor.t($options.formatPercent($data.teacherInfo.trial_success_rate)),

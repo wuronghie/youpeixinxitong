@@ -4,6 +4,7 @@
 			"path": "pages/index/index",
 			"style": {
 				"navigationBarTitleText": "家教帮",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -13,6 +14,7 @@
 			"style": {
 				"navigationBarTitleText": "登录",
 				"navigationStyle": "custom",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -21,6 +23,7 @@
 			"path": "pages/common/register",
 			"style": {
 				"navigationBarTitleText": "完善信息",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -36,7 +39,8 @@
 		{
 			"path": "pages/common/webview",
 			"style": {
-				"navigationBarTitleText": "网页浏览"
+				"navigationBarTitleText": "网页浏览",
+				"enablePullDownRefresh": false
 			}
 		},
 		{
@@ -59,6 +63,7 @@
 			"path": "pages/appointment/create",
 			"style": {
 				"navigationBarTitleText": "创建预约",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -91,6 +96,7 @@
 			"path": "pages/recruitment/edit",
 			"style": {
 				"navigationBarTitleText": "发布招募",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -115,6 +121,7 @@
 			"path": "pages/order/refund",
 			"style": {
 				"navigationBarTitleText": "申请退款",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -123,6 +130,7 @@
 			"path": "pages/review/create",
 			"style": {
 				"navigationBarTitleText": "发表评价",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -155,6 +163,7 @@
 			"path": "pages/user/profile",
 			"style": {
 				"navigationBarTitleText": "个人信息",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -187,6 +196,7 @@
 			"path": "pages/teacher-profiles/add",
 			"style": {
 				"navigationBarTitleText": "新增",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -195,6 +205,7 @@
 			"path": "pages/teacher-profiles/edit",
 			"style": {
 				"navigationBarTitleText": "编辑",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -211,6 +222,7 @@
 			"path": "pages/payment/result",
 			"style": {
 				"navigationBarTitleText": "支付结果",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -220,6 +232,7 @@
 			"style": {
 				"navigationBarTitleText": "",
 				"backgroundColor": "#F8F8F8",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -229,6 +242,7 @@
 			"style": {
 				"navigationBarTitleText": "收银台",
 				"backgroundColor": "#F8F8F8",
+				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
 			}
@@ -281,13 +295,15 @@
 				{
 					"path": "profile/edit",
 					"style": {
-						"navigationBarTitleText": "编辑主页"
+						"navigationBarTitleText": "编辑主页",
+						"enablePullDownRefresh": false
 					}
 				},
 				{
 					"path": "profile/schedule",
 					"style": {
-						"navigationBarTitleText": "时间设置"
+						"navigationBarTitleText": "时间设置",
+						"enablePullDownRefresh": false
 					}
 				},
 				{
@@ -310,6 +326,7 @@
 					"path": "wallet/withdraw",
 					"style": {
 						"navigationBarTitleText": "提现",
+						"enablePullDownRefresh": false,
 						"enableShareAppMessage": true,
 						"enableShareTimeline": true
 					}
@@ -377,7 +394,9 @@
 		"navigationBarTextStyle": "black",
 		"navigationBarTitleText": "家教帮",
 		"navigationBarBackgroundColor": "#FFFFFF",
-		"backgroundColor": "#F8F8F8"
+		"backgroundColor": "#F8F8F8",
+		"enablePullDownRefresh": true,
+		"backgroundTextStyle": "dark"
 	},
 	"lazyCodeLoading": "requiredComponents",
 	"uniIdRouter": {}

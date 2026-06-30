@@ -43,6 +43,9 @@ const _sfc_main = {
     };
   },
   methods: {
+    async refreshData() {
+      await this.loadAppointments();
+    },
     /**
      * 计算每条预约的"打卡待办"徽章
      * 返回 { text, className } 或 null
@@ -58,6 +61,8 @@ const _sfc_main = {
       if (!["confirmed", "in_progress", "completed"].includes(status))
         return null;
       if (!(item.deposit_paid === true || item.deposit_paid === "true"))
+        return null;
+      if (!(item.parent_paid === true || item.parent_paid === "true"))
         return null;
       const startTs = this.parseScheduleStart(item);
       const endTs = this.parseScheduleEnd(item, startTs);
@@ -147,7 +152,7 @@ const _sfc_main = {
           let queryStatus = void 0;
           if (this.currentStatus === "pending_confirm") {
             queryStatus = ["pending_payment", "pending_confirm"];
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:255", "[teacher-appointment-list] 查询待确认状态，包含:", queryStatus);
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:259", "[teacher-appointment-list] 查询待确认状态，包含:", queryStatus);
           } else if (this.currentStatus === "confirmed") {
             queryStatus = ["confirmed", "in_progress"];
           } else if (this.currentStatus === "completed") {
@@ -159,9 +164,9 @@ const _sfc_main = {
             page: this.page,
             pageSize: this.pageSize
           });
-          common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:272", "[teacher-appointment-list] 查询结果:", res.code === 0 ? `成功，返回${((_b = (_a = res.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length) || 0}条` : res.message);
+          common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:276", "[teacher-appointment-list] 查询结果:", res.code === 0 ? `成功，返回${((_b = (_a = res.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length) || 0}条` : res.message);
           if (res.code === 0 && ((_c = res.data) == null ? void 0 : _c.list)) {
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:274", "[teacher-appointment-list] 返回的状态分布:", res.data.list.map((item) => item.status));
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:278", "[teacher-appointment-list] 返回的状态分布:", res.data.list.map((item) => item.status));
           }
           if (res.code === 0) {
             const data = res.data || {};
@@ -182,7 +187,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:299", "加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:303", "加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败", icon: "none" });
         this.appointmentList = [];
       } finally {
@@ -266,7 +271,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:381", "拒绝失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:385", "拒绝失败:", error);
               common_vendor.index.showToast({ title: "操作失败", icon: "none" });
             }
           }

@@ -1,6 +1,7 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
+const utils_appointmentTeacherPreview = require("../../utils/appointmentTeacherPreview.js");
 const utils_location = require("../../utils/location.js");
 const card = () => "../../components/common/card.js";
 const _sfc_main = {
@@ -12,6 +13,8 @@ const _sfc_main = {
     return {
       teacherProfileId: "",
       teacherUid: "",
+      routeInviteId: "",
+      pageReady: false,
       teacherInfo: {},
       formData: {
         courseType: "formal",
@@ -43,16 +46,27 @@ const _sfc_main = {
       scrollTop: 0,
       canRefresh: true,
       // 默认头像URL（从CDN）
-      defaultAvatarUrl: utils_imageConfig.getDefaultAvatarUrl()
+      defaultAvatarUrl: utils_imageConfig.getDefaultAvatarUrl(),
+      inviteHourlyRate: 0,
+      inviteTotalAmount: 0
     };
   },
   computed: {
+    teacherDisplayName() {
+      return this.teacherInfo.display_name || this.teacherInfo.name || this.teacherInfo.nickname || "教师";
+    },
     hourlyRate() {
       var _a;
+      if (this.formData.invite_id && this.inviteHourlyRate > 0) {
+        return this.inviteHourlyRate;
+      }
       const rate = Number((_a = this.teacherInfo) == null ? void 0 : _a.hourly_rate);
       return Number.isFinite(rate) && rate > 0 ? rate : 100;
     },
     trialPrice() {
+      if (this.formData.invite_id && this.inviteTotalAmount > 0) {
+        return this.inviteTotalAmount;
+      }
       return this.hourlyRate * 2;
     },
     formalPrice() {
@@ -94,15 +108,35 @@ const _sfc_main = {
     }
   },
   async onLoad(options) {
+    this.pageReady = false;
+    this.routeInviteId = options.invite_id || "";
     this.teacherProfileId = options.teacherProfileId || options.id || options.teacherId || "";
     this.teacherUid = options.teacherUid || options.teacher_id || "";
-    if (options.invite_id) {
-      this.formData.invite_id = options.invite_id;
-      await this.loadInviteInfo(options.invite_id);
-    }
+    utils_appointmentTeacherPreview.applyAppointmentTeacherPreview(this, utils_appointmentTeacherPreview.readAppointmentTeacherPreview());
     this.setupDateRange();
-    await this.ensureTeacher();
-    this.prefillFromProfile();
+    try {
+      if (this.routeInviteId) {
+        this.formData.invite_id = this.routeInviteId;
+        this.formData.courseType = "trial";
+        const ok = await this.loadInviteInfo(this.routeInviteId);
+        if (!ok)
+          return;
+        if (this.shouldFetchTeacherDetail()) {
+          await this.loadTeacher();
+        }
+      } else {
+        await this.ensureTeacher();
+      }
+      this.prefillFromProfile();
+      this.pageReady = true;
+    } catch (error) {
+      common_vendor.index.__f__("error", "at pages/appointment/create.vue:337", "[appointment/create] 页面初始化失败:", error);
+      common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
+      setTimeout(() => common_vendor.index.navigateBack(), 1500);
+    }
+  },
+  onUnload() {
+    utils_appointmentTeacherPreview.clearAppointmentTeacherPreview();
   },
   methods: {
     setupDateRange() {
@@ -114,6 +148,13 @@ const _sfc_main = {
       this.formData.date = this.dateOptions.start;
     },
     async ensureTeacher() {
+      if (this.routeInviteId || this.formData.invite_id) {
+        if (!this.teacherUid && !this.teacherProfileId) {
+          common_vendor.index.showToast({ title: "未找到邀请对应的教师", icon: "none" });
+          setTimeout(() => common_vendor.index.navigateBack(), 1500);
+        }
+        return;
+      }
       if (!this.teacherProfileId && !this.teacherUid) {
         await this.initTeacherFromCloud();
       }
@@ -123,6 +164,12 @@ const _sfc_main = {
         return;
       }
       await this.loadTeacher();
+    },
+    shouldFetchTeacherDetail() {
+      const info = this.teacherInfo || {};
+      const hasName = !!(info.display_name || info.name || info.nickname);
+      const hasRate = info.hourly_rate != null && Number(info.hourly_rate) > 0;
+      return !hasName || !hasRate;
     },
     prefillFromProfile() {
       const profile = common_vendor.index.getStorageSync("userInfo");
@@ -138,7 +185,7 @@ const _sfc_main = {
      */
     async loadInviteInfo(invite_id) {
       if (!invite_id)
-        return;
+        return false;
       try {
         const appointmentQuery = common_vendor.tr.importObject("appointment-query", { customUI: true });
         const res = await appointmentQuery.getAppointmentDetail({ appointment_id: invite_id });
@@ -147,19 +194,34 @@ const _sfc_main = {
           if (invite.status !== "trial_invited") {
             common_vendor.index.showToast({ title: "该试课邀请已处理", icon: "none" });
             setTimeout(() => common_vendor.index.navigateBack(), 1500);
-            return;
+            return false;
           }
           if (invite.teacher_id) {
             this.teacherUid = invite.teacher_id;
           }
+          const inviteRate = Number(invite.trial_invite_hourly_rate || invite.hourly_rate || 0);
+          const inviteAmount = Number(invite.total_amount || 0);
+          this.inviteHourlyRate = inviteRate > 0 ? inviteRate : 0;
+          this.inviteTotalAmount = inviteAmount > 0 ? inviteAmount : inviteRate > 0 ? inviteRate * 2 : 0;
+          if (invite.teacher_info) {
+            utils_appointmentTeacherPreview.applyAppointmentTeacherPreview(this, {
+              ...invite.teacher_info,
+              display_name: invite.teacher_info.display_name || invite.teacher_info.name,
+              name: invite.teacher_info.name || invite.teacher_info.display_name,
+              teacher_id: invite.teacher_id,
+              hourly_rate: this.inviteHourlyRate || invite.teacher_info.hourly_rate
+            });
+          }
           this.formData.courseType = "trial";
           this.formData.invite_id = invite._id;
-        } else {
-          throw new Error(res.message || "加载邀请信息失败");
+          return true;
         }
+        throw new Error(res.message || "加载邀请信息失败");
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:357", "加载试课邀请信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:424", "加载试课邀请信息失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
+        setTimeout(() => common_vendor.index.navigateBack(), 1500);
+        return false;
       }
     },
     async initTeacherFromCloud() {
@@ -173,26 +235,39 @@ const _sfc_main = {
           this.teacherUid = teacher.teacher_id || "";
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:371", "自动获取教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:440", "自动获取教师失败:", error);
       }
     },
     async loadTeacher() {
       if (this.isLoading)
         return;
       this.isLoading = true;
+      const previousInfo = { ...this.teacherInfo || {} };
       try {
         const teacherListObj = common_vendor.tr.importObject("teacher-list", { customUI: true });
         const res = await teacherListObj.getDetail({ teacherId: this.teacherProfileId || this.teacherUid });
         if (res.code === 0) {
-          this.teacherInfo = res.data;
+          const merged = {
+            ...previousInfo,
+            ...res.data,
+            display_name: res.data.display_name || res.data.name || previousInfo.display_name || previousInfo.name,
+            name: res.data.name || res.data.display_name || previousInfo.name || previousInfo.display_name
+          };
+          if (this.formData.invite_id && this.inviteHourlyRate > 0) {
+            merged.hourly_rate = this.inviteHourlyRate;
+          }
+          this.teacherInfo = merged;
           this.teacherProfileId = res.data._id || this.teacherProfileId;
           this.teacherUid = res.data.teacher_id || this.teacherUid;
         } else {
           throw new Error(res.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:388", "加载教师失败:", error);
-        common_vendor.index.showToast({ title: error.message || "加载教师失败", icon: "none" });
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:467", "加载教师失败:", error);
+        if (!(previousInfo.display_name || previousInfo.name)) {
+          common_vendor.index.showToast({ title: error.message || "加载教师失败", icon: "none" });
+          throw error;
+        }
       } finally {
         this.isLoading = false;
         this.isRefreshing = false;
@@ -288,7 +363,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages/appointment/create.vue:490", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages/appointment/create.vue:572", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -372,20 +447,20 @@ const _sfc_main = {
         const params = { ...baseParams, ...optionalParams };
         const res = await appointmentCreateObj.create(params);
         if (res.code === 0) {
-          common_vendor.index.showToast({ title: "预约成功", icon: "success" });
+          common_vendor.index.showToast({ title: "预约成功，请完成支付", icon: "success" });
           setTimeout(() => {
             var _a;
             if ((_a = res.data) == null ? void 0 : _a.appointment_id) {
               common_vendor.index.redirectTo({ url: `/pages/appointment/detail?id=${res.data.appointment_id}` });
             } else {
-              common_vendor.index.redirectTo({ url: "/pages/appointment/list" });
+              common_vendor.index.redirectTo({ url: "/pages/appointment/list?status=pending_payment" });
             }
           }, 1200);
         } else {
           throw new Error(res.message || "预约失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/create.vue:592", "预约失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/create.vue:674", "预约失败:", error);
         common_vendor.index.showToast({ title: error.message || "预约失败，请稍后再试", icon: "none" });
       } finally {
         this.isSubmitting = false;
@@ -399,103 +474,105 @@ if (!Array) {
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: $data.teacherInfo.avatar || $data.defaultAvatarUrl,
-    b: common_vendor.t($data.teacherInfo.display_name || $data.teacherInfo.name || "教师"),
-    c: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
-    d: common_vendor.t($data.teacherInfo.hourly_rate || 100),
-    e: common_vendor.t($data.teacherInfo.total_students || 0),
-    f: $data.teacherInfo.trial_count > 0
+    a: !$data.pageReady
+  }, !$data.pageReady ? {} : common_vendor.e({
+    b: $data.teacherInfo.avatar || $data.defaultAvatarUrl,
+    c: common_vendor.t($options.teacherDisplayName),
+    d: common_vendor.t($options.formatRating($data.teacherInfo.rating)),
+    e: common_vendor.t($data.teacherInfo.hourly_rate || 100),
+    f: common_vendor.t($data.teacherInfo.total_students || 0),
+    g: $data.teacherInfo.trial_count > 0
   }, $data.teacherInfo.trial_count > 0 ? {
-    g: common_vendor.t($data.teacherInfo.trial_count)
+    h: common_vendor.t($data.teacherInfo.trial_count)
   } : {}, {
-    h: $data.teacherInfo.trial_success_rate > 0
+    i: $data.teacherInfo.trial_success_rate > 0
   }, $data.teacherInfo.trial_success_rate > 0 ? {
-    i: common_vendor.t($options.formatPercent($data.teacherInfo.trial_success_rate))
+    j: common_vendor.t($options.formatPercent($data.teacherInfo.trial_success_rate))
   } : {}, {
-    j: !$data.formData.invite_id
+    k: !$data.formData.invite_id
   }, !$data.formData.invite_id ? {
-    k: common_vendor.t($options.formalPrice),
-    l: common_vendor.s($data.formData.courseType === "formal" ? "color: #FFD700;" : "color: #FFB800;"),
-    m: common_vendor.n($data.formData.courseType === "formal" ? "main-bg-color text-white" : "bg-light-secondary"),
-    n: common_vendor.o(($event) => $options.changeCourseType("formal")),
-    o: common_vendor.p({
+    l: common_vendor.t($options.formalPrice),
+    m: common_vendor.s($data.formData.courseType === "formal" ? "color: #FFD700;" : "color: #FFB800;"),
+    n: common_vendor.n($data.formData.courseType === "formal" ? "main-bg-color text-white" : "bg-light-secondary"),
+    o: common_vendor.o(($event) => $options.changeCourseType("formal")),
+    p: common_vendor.p({
       headTitle: "课程类型"
     })
   } : {}, {
-    p: $data.formData.invite_id
+    q: $data.formData.invite_id
   }, $data.formData.invite_id ? {
-    q: common_vendor.t($options.trialPrice),
-    r: common_vendor.p({
+    r: common_vendor.t($options.trialPrice),
+    s: common_vendor.p({
       headTitle: "试课邀请"
     })
   } : {}, {
-    s: common_vendor.t($data.formData.date || "请选择"),
-    t: common_vendor.n($data.formData.date ? "" : "text-light-muted"),
-    v: $data.formData.date,
-    w: $data.dateOptions.start,
-    x: $data.dateOptions.end,
-    y: common_vendor.o((...args) => $options.onDateChange && $options.onDateChange(...args)),
-    z: common_vendor.t($data.formData.time || "请选择"),
-    A: common_vendor.n($data.formData.time ? "" : "text-light-muted"),
-    B: $data.formData.time,
-    C: common_vendor.o((...args) => $options.onTimeChange && $options.onTimeChange(...args)),
-    D: common_vendor.p({
+    t: common_vendor.t($data.formData.date || "请选择"),
+    v: common_vendor.n($data.formData.date ? "" : "text-light-muted"),
+    w: $data.formData.date,
+    x: $data.dateOptions.start,
+    y: $data.dateOptions.end,
+    z: common_vendor.o((...args) => $options.onDateChange && $options.onDateChange(...args)),
+    A: common_vendor.t($data.formData.time || "请选择"),
+    B: common_vendor.n($data.formData.time ? "" : "text-light-muted"),
+    C: $data.formData.time,
+    D: common_vendor.o((...args) => $options.onTimeChange && $options.onTimeChange(...args)),
+    E: common_vendor.p({
       headTitle: "预约时间"
     }),
-    E: $data.formData.studentName,
-    F: common_vendor.o(common_vendor.m(($event) => $data.formData.studentName = $event.detail.value, {
+    F: $data.formData.studentName,
+    G: common_vendor.o(common_vendor.m(($event) => $data.formData.studentName = $event.detail.value, {
       trim: true
     })),
-    G: common_vendor.t($data.formData.studentGrade || "选择年级"),
-    H: common_vendor.n($data.formData.studentGrade ? "" : "text-light-muted"),
-    I: $data.gradeOptions,
-    J: $data.gradeIndex,
-    K: common_vendor.o((...args) => $options.onGradeChange && $options.onGradeChange(...args)),
-    L: $data.formData.subject,
-    M: common_vendor.o(common_vendor.m(($event) => $data.formData.subject = $event.detail.value, {
+    H: common_vendor.t($data.formData.studentGrade || "选择年级"),
+    I: common_vendor.n($data.formData.studentGrade ? "" : "text-light-muted"),
+    J: $data.gradeOptions,
+    K: $data.gradeIndex,
+    L: common_vendor.o((...args) => $options.onGradeChange && $options.onGradeChange(...args)),
+    M: $data.formData.subject,
+    N: common_vendor.o(common_vendor.m(($event) => $data.formData.subject = $event.detail.value, {
       trim: true
     })),
-    N: common_vendor.p({
+    O: common_vendor.p({
       headTitle: "学生信息"
     }),
-    O: common_vendor.n($data.formData.lessonMode === "online" ? "main-bg-color text-white" : "bg-light-secondary"),
-    P: common_vendor.o(($event) => $data.formData.lessonMode = "online"),
-    Q: common_vendor.n($data.formData.lessonMode === "offline" ? "main-bg-color text-white" : "bg-light-secondary"),
-    R: common_vendor.o(($event) => $data.formData.lessonMode = "offline"),
-    S: $data.formData.lessonMode === "offline"
+    P: common_vendor.n($data.formData.lessonMode === "online" ? "main-bg-color text-white" : "bg-light-secondary"),
+    Q: common_vendor.o(($event) => $data.formData.lessonMode = "online"),
+    R: common_vendor.n($data.formData.lessonMode === "offline" ? "main-bg-color text-white" : "bg-light-secondary"),
+    S: common_vendor.o(($event) => $data.formData.lessonMode = "offline"),
+    T: $data.formData.lessonMode === "offline"
   }, $data.formData.lessonMode === "offline" ? common_vendor.e({
-    T: common_vendor.t($options.addressDisplay || "点击选择地址"),
-    U: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
-    V: $data.formData.address.latitude && $data.formData.address.longitude
+    U: common_vendor.t($options.addressDisplay || "点击选择地址"),
+    V: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
+    W: $data.formData.address.latitude && $data.formData.address.longitude
   }, $data.formData.address.latitude && $data.formData.address.longitude ? {
-    W: parseFloat($data.formData.address.latitude),
-    X: parseFloat($data.formData.address.longitude),
-    Y: $options.mapMarkers,
-    Z: common_vendor.o((...args) => $options.handleOpenLocation && $options.handleOpenLocation(...args))
+    X: parseFloat($data.formData.address.latitude),
+    Y: parseFloat($data.formData.address.longitude),
+    Z: $options.mapMarkers,
+    aa: common_vendor.o((...args) => $options.handleOpenLocation && $options.handleOpenLocation(...args))
   } : {}) : {}, {
-    aa: common_vendor.p({
+    ab: common_vendor.p({
       headTitle: "上课方式"
     }),
-    ab: $data.formData.requirements,
-    ac: common_vendor.o(common_vendor.m(($event) => $data.formData.requirements = $event.detail.value, {
+    ac: $data.formData.requirements,
+    ad: common_vendor.o(common_vendor.m(($event) => $data.formData.requirements = $event.detail.value, {
       trim: true
     })),
-    ad: common_vendor.p({
+    ae: common_vendor.p({
       headTitle: "补充说明"
     }),
-    ae: common_vendor.t($options.totalAmount),
-    af: $data.formData.courseType === "trial"
+    af: common_vendor.t($options.totalAmount),
+    ag: $data.formData.courseType === "trial"
   }, $data.formData.courseType === "trial" ? {
-    ag: common_vendor.t($options.hourlyRate)
+    ah: common_vendor.t($options.hourlyRate)
   } : {}, {
-    ah: common_vendor.p({
+    ai: common_vendor.p({
       headTitle: "费用概览"
     }),
-    ai: common_vendor.t($options.totalAmount),
-    aj: common_vendor.t($data.isSubmitting ? "提交中..." : "确认预约"),
-    ak: $data.isSubmitting,
-    al: common_vendor.o((...args) => $options.submitAppointment && $options.submitAppointment(...args))
-  });
+    aj: common_vendor.t($options.totalAmount),
+    ak: common_vendor.t($data.isSubmitting ? "提交中..." : "确认预约"),
+    al: $data.isSubmitting,
+    am: common_vendor.o((...args) => $options.submitAppointment && $options.submitAppointment(...args))
+  }));
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-14356573"]]);
 wx.createPage(MiniProgramPage);

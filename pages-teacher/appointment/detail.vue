@@ -17,11 +17,17 @@
 					class="mb-3"
 				/>
 
-				<!-- 课堂打卡（仅已确认 + 已支付信息费 + 试课/正式课 时展示） -->
+				<view v-if="showWaitingParentPay" class="mb-3 px-3 py-3 bg-white rounded">
+					<text class="font-sm text-warning d-block">等待家长支付试课费</text>
+					<text class="font-sm text-light-muted d-block mt-1">家长完成支付后，您才可以进行上课/下课打卡。</text>
+				</view>
+
+				<!-- 课堂打卡（家长已支付课程费 + 已确认/进行中） -->
 				<attendance-clock-card
 					v-if="showClockCard"
 					:appointment-id="appointment._id"
 					:status="appointment.status"
+					:parent-paid="isParentCoursePaid"
 					:class-started-at="appointment.class_started_at || null"
 					:class-started-location="appointment.class_started_location || null"
 					:class-ended-at="appointment.class_ended_at || null"
@@ -63,7 +69,7 @@
 				支付信息费（¥{{ infoFeeAmount }}）
 			</button>
 			<button 
-				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
+				v-if="!isTeacherInvitedTrial && (appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
 				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
 				@click="handleConfirm"
 			>
@@ -112,7 +118,7 @@ import AttendanceClockCard from '@/components/AttendanceClockCard.vue'
 import AppointmentBasicCard from '@/components/AppointmentBasicCard.vue'
 import AppointmentFeeCard from '@/components/AppointmentFeeCard.vue'
 import { mockAppointments, useMockData } from '@/utils/mockData.js'
-import { createAndPay, createAndPayWithUniPay } from '@/utils/payment.js'
+import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '@/utils/payment.js'
 
 export default {
 	name: 'TeacherAppointmentDetail',
@@ -134,6 +140,10 @@ export default {
 		}
 	},
 	computed: {
+		isTeacherInvitedTrial() {
+			const apt = this.appointment || {}
+			return apt.course_type === 'trial' && apt.invited_by === 'teacher'
+		},
 		// 信息费金额（元）= 老师课时费 × 2；老师未设置时按 1 元兜底（与后端 fallback 一致）
 		infoFeeAmount() {
 			const fromAppt = Number(this.appointment && this.appointment.hourly_rate) || 0
@@ -167,14 +177,27 @@ export default {
 			const duration = Number(schedule.duration || apt.duration || 2)
 			return start + duration * 3600 * 1000
 		},
-		// 仅在已确认 + 已支付信息费的预约展示打卡卡片，且预约还未结算完成
+		// 打卡卡片：信息费已付 + 家长已付课程费（或已在打卡中）；未支付时隐藏打卡入口
+		isParentCoursePaid() {
+			const apt = this.appointment || {}
+			return apt.parent_paid === true || apt.parent_paid === 'true' || !!apt.parent_paid_from_order
+		},
 		showClockCard() {
 			const apt = this.appointment || {}
 			if (!apt._id) return false
-			const statusAllowsClock = ['pending_confirm', 'confirmed', 'in_progress'].includes(apt.status)
-			if (!statusAllowsClock && !apt.class_started_at) return false
-			if (!(apt.deposit_paid === true || apt.deposit_paid === 'true') && !apt.class_started_at) return false
-			return true
+			const depositOk = apt.deposit_paid === true || apt.deposit_paid === 'true'
+			if (!depositOk && !apt.class_started_at) return false
+			if (!this.isParentCoursePaid && !apt.class_started_at) return false
+			if (apt.class_started_at || apt.class_ended_at) return true
+			return ['confirmed', 'in_progress'].includes(apt.status)
+		},
+		showWaitingParentPay() {
+			const apt = this.appointment || {}
+			if (!apt._id || this.isParentCoursePaid) return false
+			if (apt.class_started_at || apt.class_ended_at) return false
+			const depositOk = apt.deposit_paid === true || apt.deposit_paid === 'true'
+			if (!depositOk) return false
+			return ['confirmed', 'pending_confirm', 'pending_payment', 'in_progress'].includes(apt.status)
 		}
 	},
 	onLoad(options) {
@@ -189,6 +212,9 @@ export default {
 		}
 	},
 	methods: {
+		async refreshData() {
+			await this.loadDetail()
+		},
 		// 打卡成功后刷新详情，获取最新 class_started_at / class_ended_at
 		onClocked() {
 			this.loadDetail()
@@ -290,7 +316,7 @@ export default {
 		},
 		getStatusText(status) {
 			const map = {
-				pending_payment: '待支付',
+				pending_payment: '待家长支付',
 				pending_confirm: '待确认',
 				contact_request: '联系请求',  // 家长直接联系老师但还没预约
 				confirmed: '已确认',
@@ -564,7 +590,7 @@ export default {
 						// 直接使用现有订单进行支付
 						uni.showModal({
 							title: '支付信息费',
-							content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
+							content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
 							success: async (res) => {
 								if (!res.confirm) return
 								await this.payWithExistingOrder(pendingOrder.order_no)
@@ -579,7 +605,7 @@ export default {
 			
 			uni.showModal({
 				title: '支付信息费',
-				content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节试课 2 小时）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
+				content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
 				success: async (res) => {
 					if (!res.confirm) return
 					
@@ -676,205 +702,22 @@ export default {
 									}
 								}
 								
-								// 如果 uni-pay 调用失败，且不是"已支付过"的错误，进入下方降级路径
-								// 默认：createAndPay 直接返回错误，前端提示用户重试
-								// 开发者执行 uni.$enableMockPay() 后：走模拟支付 modal
-							}
-						}
-						
-						// 降级处理（默认提示重试；模拟支付开关打开后会弹 modal）
-						uni.hideLoading()
-						
-						let payResult
-						try {
-							payResult = await createAndPay({
-								appointment_id: this.appointmentId,
-								payment_type: 'deposit',
-								amount: this.infoFeeAmountCents
-							})
-						} catch (createError) {
-							// 如果创建订单失败，且错误是"已支付过"，查找现有订单
-							if (createError.message && createError.message.includes('已支付过')) {
-								try {
-									const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-									const orderListRes = await paymentCreate.getOrderList({
-										appointment_id: this.appointmentId,
-										payment_type: 'deposit',
-										status: 'all',
-										page: 1,
-										pageSize: 10
-									})
-									
-									if (orderListRes.code === 0 && orderListRes.data && orderListRes.data.list) {
-										const paidOrder = orderListRes.data.list.find(order => 
-											order.status === 'paid' || order.status === 'success'
-										)
-										
-										if (paidOrder) {
-											uni.showModal({
-												title: '提示',
-												content: '您已支付过信息费，无需重复支付。',
-												showCancel: false,
-												confirmText: '确定',
-												success: () => {
-													this.loadDetail()
-												}
-											})
-											return // 已支付，直接返回
-										}
-										
-										// 如果有待支付的订单，使用它
-										const pendingOrder = orderListRes.data.list.find(order => 
-											order.status === 'pending' || order.status === 'unpaid'
-										)
-										
-										if (pendingOrder) {
-											// 使用现有订单进行支付
-											await this.payWithExistingOrder(pendingOrder.order_no)
-											return // 使用现有订单支付，直接返回
-										}
-									}
-									
-									// 如果找不到订单，提示用户
-									uni.showModal({
-										title: '提示',
-										content: '您已支付过信息费，无需重复支付。',
-										showCancel: false,
-										confirmText: '确定',
-										success: () => {
-											this.loadDetail()
-										}
-									})
-									return // 找不到订单但提示已支付，直接返回
-								} catch (checkError) {
-									console.error('[支付信息费] 检查现有订单失败:', checkError)
-									// 检查失败，也提示用户
-									uni.showModal({
-										title: '提示',
-										content: '您已支付过信息费，无需重复支付。',
-										showCancel: false,
-										confirmText: '确定',
-										success: () => {
-											this.loadDetail()
-										}
-									})
-									return // 检查失败，直接返回
-								}
-							}
-							
-							// 其他错误，显示错误信息
-							uni.showToast({ 
-								title: createError.message || '支付失败，请稍后重试', 
-								icon: 'none',
-								duration: 2000
-								})
-							return // 其他错误，直接返回
-							}
-							
-						if (payResult && payResult.code === 0) {
-							// 模拟支付成功，需要调用云函数更新数据库
-							try {
-								const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-								
-								// 查找订单（优先查找待支付的订单）
-								const orderListRes = await paymentCreate.getOrderList({
-									appointment_id: this.appointmentId,
-									payment_type: 'deposit',
-									status: 'all',
-									page: 1,
-									pageSize: 10
-								})
-								
-								let orderNo = payResult.data?.order_no
-								
-								if (!orderNo && orderListRes.code === 0 && orderListRes.data && orderListRes.data.list && orderListRes.data.list.length > 0) {
-									// 优先使用待支付的订单
-									const pendingOrder = orderListRes.data.list.find(order => 
-										order.status === 'pending' || order.status === 'unpaid'
-									)
-									orderNo = pendingOrder ? pendingOrder.order_no : orderListRes.data.list[0].order_no
-								}
-								
-								if (orderNo) {
-									
-									// 更新订单状态
-									const payRes = await paymentCreate.mockPaySuccess({
-										order_no: orderNo
-							})
-							
-							if (payRes.code === 0) {
+								// 如果 uni-pay 调用失败，且不是"已支付过"的错误，提示用户重试
 								uni.showToast({
-											title: '支付成功，请确认预约', 
-											icon: 'success',
-											duration: 2000
-										})
-										setTimeout(() => {
-											this.loadDetail()
-										}, 1000)
-									} else {
-										throw new Error(payRes.message || '更新订单状态失败')
-									}
-								} else {
-									throw new Error('未找到支付订单')
-								}
-							} catch (error) {
-								console.error('[支付成功] 更新数据库失败:', error)
-								uni.showToast({ 
-									title: error.message || '支付成功，但更新状态失败，请刷新页面查看', 
+									title: error.message || '无法打开支付界面，请稍后重试',
 									icon: 'none',
-									duration: 3000
+									duration: 2000
 								})
-								setTimeout(() => {
-									this.loadDetail()
-								}, 2000)
-							}
-						} else {
-							// 如果支付失败，检查是否是"已支付过"的错误
-							if (payResult && payResult.message) {
-								if (payResult.message.includes('已支付过')) {
-									// 查找现有订单
-									try {
-										const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-										const orderListRes = await paymentCreate.getOrderList({
-											appointment_id: this.appointmentId,
-											payment_type: 'deposit',
-											status: 'all',
-											page: 1,
-											pageSize: 10
-										})
-										
-										if (orderListRes.code === 0 && orderListRes.data && orderListRes.data.list) {
-											const paidOrder = orderListRes.data.list.find(order => 
-												order.status === 'paid' || order.status === 'success'
-											)
-											
-											if (paidOrder) {
-												uni.showModal({
-													title: '提示',
-													content: '您已支付过信息费，无需重复支付。',
-													showCancel: false,
-													confirmText: '确定',
-													success: () => {
-														this.loadDetail()
-													}
-												})
-												return
-											}
-										}
-									} catch (checkError) {
-										console.error('[支付信息费] 检查现有订单失败:', checkError)
-									}
-								}
-								
-								if (!payResult.message.includes('取消')) {
-									uni.showToast({ 
-										title: payResult.message || '支付失败', 
-										icon: 'none',
-										duration: 2000
-									})
-								}
+								return
 							}
 						}
+
+						uni.hideLoading()
+						uni.showToast({
+							title: '支付组件未就绪，请稍后重试',
+							icon: 'none',
+							duration: 2000
+						})
 					} catch (error) {
 						uni.hideLoading()
 						console.error('支付信息费失败:', error)
@@ -1111,36 +954,31 @@ export default {
 		 * 使用现有订单进行支付
 		 */
 		async payWithExistingOrder(orderNo) {
-			uni.showLoading({ title: '支付中...', mask: true })
-			try {
-				const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-				
-				// 更新订单状态
-				const payRes = await paymentCreate.mockPaySuccess({
-					order_no: orderNo
-				})
-				
-				if (payRes.code === 0) {
-					uni.showToast({ 
-						title: '支付成功，请确认预约', 
-						icon: 'success',
-						duration: 2000
-					})
-					setTimeout(() => {
-						this.loadDetail()
-					}, 1000)
-				} else {
-					throw new Error(payRes.message || '更新订单状态失败')
-				}
-			} catch (error) {
-				console.error('[支付信息费] 使用现有订单支付失败:', error)
-				uni.showToast({ 
-					title: error.message || '支付失败，请稍后重试', 
+			const payComponent = this.$refs.pay
+			if (!payComponent || typeof payComponent.open !== 'function') {
+				uni.showToast({
+					title: '支付组件未就绪，请稍后重试',
 					icon: 'none',
 					duration: 2000
 				})
-			} finally {
-				uni.hideLoading()
+				return
+			}
+
+			try {
+				await payExistingOrderWithUniPay(payComponent, {
+					order_no: orderNo,
+					appointment_id: this.appointmentId,
+					payment_type: 'deposit',
+					amount: this.infoFeeAmountCents,
+					description: '支付信息费'
+				})
+			} catch (error) {
+				console.error('[支付信息费] 打开支付界面失败:', error)
+				uni.showToast({
+					title: error.message || '支付失败，请稍后重试',
+					icon: 'none',
+					duration: 2000
+				})
 			}
 		}
 	}

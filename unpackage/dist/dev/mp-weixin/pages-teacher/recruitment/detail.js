@@ -1,6 +1,5 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
-const utils_payment = require("../../utils/payment.js");
 const _sfc_main = {
   data() {
     return {
@@ -15,6 +14,9 @@ const _sfc_main = {
     this.load();
   },
   methods: {
+    async refreshData() {
+      await this.load();
+    },
     async load() {
       if (!this.id)
         return;
@@ -86,22 +88,6 @@ const _sfc_main = {
         url: `/pages-teacher/chat/conversation?${query}`
       });
     },
-    async ensureDepositBeforeChat(appointmentId) {
-      if (!appointmentId) {
-        common_vendor.index.showToast({ title: "未找到预约信息", icon: "none" });
-        return false;
-      }
-      const payResult = await utils_payment.createAndPay({
-        appointment_id: appointmentId,
-        payment_type: "deposit",
-        amount: 100
-      });
-      if (payResult.code !== 0) {
-        common_vendor.index.showToast({ title: payResult.message || "支付未完成", icon: "none" });
-        return false;
-      }
-      return true;
-    },
     async onInvite() {
       if (this.busy || !this.id)
         return;
@@ -112,11 +98,6 @@ const _sfc_main = {
         if (res.code !== 0) {
           common_vendor.index.showToast({ title: res.message || "失败", icon: "none" });
           return;
-        }
-        if (res.data.need_deposit) {
-          const ok = await this.ensureDepositBeforeChat(res.data.appointment_id);
-          if (!ok)
-            return;
         }
         this.goChat(res.data.conversation_id, res.data.appointment_id);
         await this.load();
@@ -135,11 +116,6 @@ const _sfc_main = {
         if (!mr || !mr.appointment_id || !mr.conversation_id) {
           common_vendor.index.showToast({ title: "数据异常", icon: "none" });
           return;
-        }
-        if (this.detail.need_deposit) {
-          const ok = await this.ensureDepositBeforeChat(mr.appointment_id);
-          if (!ok)
-            return;
         }
         this.goChat(mr.conversation_id, mr.appointment_id);
       } catch (e) {

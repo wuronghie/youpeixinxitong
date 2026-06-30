@@ -127,6 +127,7 @@
 import { mockMessages, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
 
 export default {
 	name: 'ChatConversation',
@@ -758,7 +759,16 @@ export default {
 				uni.showToast({ title: '邀请信息无效', icon: 'none' })
 				return
 			}
-			// 跳转到预约试课页面，带上 invite_id
+			const teacherInfo = this.conversationInfo?.teacher_info || {}
+			saveAppointmentTeacherPreview({
+				teacherUid: this.conversationInfo?.teacher_id || teacherInfo.teacher_id || '',
+				teacher_id: this.conversationInfo?.teacher_id || teacherInfo.teacher_id || '',
+				display_name: teacherInfo.display_name || teacherInfo.name || this.otherUserInfo.display_name || this.otherUserInfo.nickname || '',
+				name: teacherInfo.name || teacherInfo.display_name || this.otherUserInfo.nickname || '',
+				nickname: this.otherUserInfo.nickname || '',
+				avatar: teacherInfo.avatar || this.otherUserInfo.avatar || '',
+				hourly_rate: teacherInfo.hourly_rate
+			})
 			uni.navigateTo({
 				url: `/pages/appointment/create?invite_id=${inviteId}`
 			})

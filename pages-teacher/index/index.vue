@@ -300,14 +300,10 @@ export default {
 		// 移除事件监听
 		uni.$off('teacher-profile-updated')
 	},
-	/**
-	 * 下拉刷新触发
-	 * 功能：重新加载工作台数据
-	 */
-	onPullDownRefresh() {
-		this.loadData(true)
-	},
 	methods: {
+		async refreshData() {
+			await this.loadData(true)
+		},
 		/**
 		 * 加载工作台数据
 		 * @param {Boolean} fromPullDown - 是否来自下拉刷新

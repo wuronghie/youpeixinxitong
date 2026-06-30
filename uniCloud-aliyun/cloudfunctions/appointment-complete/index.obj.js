@@ -2,21 +2,20 @@
  * 完成课程云对象
  * 功能：课程完成、试课结算、信息费处理
  *
- * 交易结算规则（最新版 2026/04）：
+ * 交易结算规则（2026/06）：
  * 1) 教师信息费（order_type='deposit'，金额=hourly_rate × 2）在聊天开启时支付：
  *    · 试课成功 → 信息费归平台收取，不退回
- *    · 试课失败 → 信息费全额退回教师钱包（teacher-wallet.deposit_refunded）
- * 2) 试课费固定 70/30 分账（成功/失败都执行）：
- *    · 教师收入 = 0.7 × original_amount（试课总价，不论家长实际预付多少）
- *    · 平台费   = max(0, actualPaidAmount - teacherIncome)
- *    · 不再"仅首次试课成功收一节中介费"的旧逻辑
- *    · 不再因试课失败给家长自动退款（异常退款走 payment-refund.apply 由管理员审核）
+ *    · 试课失败 → 信息费全额退回教师钱包
+ * 2) 试课费分账：
+ *    · 试课成功 → 教师收入 = 100% × original_amount
+ *    · 试课失败 → 教师收入 = 70% × original_amount；家长自动退款 30% × actualPaidAmount
  * 3) 对外接口：
  *    · confirmTrialSuccess(appointment_id) — 家长确认试课满意
- *    · confirmTrialFail(appointment_id, reason) — 家长确认试课不满意（仅结算，不退家长）
- *    · requestRefund(...) — [DEPRECATED] 旧自动退款入口，已禁用，请改用 payment-refund.apply
+ *    · confirmTrialFail(appointment_id, reason) — 家长确认试课不满意
  *    · completeCourse(appointment_id) — 正式课程完成
  */
+
+const { resolveAppointmentAttendance } = require('./appointment-attendance-resolver.js')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -38,24 +37,49 @@ function error(message = 'error', code = -1, data = null) {
 }
 
 /**
- * 计算课程结束时间戳
+ * 计算排课结束时间戳（兼容 schedule / appointment_date 等多字段）
  * @param {Object} appointment 预约信息
  * @returns {Number|null} 结束时间戳（毫秒）
  */
 function getAppointmentEndTimestamp(appointment) {
-  if (!appointment || !appointment.date || !appointment.start_time) {
+  if (!appointment) return null
+  const schedule = appointment.schedule || {}
+  const date = schedule.date || appointment.appointment_date || appointment.date
+  const startTime = schedule.start_time || appointment.appointment_time || appointment.start_time
+  const duration = Number(schedule.duration || appointment.duration || 0)
+
+  if (!date || !startTime) return null
+
+  const startDate = new Date(`${String(date).replace(/-/g, '/')} ${startTime}`)
+  if (Number.isNaN(startDate.getTime())) return null
+
+  if (schedule.end_time) {
+    const endDate = new Date(`${String(date).replace(/-/g, '/')} ${schedule.end_time}`)
+    if (!Number.isNaN(endDate.getTime())) return endDate.getTime()
+  }
+
+  if (duration <= 0) return null
+  return startDate.getTime() + duration * 3600 * 1000
+}
+
+/**
+ * 家长确认/结算前置：教师已下课打卡则视为课程已结束，不再校验排课结束时间
+ */
+function assertReadyForParentConfirm(appointment) {
+  if (!appointment.class_ended_at) {
+    return { ok: false, message: '教师尚未下课打卡，无法确认结果，请稍后再试' }
+  }
+  return { ok: true }
+}
+
+async function loadResolvedAppointment(db, appointment_id) {
+  const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
+  if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
     return null
   }
-  const startTimeStr = `${appointment.date} ${appointment.start_time}`
-  const startDate = new Date(startTimeStr.replace(/-/g, '/'))
-  if (Number.isNaN(startDate.getTime())) {
-    return null
-  }
-  const durationHours = Number(appointment.duration) || 0
-  if (durationHours <= 0) {
-    return null
-  }
-  return startDate.getTime() + durationHours * 60 * 60 * 1000
+  const appointment = appointmentDoc.data[0]
+  await resolveAppointmentAttendance(db, appointment, { persistHeal: true })
+  return appointment
 }
 
 function roundCurrency(value) {
@@ -278,6 +302,145 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
   }
 }
 
+/** 累计学生 = 试课成功后的去重家长数 */
+async function countSuccessfulTrialStudents(db, teacher_id) {
+  const $ = db.command.aggregate
+  const agg = await db.collection('appointments')
+    .aggregate()
+    .match({
+      teacher_id,
+      course_type: 'trial',
+      status: 'completed'
+    })
+    .group({
+      _id: '$parent_id',
+      hasSuccess: $.max(
+        $.cond({
+          if: $.or([
+            $.eq(['$trial_result', 'success']),
+            $.eq([$.ifNull(['$trial_result', '']), ''])
+          ]),
+          then: 1,
+          else: 0
+        })
+      )
+    })
+    .match({ hasSuccess: 1 })
+    .count('total')
+    .end()
+
+  return agg.data && agg.data.length > 0 ? Number(agg.data[0].total || 0) : 0
+}
+
+/** 解析微信支付 out_trade_no */
+async function resolveOutTradeNo(db, order) {
+  if (!order) return null
+  if (order.out_trade_no) return order.out_trade_no
+  if (order.order_no) {
+    try {
+      const uniPayDoc = await db.collection('uni-pay-orders')
+        .where({ order_no: order.order_no })
+        .limit(1)
+        .get()
+      if (uniPayDoc.data && uniPayDoc.data.length > 0 && uniPayDoc.data[0].out_trade_no) {
+        return uniPayDoc.data[0].out_trade_no
+      }
+    } catch (e) {
+      console.warn('[resolveOutTradeNo] 通过 order_no 查找失败:', e.message)
+    }
+  }
+  if (order.appointment_id) {
+    try {
+      const uniPayDoc = await db.collection('uni-pay-orders')
+        .where({ 'custom.appointment_id': order.appointment_id })
+        .limit(1)
+        .get()
+      if (uniPayDoc.data && uniPayDoc.data.length > 0 && uniPayDoc.data[0].out_trade_no) {
+        return uniPayDoc.data[0].out_trade_no
+      }
+    } catch (e) {
+      console.warn('[resolveOutTradeNo] 通过 appointment_id 查找失败:', e.message)
+    }
+  }
+  return null
+}
+
+/**
+ * 试课失败时自动向家长退还部分试课费（微信原路退回）
+ * @returns {{ success: boolean, refundAmount: number, message?: string }}
+ */
+async function executeParentPartialRefund(db, paymentOrder, refundAmount, appointment) {
+  const amount = roundCurrency(refundAmount)
+  if (!paymentOrder || amount <= 0) {
+    return { success: true, refundAmount: 0, skipped: true }
+  }
+  if (paymentOrder.auto_partial_refunded) {
+    return { success: true, refundAmount: paymentOrder.auto_partial_refund_amount || amount, skipped: true }
+  }
+
+  const actualPaid = roundCurrency(Number(paymentOrder.amount || 0))
+  const safeRefund = Math.min(amount, actualPaid)
+  if (safeRefund <= 0) {
+    return { success: true, refundAmount: 0, skipped: true }
+  }
+
+  const out_trade_no = await resolveOutTradeNo(db, paymentOrder)
+  if (!out_trade_no) {
+    console.error('[executeParentPartialRefund] 未找到 out_trade_no', paymentOrder._id)
+    return { success: false, refundAmount: safeRefund, message: '未找到支付单号，无法自动退款' }
+  }
+
+  const out_refund_no = `TRIAL30_${String(paymentOrder._id).slice(-8)}_${Date.now()}`
+  const uniPayCo = uniCloud.importObject('uni-pay-co', { customUI: true })
+  const refundRes = await uniPayCo.refund({
+    out_trade_no,
+    out_refund_no,
+    refund_fee: Math.round(safeRefund * 100),
+    refund_desc: '试课不满意，退还30%试课费'
+  })
+
+  if (!refundRes || refundRes.errCode !== 0) {
+    console.error('[executeParentPartialRefund] uni-pay 退款失败:', refundRes)
+    return {
+      success: false,
+      refundAmount: safeRefund,
+      message: (refundRes && refundRes.errMsg) || '家长退款失败'
+    }
+  }
+
+  const now = Date.now()
+  await db.collection('payment-orders').doc(paymentOrder._id).update({
+    auto_partial_refunded: true,
+    auto_partial_refund_amount: safeRefund,
+    auto_partial_refund_time: now,
+    refund_amount: safeRefund,
+    update_time: now
+  })
+
+  try {
+    await db.collection('payment-refunds').add({
+      order_id: paymentOrder._id,
+      order_no: paymentOrder.order_no,
+      appointment_id: appointment._id,
+      payer_id: appointment.parent_id,
+      amount: safeRefund,
+      reason: '试课不满意自动退款30%',
+      refund_type: 'only_refund',
+      description: '系统自动：试课失败家长获得30%试课费退款',
+      status: 'success',
+      teacher_review_status: 'approved',
+      teacher_id: appointment.teacher_id,
+      create_time: now,
+      update_time: now,
+      finish_time: now
+    })
+  } catch (e) {
+    console.warn('[executeParentPartialRefund] 写入退款记录失败（不影响主流程）:', e)
+  }
+
+  return { success: true, refundAmount: safeRefund }
+}
+
 module.exports = {
   _before: function() {
     // 云对象前置方法
@@ -295,14 +458,10 @@ module.exports = {
     try {
       const db = uniCloud.database()
       
-      // 2. 查询预约
-      const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
-      
-      if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
+      const appointment = await loadResolvedAppointment(db, appointment_id)
+      if (!appointment) {
         return error('预约不存在')
       }
-      
-      const appointment = appointmentDoc.data[0]
       
       // 3. 验证状态（权限验证已在调用方完成）
       
@@ -310,31 +469,20 @@ module.exports = {
         return error('只有试课可以确认成功')
       }
       
-      if (appointment.status !== 'confirmed' && appointment.status !== 'in_progress') {
+      if (!['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)) {
         return error('当前预约状态不允许确认')
       }
-      
-      // 4.1 检查课程是否已结束
-      const endTimestamp = getAppointmentEndTimestamp(appointment)
-      if (!endTimestamp) {
-        return error('课程时间信息缺失，暂不可确认')
-      }
-      if (Date.now() < endTimestamp) {
-        return error('课程尚未结束，请在课程结束后再确认')
-      }
-      // 4.2 必须老师已完成下课打卡才允许确认结算
-      if (!appointment.class_ended_at) {
-        return error('教师尚未下课打卡，无法确认结果，请稍后再试')
+
+      const readyCheck = assertReadyForParentConfirm(appointment)
+      if (!readyCheck.ok) {
+        return error(readyCheck.message)
       }
 
       // 4. 查询支付订单，获取原价和优惠金额（如果使用了优惠券）
       const paymentOrder = await getLatestPaidCourseOrder(db, appointment_id)
       const settlement = buildSettlementResult(appointment, paymentOrder)
-      // 70/30 分账规则（试课成功）：
-      // - 教师收入 = 0.7 × original_amount（不论家长预付多少）
-      // - 平台费   = max(0, actualPaid - teacherIncome)
-      const teacherShareRate = 0.7
-      settlement.teacherIncome = roundCurrency(settlement.originalAmount * teacherShareRate)
+      // 试课成功：教师获得 100% 试课费（以原价 original_amount 为基数）
+      settlement.teacherIncome = roundCurrency(settlement.originalAmount)
       settlement.platformFee = roundCurrency(Math.max(0, settlement.actualPaidAmount - settlement.teacherIncome))
       
       console.log('[confirmTrialSuccess] 支付订单信息:', {
@@ -350,12 +498,11 @@ module.exports = {
         } : null
       })
       
-      console.log('[confirmTrialSuccess] 试课成功结算（70/30 分账）:', {
+      console.log('[confirmTrialSuccess] 试课成功结算（100% 给教师）:', {
         appointment_id,
         course_type: appointment.course_type,
         originalAmount: settlement.originalAmount,
         actualPaidAmount: settlement.actualPaidAmount,
-        teacherShareRate,
         teacherIncome: settlement.teacherIncome,
         platformFee: settlement.platformFee
       })
@@ -407,12 +554,13 @@ module.exports = {
           }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
+      const totalStudents = await countSuccessfulTrialStudents(db, appointment.teacher_id)
       
       await db.collection('teacher-profiles')
         .where({ teacher_id: appointment.teacher_id })
         .update({
           total_courses: db.command.inc(1),
-          total_students: db.command.inc(1),
+          total_students: totalStudents,
           trial_count: trialCount,
           trial_success_count: trialSuccessCount,
           trial_success_rate: Number(trialSuccessRate.toFixed(2)),
@@ -436,13 +584,12 @@ module.exports = {
   },
   
   /**
-   * 家长确认试课不满意（新流程：仅结算，不退家长任何钱）
+   * 家长确认试课不满意
    *
    * 结算规则：
-   *   · 教师收入 = 0.7 × original_amount（与成功一致）
-   *   · 平台费   = max(0, actualPaid - teacherIncome)
-   *   · 信息费   = 退回教师钱包（teacher-wallet.deposit_refunded += info_fee）
-   *   · 家长     = 不退任何钱（如需异常退款请走 payment-refund.apply 由管理员审核）
+   *   · 教师收入 = 70% × original_amount
+   *   · 家长退款 = 30% × actualPaidAmount（微信原路退回）
+   *   · 信息费退回教师钱包
    *
    * @param {Object} params
    * @param {String} params.appointment_id 预约ID
@@ -468,12 +615,11 @@ module.exports = {
         }
       }
 
-      // 2. 查询预约
-      const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
-      if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
+      // 2. 查询预约（含旧数据打卡自愈）
+      const appointment = await loadResolvedAppointment(db, appointment_id)
+      if (!appointment) {
         return error('预约不存在')
       }
-      const appointment = appointmentDoc.data[0]
 
       // 3. 校验权限 + 状态
       if (parent_id && appointment.parent_id !== parent_id) {
@@ -482,36 +628,34 @@ module.exports = {
       if (appointment.course_type !== 'trial') {
         return error('只有试课可以确认结果')
       }
-      if (appointment.status !== 'confirmed' && appointment.status !== 'in_progress') {
+      if (!['pending_confirm', 'confirmed', 'in_progress'].includes(appointment.status)) {
         return error('当前预约状态不允许确认结果')
       }
 
-      // 4. 校验课程已结束
-      const endTimestamp = getAppointmentEndTimestamp(appointment)
-      if (!endTimestamp) {
-        return error('课程时间信息缺失，暂不可确认')
-      }
-      if (Date.now() < endTimestamp) {
-        return error('课程尚未结束，请在课程结束后再确认')
-      }
-      // 4.1 必须老师已完成下课打卡才允许确认结算
-      if (!appointment.class_ended_at) {
-        return error('教师尚未下课打卡，无法确认结果，请稍后再试')
+      const readyCheck = assertReadyForParentConfirm(appointment)
+      if (!readyCheck.ok) {
+        return error(readyCheck.message)
       }
 
-      // 5. 试课费 70/30 分账（与 confirmTrialSuccess 保持一致）
+      // 5. 试课失败：教师 70%，家长退 30%
       const paymentOrder = await getLatestPaidCourseOrder(db, appointment_id)
       const settlement = buildSettlementResult(appointment, paymentOrder)
       const teacherShareRate = 0.7
+      const parentRefundRate = 0.3
       settlement.teacherIncome = roundCurrency(settlement.originalAmount * teacherShareRate)
-      settlement.platformFee = roundCurrency(Math.max(0, settlement.actualPaidAmount - settlement.teacherIncome))
+      const parentRefundAmount = roundCurrency(settlement.actualPaidAmount * parentRefundRate)
+      settlement.platformFee = roundCurrency(
+        Math.max(0, settlement.actualPaidAmount - settlement.teacherIncome - parentRefundAmount)
+      )
 
-      console.log('[confirmTrialFail] 试课失败结算（70/30 + 信息费退老师）:', {
+      console.log('[confirmTrialFail] 试课失败结算（70% 教师 + 30% 退家长）:', {
         appointment_id,
         originalAmount: settlement.originalAmount,
         actualPaidAmount: settlement.actualPaidAmount,
         teacherShareRate,
+        parentRefundRate,
         teacherIncome: settlement.teacherIncome,
+        parentRefundAmount,
         platformFee: settlement.platformFee
       })
 
@@ -524,6 +668,7 @@ module.exports = {
         trial_fail_reason: reason || '',
         platform_fee: settlement.platformFee,
         teacher_income: settlement.teacherIncome,
+        parent_refund_amount: parentRefundAmount,
         wallet_settled: false,
         wallet_settlement_amount: settlement.teacherIncome,
         update_time: settlementTime
@@ -546,6 +691,26 @@ module.exports = {
         wallet_settlement_amount: settlement.teacherIncome,
         update_time: Date.now()
       })
+
+      // 7.1 家长自动退款 30% 试课费
+      let parentRefundResult = { success: true, refundAmount: 0, skipped: true }
+      if (paymentOrder && parentRefundAmount > 0) {
+        parentRefundResult = await executeParentPartialRefund(
+          db,
+          paymentOrder,
+          parentRefundAmount,
+          appointment
+        )
+        if (!parentRefundResult.success) {
+          console.error('[confirmTrialFail] 家长30%退款失败:', parentRefundResult.message)
+        } else {
+          await db.collection('appointments').doc(appointment_id).update({
+            parent_refund_amount: parentRefundResult.refundAmount,
+            refund_status: parentRefundResult.refundAmount > 0 ? 'partial_auto' : appointment.refund_status,
+            update_time: Date.now()
+          })
+        }
+      }
 
       // 8. 信息费退回教师钱包（订单标记 info_fee_refunded）
       try {
@@ -630,10 +795,14 @@ module.exports = {
         status: 'completed',
         trial_result: 'fail',
         teacher_income: settlement.teacherIncome,
+        parent_refund_amount: parentRefundResult.refundAmount || parentRefundAmount,
         platform_fee: settlement.platformFee,
         info_fee_refunded: true,
-        can_review: true
-      }, '已确认试课不满意，教师收入与信息费已结算；如需退款请联系平台')
+        can_review: true,
+        can_reinvite_trial: true
+      }, parentRefundResult.success
+        ? '已确认试课不满意，费用已按规则结算，教师可再次发起试课邀请'
+        : '试课结果已确认，教师收入已结算；家长退款处理异常，请联系平台')
     } catch (e) {
       console.error('[confirmTrialFail] 试课失败确认异常:', e)
       return error(e.message || '操作失败')
@@ -676,15 +845,13 @@ module.exports = {
         appointment_id
       })
       
-      // 2. 查询预约
-      const appointmentDoc = await db.collection('appointments').doc(appointment_id).get()
+      // 2. 查询预约（含旧数据打卡自愈）
+      const appointment = await loadResolvedAppointment(db, appointment_id)
       
-      if (!appointmentDoc.data || appointmentDoc.data.length === 0) {
+      if (!appointment) {
         console.error('[completeCourse] 预约不存在:', { appointment_id })
         return error('预约不存在')
       }
-      
-      const appointment = appointmentDoc.data[0]
       
       console.log('[completeCourse] 读取到预约信息:', {
         appointment_id,

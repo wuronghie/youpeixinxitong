@@ -171,17 +171,20 @@ module.exports = {
         db.collection('appointments').where({
           status: dbCmd.in(['confirmed', 'in_progress']),
           deposit_paid: true,
+          parent_paid: true,
           class_started_at: dbCmd.exists(false)
         }).count(),
         db.collection('appointments').where({
           status: 'in_progress',
           deposit_paid: true,
+          parent_paid: true,
           class_started_at: dbCmd.exists(true),
           class_ended_at: dbCmd.exists(false)
         }).count(),
         db.collection('appointments').where({
           status: 'in_progress',
           deposit_paid: true,
+          parent_paid: true,
           class_started_at: dbCmd.exists(true),
           class_ended_at: dbCmd.exists(false),
           date: dbCmd.lte(overdueDateStr)

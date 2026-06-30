@@ -1,5 +1,11 @@
 <template>
 	<view>
+		<view v-if="!pageReady" class="page-loading">
+			<view class="page-loading-spinner"></view>
+			<text class="page-loading-text">加载教师信息...</text>
+		</view>
+
+		<template v-else>
 		<!-- 教师信息头部 -->
 		<view class="main-bg-color py-4 px-3">
 			<view class="d-flex a-center text-white">
@@ -10,7 +16,7 @@
 					style="width: 140rpx;height: 140rpx;border: 4rpx solid rgba(255,255,255,0.3);"
 				/>
 				<view class="ml-3 flex-1">
-					<text class="font-lg font-weight d-block mb-1">{{ teacherInfo.display_name || teacherInfo.name || '教师' }}</text>
+					<text class="font-lg font-weight d-block mb-1">{{ teacherDisplayName }}</text>
 					<view class="d-flex a-center flex-wrap">
 						<text class="font-sm mr-3">⭐ {{ formatRating(teacherInfo.rating) }}</text>
 						<text class="font-sm mr-3">¥{{ teacherInfo.hourly_rate || 100 }}/小时</text>
@@ -187,12 +193,18 @@
 				{{ isSubmitting ? '提交中...' : '确认预约' }}
 			</button>
 		</view>
+		</template>
 	</view>
 </template>
 
 <script>
 import card from '@/components/common/card.vue'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import {
+	readAppointmentTeacherPreview,
+	clearAppointmentTeacherPreview,
+	applyAppointmentTeacherPreview
+} from '@/utils/appointmentTeacherPreview.js'
 import { 
 	chooseLocation, 
 	openLocation, 
@@ -208,6 +220,8 @@ export default {
 		return {
 			teacherProfileId: '',
 			teacherUid: '',
+			routeInviteId: '',
+			pageReady: false,
 			teacherInfo: {},
 			formData: {
 				courseType: 'formal', // 默认正式课程，试课只能通过邀请创建
@@ -237,15 +251,26 @@ export default {
 			scrollTop: 0,
 			canRefresh: true,
 			// 默认头像URL（从CDN）
-			defaultAvatarUrl: getDefaultAvatarUrl()
+			defaultAvatarUrl: getDefaultAvatarUrl(),
+			inviteHourlyRate: 0,
+			inviteTotalAmount: 0
 		}
 	},
 	computed: {
+		teacherDisplayName() {
+			return this.teacherInfo.display_name || this.teacherInfo.name || this.teacherInfo.nickname || '教师'
+		},
 		hourlyRate() {
+			if (this.formData.invite_id && this.inviteHourlyRate > 0) {
+				return this.inviteHourlyRate
+			}
 			const rate = Number(this.teacherInfo?.hourly_rate)
 			return Number.isFinite(rate) && rate > 0 ? rate : 100
 		},
 		trialPrice() {
+			if (this.formData.invite_id && this.inviteTotalAmount > 0) {
+				return this.inviteTotalAmount
+			}
 			return this.hourlyRate * 2
 		},
 		formalPrice() {
@@ -287,16 +312,35 @@ export default {
 		}
 	},
 	async onLoad(options) {
+		this.pageReady = false
+		this.routeInviteId = options.invite_id || ''
 		this.teacherProfileId = options.teacherProfileId || options.id || options.teacherId || ''
 		this.teacherUid = options.teacherUid || options.teacher_id || ''
-		// 支持从试课邀请创建（传入 invite_id）
-		if (options.invite_id) {
-			this.formData.invite_id = options.invite_id
-			await this.loadInviteInfo(options.invite_id)
-		}
+		applyAppointmentTeacherPreview(this, readAppointmentTeacherPreview())
 		this.setupDateRange()
-		await this.ensureTeacher()
-		this.prefillFromProfile()
+
+		try {
+			if (this.routeInviteId) {
+				this.formData.invite_id = this.routeInviteId
+				this.formData.courseType = 'trial'
+				const ok = await this.loadInviteInfo(this.routeInviteId)
+				if (!ok) return
+				if (this.shouldFetchTeacherDetail()) {
+					await this.loadTeacher()
+				}
+			} else {
+				await this.ensureTeacher()
+			}
+			this.prefillFromProfile()
+			this.pageReady = true
+		} catch (error) {
+			console.error('[appointment/create] 页面初始化失败:', error)
+			uni.showToast({ title: error.message || '加载失败', icon: 'none' })
+			setTimeout(() => uni.navigateBack(), 1500)
+		}
+	},
+	onUnload() {
+		clearAppointmentTeacherPreview()
 	},
 	methods: {
 		setupDateRange() {
@@ -308,6 +352,13 @@ export default {
 			this.formData.date = this.dateOptions.start
 		},
 		async ensureTeacher() {
+			if (this.routeInviteId || this.formData.invite_id) {
+				if (!this.teacherUid && !this.teacherProfileId) {
+					uni.showToast({ title: '未找到邀请对应的教师', icon: 'none' })
+					setTimeout(() => uni.navigateBack(), 1500)
+				}
+				return
+			}
 			if (!this.teacherProfileId && !this.teacherUid) {
 				await this.initTeacherFromCloud()
 			}
@@ -317,6 +368,12 @@ export default {
 				return
 			}
 			await this.loadTeacher()
+		},
+		shouldFetchTeacherDetail() {
+			const info = this.teacherInfo || {}
+			const hasName = !!(info.display_name || info.name || info.nickname)
+			const hasRate = info.hourly_rate != null && Number(info.hourly_rate) > 0
+			return !hasName || !hasRate
 		},
 		prefillFromProfile() {
 			const profile = uni.getStorageSync('userInfo')
@@ -331,31 +388,43 @@ export default {
 		 * @param {String} invite_id 邀请ID
 		 */
 		async loadInviteInfo(invite_id) {
-			if (!invite_id) return
+			if (!invite_id) return false
 			try {
 				const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
 				const res = await appointmentQuery.getAppointmentDetail({ appointment_id: invite_id })
 				if (res.code === 0 && res.data) {
 					const invite = res.data
-					// 验证是试课邀请状态
 					if (invite.status !== 'trial_invited') {
 						uni.showToast({ title: '该试课邀请已处理', icon: 'none' })
 						setTimeout(() => uni.navigateBack(), 1500)
-						return
+						return false
 					}
-					// 预填充教师ID（从预约数据中获取 teacher_id）
 					if (invite.teacher_id) {
 						this.teacherUid = invite.teacher_id
 					}
-					// 课程类型固定为试课（从邀请创建）
+					const inviteRate = Number(invite.trial_invite_hourly_rate || invite.hourly_rate || 0)
+					const inviteAmount = Number(invite.total_amount || 0)
+					this.inviteHourlyRate = inviteRate > 0 ? inviteRate : 0
+					this.inviteTotalAmount = inviteAmount > 0 ? inviteAmount : (inviteRate > 0 ? inviteRate * 2 : 0)
+					if (invite.teacher_info) {
+						applyAppointmentTeacherPreview(this, {
+							...invite.teacher_info,
+							display_name: invite.teacher_info.display_name || invite.teacher_info.name,
+							name: invite.teacher_info.name || invite.teacher_info.display_name,
+							teacher_id: invite.teacher_id,
+							hourly_rate: this.inviteHourlyRate || invite.teacher_info.hourly_rate
+						})
+					}
 					this.formData.courseType = 'trial'
 					this.formData.invite_id = invite._id
-				} else {
-					throw new Error(res.message || '加载邀请信息失败')
+					return true
 				}
+				throw new Error(res.message || '加载邀请信息失败')
 			} catch (error) {
 				console.error('加载试课邀请信息失败:', error)
 				uni.showToast({ title: error.message || '加载失败', icon: 'none' })
+				setTimeout(() => uni.navigateBack(), 1500)
+				return false
 			}
 		},
 		async initTeacherFromCloud() {
@@ -374,11 +443,21 @@ export default {
 		async loadTeacher() {
 			if (this.isLoading) return
 			this.isLoading = true
+			const previousInfo = { ...(this.teacherInfo || {}) }
 			try {
 				const teacherListObj = uniCloud.importObject('teacher-list', { customUI: true })
 				const res = await teacherListObj.getDetail({ teacherId: this.teacherProfileId || this.teacherUid })
 				if (res.code === 0) {
-					this.teacherInfo = res.data
+					const merged = {
+						...previousInfo,
+						...res.data,
+						display_name: res.data.display_name || res.data.name || previousInfo.display_name || previousInfo.name,
+						name: res.data.name || res.data.display_name || previousInfo.name || previousInfo.display_name
+					}
+					if (this.formData.invite_id && this.inviteHourlyRate > 0) {
+						merged.hourly_rate = this.inviteHourlyRate
+					}
+					this.teacherInfo = merged
 					this.teacherProfileId = res.data._id || this.teacherProfileId
 					this.teacherUid = res.data.teacher_id || this.teacherUid
 				} else {
@@ -386,7 +465,10 @@ export default {
 				}
 			} catch (error) {
 				console.error('加载教师失败:', error)
-				uni.showToast({ title: error.message || '加载教师失败', icon: 'none' })
+				if (!(previousInfo.display_name || previousInfo.name)) {
+					uni.showToast({ title: error.message || '加载教师失败', icon: 'none' })
+					throw error
+				}
 			} finally {
 				this.isLoading = false
 				this.isRefreshing = false
@@ -577,12 +659,12 @@ export default {
 				const params = { ...baseParams, ...optionalParams }
 				const res = await appointmentCreateObj.create(params)
 				if (res.code === 0) {
-					uni.showToast({ title: '预约成功', icon: 'success' })
+					uni.showToast({ title: '预约成功，请完成支付', icon: 'success' })
 					setTimeout(() => {
 						if (res.data?.appointment_id) {
 							uni.redirectTo({ url: `/pages/appointment/detail?id=${res.data.appointment_id}` })
 						} else {
-							uni.redirectTo({ url: '/pages/appointment/list' })
+							uni.redirectTo({ url: '/pages/appointment/list?status=pending_payment' })
 						}
 					}, 1200)
 				} else {
@@ -604,6 +686,35 @@ export default {
 	flex: 1;
 	height: calc(100vh - 500rpx);
 	padding-bottom: 160rpx;
+}
+
+.page-loading {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	background: #f5f5f5;
+}
+
+.page-loading-spinner {
+	width: 56rpx;
+	height: 56rpx;
+	border: 4rpx solid #e0e0e0;
+	border-top-color: #4A90E2;
+	border-radius: 50%;
+	animation: page-loading-spin 0.8s linear infinite;
+}
+
+.page-loading-text {
+	margin-top: 24rpx;
+	font-size: 28rpx;
+	color: #888;
+}
+
+@keyframes page-loading-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
 }
 
 /* 地图预览容器 */

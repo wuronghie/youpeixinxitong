@@ -1,5 +1,6 @@
 {
   "navigationBarTitleText": "编辑主页",
+  "enablePullDownRefresh": false,
   "usingComponents": {
     "card": "../../components/common/card"
   }

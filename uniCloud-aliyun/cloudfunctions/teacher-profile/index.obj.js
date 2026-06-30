@@ -6,6 +6,9 @@
 
 const uniID = require('uni-id-common')
 
+/** 课时费下限（元/小时） */
+const MIN_HOURLY_RATE = 120
+
 function success(data = null, message = 'success') {
   return {
     code: 0,
@@ -67,7 +70,7 @@ function hasProfileChanged(oldProfile, newData) {
   // 比较基本字段
   if (oldProfile.display_name !== newData.display_name) return true
   if ((oldProfile.gender || '') !== (newData.gender || '')) return true
-  if (oldProfile.hourly_rate !== newData.hourly_rate) return true
+  if (Number(oldProfile.hourly_rate) !== Number(newData.hourly_rate)) return true
   if ((oldProfile.introduction || '') !== (newData.introduction || '')) return true
   // 联系手机号也展示给已支付家长，修改后需要重新审核
   if ((oldProfile.contact_mobile || '') !== (newData.contact_mobile || '')) return true
@@ -101,6 +104,47 @@ function hasProfileChanged(oldProfile, newData) {
   if (newData.avatar && oldProfile.avatar !== newData.avatar) return true
   
   return false
+}
+
+/**
+ * 是否需要重新审核（不含仅修改 hourly_rate 的场景）
+ */
+function hasAuditRequiredChanges(oldProfile, newData) {
+  if (oldProfile.display_name !== newData.display_name) return true
+  if ((oldProfile.gender || '') !== (newData.gender || '')) return true
+  if ((oldProfile.introduction || '') !== (newData.introduction || '')) return true
+  if ((oldProfile.contact_mobile || '') !== (newData.contact_mobile || '')) return true
+  if (!deepEqual(oldProfile.subjects || [], newData.subjects || [])) return true
+  if (!deepEqual(oldProfile.grades || [], newData.grades || [])) return true
+  if (!deepEqual(oldProfile.qualifications || [], newData.qualifications || [])) return true
+  if (!deepEqual(oldProfile.teaching_areas || [], newData.teaching_areas || [])) return true
+  if (!deepEqual(oldProfile.tags || [], newData.tags || [])) return true
+  if ((oldProfile.school || '') !== (newData.school || '')) return true
+  if ((oldProfile.experience || '') !== (newData.experience || '')) return true
+  const oldExp = oldProfile.teaching_experience || { years: 0, description: '' }
+  const newExp = newData.teaching_experience || { years: 0, description: '' }
+  if (oldExp.years !== newExp.years || (oldExp.description || '') !== (newExp.description || '')) return true
+  const oldEdu = oldProfile.education || { degree: '', school: '', major: '', graduation_year: null }
+  const newEdu = {
+    degree: newData.education?.degree || '',
+    school: '',
+    major: newData.education?.major || '',
+    graduation_year: newData.education?.graduation_year || null
+  }
+  if (!deepEqual(oldEdu, newEdu)) return true
+  if (newData.avatar && oldProfile.avatar !== newData.avatar) return true
+  return false
+}
+
+function validateHourlyRate(hourly_rate) {
+  const rate = Number(hourly_rate)
+  if (!rate || rate <= 0) {
+    return '请填写正确的课时费'
+  }
+  if (rate < MIN_HOURLY_RATE) {
+    return `课时费不能低于${MIN_HOURLY_RATE}元/小时`
+  }
+  return null
 }
 
 /** 资质证书截图 URL / fileID 列表（用于服务端图片安全比对） */
@@ -268,11 +312,13 @@ module.exports = {
       if (!Array.isArray(subjects) || subjects.length === 0) {
         return error('请至少选择一个教学科目')
       }
-      if (!Array.isArray(grades) || grades.length === 0) {
+      const isFullTimeTeacher = school === '专职老师'
+      if (!isFullTimeTeacher && (!Array.isArray(grades) || grades.length === 0)) {
         return error('请至少选择一个适合年级')
       }
-      if (!hourly_rate || Number(hourly_rate) <= 0) {
-        return error('请填写正确的课时费')
+      const hourlyRateError = validateHourlyRate(hourly_rate)
+      if (hourlyRateError) {
+        return error(hourlyRateError)
       }
       if (experienceYears <= 0) {
         return error('请填写教龄')
@@ -350,13 +396,15 @@ module.exports = {
         return error('手机号格式不正确')
       }
 
+      const normalizedHourlyRate = Number(hourly_rate)
+
       const newData = {
         display_name,
         gender: genderVal,
         contact_mobile: contactMobileStr,
         subjects,
-        grades,
-        hourly_rate,
+        grades: isFullTimeTeacher ? [] : (Array.isArray(grades) ? grades : []),
+        hourly_rate: normalizedHourlyRate,
         introduction: introduction || '',
         school: school || '',
         experience: experience || '',
@@ -393,6 +441,27 @@ module.exports = {
           is_verified: profile.is_verified,
           available: profile.available
         }, '资料未修改，无需审核')
+      }
+
+      const auditRequired = hasAuditRequiredChanges(profile, newData)
+      const priceOnlyChange = !auditRequired && Number(profile.hourly_rate) !== normalizedHourlyRate
+
+      // 4.1 仅修改课时费：免审核，直接生效
+      if (priceOnlyChange) {
+        await db.collection('teacher-profiles').doc(profile._id).update({
+          hourly_rate: normalizedHourlyRate,
+          update_time: Date.now()
+        })
+        console.log(`教师 ${teacher_id} 仅修改课时费为 ${normalizedHourlyRate}，免审核直接生效`)
+        return success({
+          teacher_id,
+          display_name,
+          hourly_rate: normalizedHourlyRate,
+          status: 'price_updated',
+          is_verified: profile.is_verified,
+          available: profile.available,
+          audit_status: profile.audit_status
+        }, '课时费已更新')
       }
 
       // 5. 有修改，更新教师资料并重置审核状态

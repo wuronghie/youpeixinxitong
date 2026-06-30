@@ -212,6 +212,7 @@ import ParentTabBar from '@/components/ParentTabBar.vue'
 import card from '@/components/common/card.vue'
 import divider from '@/components/common/divider.vue'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
@@ -357,6 +358,7 @@ export default {
 				this.loadInviteCode()
 			}, 50)
 		})
+		checkPendingTrialConfirmReminder()
 	},
 	onShareAppMessage() {
 		const query = this.myInviteCode ? `?inviteCode=${this.myInviteCode}` : ''
@@ -373,14 +375,11 @@ export default {
 			query
 		}
 	},
-	/**
-	 * 下拉刷新触发
-	 * 功能：重新加载页面数据
-	 */
-	onPullDownRefresh() {
-		this.initPage(true)
-	},
 	methods: {
+		async refreshData() {
+			await this.initPage(true)
+			await this.loadInviteCode()
+		},
 		hasValidParentSession() {
 			const token = uni.getStorageSync('uni_id_token')
 			const stored = uni.getStorageSync('userInfo') || {}

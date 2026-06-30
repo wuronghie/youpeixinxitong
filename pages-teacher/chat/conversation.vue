@@ -130,6 +130,39 @@
 				</view>
 			</view>
 		</view>
+		
+		<!-- uni-pay 支付组件 -->
+		<uni-pay
+			ref="pay"
+			height="70vh"
+			:to-success-page="false"
+			return-url="/pages-teacher/chat/conversation"
+			logo="/static/logo.png"
+			@success="onPaySuccess"
+			@create="onPayCreate"
+			@fail="onPayFail"
+		></uni-pay>
+		<!-- 试课费用确认弹窗 -->
+		<view v-if="showTrialFeeModal" class="trial-fee-mask" @click="closeTrialFeeModal">
+			<view class="trial-fee-panel" @click.stop>
+				<text class="trial-fee-title">确认试课费用</text>
+				<text class="trial-fee-desc">本次邀请的课时费仅作用于该次试课，不会修改您的档案定价。</text>
+				<view class="trial-fee-row">
+					<text class="trial-fee-label">课时费（元/小时）</text>
+					<input
+						class="trial-fee-input"
+						type="digit"
+						v-model="trialInviteHourlyRateInput"
+						placeholder="不低于120"
+					/>
+				</view>
+				<text class="trial-fee-total">试课总价（2小时）：¥{{ trialInviteTotalAmount }}</text>
+				<view class="trial-fee-actions">
+					<button class="trial-fee-btn trial-fee-btn-cancel" @click="closeTrialFeeModal">取消</button>
+					<button class="trial-fee-btn trial-fee-btn-confirm" @click="confirmInviteTrial">确认发送</button>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -138,6 +171,8 @@ import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 
 import { mockMessages, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
+import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
+import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '@/utils/payment.js'
 
 export default {
 	name: 'TeacherChatConversation',
@@ -163,6 +198,10 @@ export default {
 			payingDeposit: false,
 			invitingTrial: false, // 是否正在发送试课邀请
 			hasTrialSuccess: false, // 与当前家长是否已有试课成功记录
+			hasActiveTrial: false, // 是否有进行中的试课
+			showTrialFeeModal: false,
+			trialInviteHourlyRateInput: '',
+			pendingInviteParentId: '',
 			pagination: {
 				page: 1,
 				pageSize: 30,
@@ -180,6 +219,14 @@ export default {
 			const rate = Number(this.teacherHourlyRate) || 0
 			const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0
 			return fee > 0 ? fee : 1
+		},
+		trialInviteTotalAmount() {
+			const rate = Number(this.trialInviteHourlyRateInput) || 0
+			if (rate <= 0) return '0.00'
+			return (rate * 2).toFixed(2)
+		},
+		infoFeeAmountCents() {
+			return Math.round(this.infoFeeAmount * 100)
 		},
 		formattedMessages() {
 			const result = []
@@ -221,8 +268,8 @@ export default {
 			const parentId = this.conversationInfo.parent_id || this.otherUserInfo?.user_id
 			// 如果已经有试课成功记录，则不再显示邀请试课按钮
 			if (this.hasTrialSuccess) return false
-			// 会话里已经发过试课邀请卡片时，不再重复显示
-			if (this.messages.some(msg => this.isTrialInviteMessage(msg))) return false
+			// 有进行中的试课时不重复邀请；试课失败后可再次邀请
+			if (this.hasActiveTrial) return false
 			return !!parentId
 		}
 	},
@@ -362,13 +409,16 @@ export default {
 				const res = await appointmentQuery.checkTrialStatusForParent({ parent_id: parentId })
 				if (res.code === 0 && res.data) {
 					this.hasTrialSuccess = !!res.data.hasTrialSuccess
+					this.hasActiveTrial = !!res.data.hasActiveTrial
 					console.log('[teacher-chat-conversation] 试课状态检查结果:', res.data)
 				} else {
 					this.hasTrialSuccess = false
+					this.hasActiveTrial = false
 				}
 			} catch (error) {
 				console.error('[teacher-chat-conversation] 检查试课状态失败:', error)
 				this.hasTrialSuccess = false
+				this.hasActiveTrial = false
 			}
 		},
 		async refreshMessages() {
@@ -651,68 +701,86 @@ export default {
 		 */
 		async handleInviteTrial() {
 			if (this.invitingTrial || !this.conversationId) return
-			
+
+			const parentId = this.conversationInfo.parent_id || this.otherUserInfo?.user_id
+			if (!parentId && (this.inviteSource !== 'recruitment' || !this.appointmentId)) {
+				uni.showToast({ title: '未找到家长信息', icon: 'none' })
+				return
+			}
+
+			// 招募入口已有预约时直接发卡片；否则先确认试课费用
+			if (this.appointmentId && this.inviteSource === 'recruitment') {
+				await this.sendTrialInviteCard(this.appointmentId)
+				return
+			}
+
+			const defaultRate = Number(this.teacherHourlyRate) || 120
+			this.trialInviteHourlyRateInput = String(defaultRate >= 120 ? defaultRate : 120)
+			this.pendingInviteParentId = parentId
+			this.showTrialFeeModal = true
+		},
+		closeTrialFeeModal() {
+			this.showTrialFeeModal = false
+			this.pendingInviteParentId = ''
+		},
+		async confirmInviteTrial() {
+			const rate = Number(this.trialInviteHourlyRateInput)
+			if (!rate || rate < 120) {
+				uni.showToast({ title: '试课课时费不能低于120元/小时', icon: 'none' })
+				return
+			}
+			const parentId = this.pendingInviteParentId
+			if (!parentId) {
+				uni.showToast({ title: '未找到家长信息', icon: 'none' })
+				return
+			}
+			this.showTrialFeeModal = false
+			this.invitingTrial = true
 			try {
-				this.invitingTrial = true
-
-				let inviteId = this.appointmentId || this.conversationInfo?.appointment_id || ''
-				if (!inviteId || this.inviteSource !== 'recruitment') {
-					// 获取家长ID（从会话信息中获取）
-					const parentId = this.conversationInfo.parent_id
-					if (!parentId) {
-						uni.showToast({ title: '未找到家长信息', icon: 'none' })
-						this.invitingTrial = false
-						return
-					}
-					
-					// 非招募入口沿用原逻辑，创建新的试课邀请
-					const appointmentCreate = uniCloud.importObject('appointment-create', { customUI: true })
-					const inviteRes = await appointmentCreate.inviteTrial({ parent_id: parentId })
-					
-					if (inviteRes.code !== 0) {
-						uni.showToast({ title: inviteRes.message || '发送邀请失败', icon: 'none' })
-						this.invitingTrial = false
-						return
-					}
-					
-					inviteId = inviteRes.data?.appointment_id || inviteRes.data?.invite_id
-				}
-
-				if (!inviteId) {
-					uni.showToast({ title: '邀请创建失败', icon: 'none' })
-					this.invitingTrial = false
+				const appointmentCreate = uniCloud.importObject('appointment-create', { customUI: true })
+				const inviteRes = await appointmentCreate.inviteTrial({
+					parent_id: parentId,
+					trial_hourly_rate: rate
+				})
+				if (inviteRes.code !== 0) {
+					uni.showToast({ title: inviteRes.message || '发送邀请失败', icon: 'none' })
 					return
 				}
-				
-				// 发送邀请卡片消息（使用特殊格式的 content）
-				const inviteMessageContent = JSON.stringify({
-					type: 'trial_invite',
-					invite_id: inviteId
-				})
-				
-				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
-				const sendRes = await chatSend.send({
-					conversation_id: this.conversationId,
-					message_type: 'text',
-					content: inviteMessageContent
-				})
-				
-				this.invitingTrial = false
-				
-				if (sendRes.code === 0) {
-					this.appointmentId = inviteId
-					uni.showToast({ title: '邀请已发送', icon: 'success' })
-					// 刷新消息列表以显示邀请卡片
-					setTimeout(() => {
-						this.loadNewMessages()
-					}, 500)
-				} else {
-					uni.showToast({ title: sendRes.message || '发送失败', icon: 'none' })
+				const inviteId = inviteRes.data?.appointment_id
+				if (!inviteId) {
+					uni.showToast({ title: '邀请创建失败', icon: 'none' })
+					return
 				}
+				await this.sendTrialInviteCard(inviteId)
+				this.hasActiveTrial = true
 			} catch (error) {
-				this.invitingTrial = false
 				console.error('发送试课邀请失败:', error)
 				uni.showToast({ title: '发送失败，请稍后再试', icon: 'none' })
+			} finally {
+				this.invitingTrial = false
+				this.pendingInviteParentId = ''
+			}
+		},
+		async sendTrialInviteCard(inviteId) {
+			const inviteMessageContent = JSON.stringify({
+				type: 'trial_invite',
+				invite_id: inviteId
+			})
+			const chatSend = uniCloud.importObject('chat-send', { customUI: true })
+			const sendRes = await chatSend.send({
+				conversation_id: this.conversationId,
+				message_type: 'text',
+				content: inviteMessageContent
+			})
+			if (sendRes.code === 0) {
+				this.appointmentId = inviteId
+				uni.showToast({ title: '邀请已发送', icon: 'success' })
+				setTimeout(() => {
+					this.loadNewMessages()
+					this.checkTrialStatus()
+				}, 500)
+			} else {
+				uni.showToast({ title: sendRes.message || '发送失败', icon: 'none' })
 			}
 		},
 		/**
@@ -725,79 +793,180 @@ export default {
 				uni.showToast({ title: '邀请信息无效', icon: 'none' })
 				return
 			}
-			// 跳转到预约试课页面，带上 invite_id
+			saveAppointmentTeacherPreview({
+				teacherUid: this.conversationInfo?.teacher_id || '',
+				teacher_id: this.conversationInfo?.teacher_id || '',
+				display_name: this.otherUserInfo.nickname || '',
+				name: this.otherUserInfo.nickname || '',
+				nickname: this.otherUserInfo.nickname || '',
+				avatar: this.otherUserInfo.avatar || ''
+			})
 			uni.navigateTo({
 				url: `/pages/appointment/create?invite_id=${inviteId}`
 			})
 		},
 		async handlePayDeposit() {
 			if (this.payingDeposit) return
-			
+
+			const appointmentId = this.appointmentId || this.conversationInfo?.appointment_id
+			if (!appointmentId) {
+				uni.showToast({ title: '未找到预约信息', icon: 'none' })
+				return
+			}
+
+			const userInfo = uni.getStorageSync('userInfo') || {}
+			if (!userInfo.uid) {
+				uni.showToast({ title: '请先登录', icon: 'none' })
+				return
+			}
+
 			uni.showModal({
 				title: '支付信息费',
-				content: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节试课 2 小时费用）可开启与家长的聊天窗口。\n试课成功 → 由平台收取；试课失败 → 全额退回您的钱包。`,
+				content: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
 				success: async (res) => {
-					if (res.confirm) {
-						try {
-							const userInfo = uni.getStorageSync('userInfo') || {}
-							if (!userInfo.uid) {
-								uni.showToast({ title: '请先登录', icon: 'none' })
-								return
-							}
-							
-							const appointmentId = this.appointmentId || this.conversationInfo?.appointment_id
-							if (!appointmentId) {
-								uni.showToast({ title: '未找到预约信息', icon: 'none' })
-								return
-							}
-							
-							this.payingDeposit = true
-							const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-							const createRes = await paymentCreate.create({
-								appointment_id: appointmentId,
-								payment_type: 'deposit',
-								amount: this.infoFeeAmount
-							})
-							
-							if (createRes.code !== 0) {
-								this.payingDeposit = false
-								uni.showToast({
-									title: createRes.message || '创建订单失败',
-									icon: 'none'
-								})
-								return
-							}
-							
-							const payRes = await paymentCreate.mockPaySuccess({
-								order_no: createRes.data.order_no
-							})
-							
-							this.payingDeposit = false
-							
-							if (payRes.code === 0) {
-								uni.showToast({
-									title: '支付成功，聊天功能已开启',
-									icon: 'success'
-								})
-								
-								setTimeout(() => {
-									this.loadUserInfo()
-									this.refreshMessages()
-								}, 1000)
-							} else {
-								uni.showToast({
-									title: payRes.message || '支付失败',
-									icon: 'none'
-								})
-							}
-						} catch (error) {
-							this.payingDeposit = false
-							console.error('支付失败:', error)
-							uni.showToast({ title: '支付失败，请稍后再试', icon: 'none' })
+					if (!res.confirm) return
+
+					this.payingDeposit = true
+					uni.showLoading({ title: '创建订单中...', mask: true })
+
+					try {
+						const payComponent = this.$refs.pay
+						if (!payComponent || typeof payComponent.open !== 'function') {
+							throw new Error('支付组件未就绪，请稍后重试')
 						}
+
+						const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
+						const orderListRes = await paymentCreate.getOrderList({
+							appointment_id: appointmentId,
+							payment_type: 'deposit',
+							status: 'all',
+							page: 1,
+							pageSize: 10
+						})
+
+						if (orderListRes.code === 0 && orderListRes.data && orderListRes.data.list) {
+							const paidOrder = orderListRes.data.list.find(order =>
+								order.status === 'paid' || order.status === 'success'
+							)
+							if (paidOrder) {
+								uni.hideLoading()
+								this.payingDeposit = false
+								uni.showToast({ title: '您已支付过信息费', icon: 'none' })
+								await this.loadUserInfo()
+								return
+							}
+
+							const pendingOrder = orderListRes.data.list.find(order =>
+								order.status === 'pending' || order.status === 'unpaid'
+							)
+							if (pendingOrder) {
+								uni.hideLoading()
+								await payExistingOrderWithUniPay(payComponent, {
+									order_no: pendingOrder.order_no,
+									appointment_id: appointmentId,
+									payment_type: 'deposit',
+									amount: this.infoFeeAmountCents,
+									description: '支付信息费',
+									order_id: pendingOrder._id
+								})
+								return
+							}
+						}
+
+						uni.hideLoading()
+						await createAndPayWithUniPay(payComponent, {
+							appointment_id: appointmentId,
+							payment_type: 'deposit',
+							amount: this.infoFeeAmountCents,
+							description: '支付信息费'
+						})
+					} catch (error) {
+						uni.hideLoading()
+						console.error('支付失败:', error)
+						uni.showToast({
+							title: error.message || '支付失败，请稍后再试',
+							icon: 'none'
+						})
+					} finally {
+						this.payingDeposit = false
 					}
 				}
 			})
+		},
+		onPayCreate(res) {
+			console.log('[聊天页] 支付订单创建成功:', res)
+		},
+		async onPaySuccess(res) {
+			console.log('[聊天页] uni-pay 支付成功:', res)
+
+			const isPaid = res.has_paid || res.status === 1 || res.user_order_success
+			if (!isPaid) {
+				console.warn('[聊天页] 支付成功事件但状态异常:', res)
+				return
+			}
+
+			const order_no = res.order_no || res.pay_order?.order_no
+			const out_trade_no = res.out_trade_no
+			const custom = res.custom || {}
+			const appointmentId = this.appointmentId || custom.appointment_id || this.conversationInfo?.appointment_id
+
+			try {
+				const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
+				let finalOrderNo = order_no
+
+				if (!finalOrderNo && appointmentId) {
+					const orderListRes = await paymentCreate.getOrderList({
+						appointment_id: appointmentId,
+						payment_type: 'deposit',
+						status: 'all',
+						page: 1,
+						pageSize: 10
+					})
+					if (orderListRes.code === 0 && orderListRes.data && orderListRes.data.list && orderListRes.data.list.length > 0) {
+						const pendingOrder = orderListRes.data.list.find(order =>
+							order.status === 'pending' || order.status === 'unpaid'
+						)
+						finalOrderNo = pendingOrder ? pendingOrder.order_no : orderListRes.data.list[0].order_no
+					}
+				}
+
+				if (finalOrderNo) {
+					await paymentCreate.mockPaySuccess({
+						order_no: finalOrderNo,
+						out_trade_no,
+						uni_pay_order_no: order_no
+					})
+				}
+
+				uni.showToast({
+					title: '支付成功，聊天功能已开启',
+					icon: 'success'
+				})
+
+				setTimeout(() => {
+					this.loadUserInfo()
+					this.refreshMessages()
+				}, 1000)
+			} catch (error) {
+				console.error('[聊天页] 同步支付状态失败:', error)
+				uni.showToast({
+					title: '支付成功，请刷新页面查看状态',
+					icon: 'none'
+				})
+				setTimeout(() => {
+					this.loadUserInfo()
+					this.refreshMessages()
+				}, 1000)
+			}
+		},
+		onPayFail(err) {
+			console.error('[聊天页] 支付失败:', err)
+			if (err.errMsg && !err.errMsg.includes('cancel')) {
+				uni.showToast({
+					title: err.errMsg || '支付失败',
+					icon: 'none'
+				})
+			}
 		}
 	}
 }
@@ -1307,5 +1476,90 @@ export default {
 	background: currentColor;
 	border-radius: 50%;
 	box-shadow: 12rpx 0 0 currentColor, 24rpx 0 0 currentColor;
+}
+
+.trial-fee-mask {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.45);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.trial-fee-panel {
+	width: 620rpx;
+	background: #fff;
+	border-radius: 24rpx;
+	padding: 40rpx 36rpx;
+	box-sizing: border-box;
+}
+
+.trial-fee-title {
+	display: block;
+	font-size: 34rpx;
+	font-weight: 600;
+	color: #222;
+	margin-bottom: 16rpx;
+}
+
+.trial-fee-desc {
+	display: block;
+	font-size: 26rpx;
+	color: #888;
+	line-height: 1.5;
+	margin-bottom: 28rpx;
+}
+
+.trial-fee-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 20rpx;
+}
+
+.trial-fee-label {
+	font-size: 28rpx;
+	color: #333;
+}
+
+.trial-fee-input {
+	width: 200rpx;
+	text-align: right;
+	font-size: 28rpx;
+	border-bottom: 1rpx solid #eee;
+	padding: 8rpx 0;
+}
+
+.trial-fee-total {
+	display: block;
+	font-size: 28rpx;
+	color: #e54d42;
+	margin-bottom: 32rpx;
+}
+
+.trial-fee-actions {
+	display: flex;
+	gap: 20rpx;
+}
+
+.trial-fee-btn {
+	flex: 1;
+	font-size: 28rpx;
+	border-radius: 12rpx;
+}
+
+.trial-fee-btn-cancel {
+	background: #f5f5f5;
+	color: #666;
+}
+
+.trial-fee-btn-confirm {
+	background: #07c160;
+	color: #fff;
 }
 </style>

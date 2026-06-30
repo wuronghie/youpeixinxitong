@@ -63,7 +63,7 @@
 
 				<view class="hero-metrics">
 					<view class="hero-metric-item">
-						<text class="hero-metric-value">{{ formatRating(teacherInfo.rating) }}</text>
+						<text class="hero-metric-value">{{ formatRating(teacherInfo.rating, teacherInfo.review_count) }}</text>
 						<text class="hero-metric-label">综合评分</text>
 					</view>
 					<view class="hero-metric-divider"></view>
@@ -169,7 +169,7 @@
 					</view>
 					<view class="highlight-grid mb-3">
 						<view class="highlight-item text-center">
-							<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating) }}</text>
+							<text class="font-lg font-weight d-block">{{ formatRating(teacherInfo.rating, teacherInfo.review_count) }}</text>
 							<text class="font-sm text-light-muted d-block mt-1">综合评分</text>
 						</view>
 						<view class="highlight-item text-center">
@@ -444,6 +444,7 @@
 import { useMockData, mockTeachers } from '@/utils/mockData.js'
 import card from '@/components/common/card.vue'
 import { getDefaultAvatarUrl, getIconUrl } from '@/utils/imageConfig.js'
+import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
 
 export default {
 	name: 'TeacherDetail',
@@ -596,6 +597,14 @@ export default {
 		}
 	},
 	methods: {
+		async refreshData() {
+			this.isRefreshing = true
+			try {
+				await this.loadDetail()
+			} finally {
+				this.isRefreshing = false
+			}
+		},
 		async onRefresh() {
 			if (!this.canRefresh || this.scrollTop > 10) {
 				this.isRefreshing = false
@@ -803,6 +812,19 @@ export default {
 		},
 		goToAppointment() {
 			if (this.loadError) return
+			saveAppointmentTeacherPreview({
+				teacherProfileId: this.teacherId,
+				teacherUid: this.teacherUid,
+				teacher_id: this.teacherUid || this.teacherInfo.teacher_id,
+				display_name: this.teacherInfo.display_name || this.teacherInfo.name,
+				name: this.teacherInfo.name || this.teacherInfo.display_name,
+				avatar: this.teacherInfo.avatar,
+				hourly_rate: this.teacherInfo.hourly_rate,
+				rating: this.teacherInfo.rating,
+				total_students: this.teacherInfo.total_students,
+				trial_count: this.teacherInfo.trial_count,
+				trial_success_rate: this.teacherInfo.trial_success_rate
+			})
 			const params = []
 			if (this.teacherId) params.push(`teacherProfileId=${this.teacherId}`)
 			if (this.teacherUid) params.push(`teacherUid=${this.teacherUid}`)
@@ -993,8 +1015,10 @@ export default {
 			if (!rate && rate !== 0) return '0%'
 			return `${(Number(rate) * 100).toFixed(0)}%`
 		},
-		formatRating(rating) {
-			if (!rating && rating !== 0) return '5.0'
+		formatRating(rating, reviewCount) {
+			const count = Number(reviewCount) || 0
+			if (count <= 0) return '暂无'
+			if (rating === null || rating === undefined || rating === '') return '暂无'
 			return Number(rating).toFixed(1)
 		},
 		teacherGenderText(gender) {

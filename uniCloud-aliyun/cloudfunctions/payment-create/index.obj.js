@@ -114,17 +114,23 @@ async function handlePaySuccess(db, order, options = {}) {
   }
 
   if (order.order_type === 'course_fee') {
-    const nextStatus = appointment.deposit_paid || appointment.status === 'confirmed'
+    // 老师发起的试课：邀请即视为已确认，家长支付后直接进入 confirmed
+    const isTeacherInvitedTrial = appointment.course_type === 'trial' && appointment.invited_by === 'teacher'
+    const nextStatus = isTeacherInvitedTrial || appointment.deposit_paid || appointment.status === 'confirmed'
       ? 'confirmed'
       : 'pending_confirm'
-    await db.collection('appointments').doc(order.appointment_id).update({
+    const appointmentUpdate = {
       status: nextStatus,
       payment_time,
       parent_paid: true,
       parent_payment_time: payment_time,
       parent_payment_order_id: order._id,
       update_time: now
-    })
+    }
+    if (nextStatus === 'confirmed' && !appointment.confirm_time) {
+      appointmentUpdate.confirm_time = now
+    }
+    await db.collection('appointments').doc(order.appointment_id).update(appointmentUpdate)
     
     console.log('[payment-create][handlePaySuccess] 已更新预约为家长已支付课程费:', {
       appointment_id: order.appointment_id,
@@ -523,6 +529,8 @@ module.exports = {
       const order = {
         order_no: generateOrderNo('ORD'),
         appointment_id,
+        parent_id: appointment.parent_id,
+        teacher_id: appointment.teacher_id,
         payer_id,
         payee_id: 'platform',
         order_type: payment_type,
@@ -611,6 +619,11 @@ module.exports = {
       
       if (order.status !== 'pending') {
         return error('订单状态不正确')
+      }
+
+      const orderAmount = Number(order.amount) || 0
+      if (orderAmount > 0 && !out_trade_no && !uni_pay_order_no) {
+        return error('请通过支付界面完成支付')
       }
       
       const result = await handlePaySuccess(db, order, { channel: order.channel || 'wxpay' })

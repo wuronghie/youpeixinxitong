@@ -3,6 +3,7 @@ const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_auth = require("../../utils/auth.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
+const utils_trialConfirmReminder = require("../../utils/trialConfirmReminder.js");
 const ParentTabBar = () => "../../components/ParentTabBar.js";
 const card = () => "../../components/common/card.js";
 const divider = () => "../../components/common/divider.js";
@@ -150,6 +151,7 @@ const _sfc_main = {
         this.loadInviteCode();
       }, 50);
     });
+    utils_trialConfirmReminder.checkPendingTrialConfirmReminder();
   },
   onShareAppMessage() {
     const query = this.myInviteCode ? `?inviteCode=${this.myInviteCode}` : "";
@@ -166,14 +168,11 @@ const _sfc_main = {
       query
     };
   },
-  /**
-   * 下拉刷新触发
-   * 功能：重新加载页面数据
-   */
-  onPullDownRefresh() {
-    this.initPage(true);
-  },
   methods: {
+    async refreshData() {
+      await this.initPage(true);
+      await this.loadInviteCode();
+    },
     hasValidParentSession() {
       const token = common_vendor.index.getStorageSync("uni_id_token");
       const stored = common_vendor.index.getStorageSync("userInfo") || {};
@@ -241,7 +240,7 @@ const _sfc_main = {
       try {
         await Promise.all([this.loadUserProfile(), this.loadOverview()]);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:449", "初始化家长个人中心失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:448", "初始化家长个人中心失败:", error);
       } finally {
         if (fromPullDown) {
           common_vendor.index.stopPullDownRefresh();
@@ -263,7 +262,7 @@ const _sfc_main = {
           this.myInviteCode = res.data.invite_code;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:471", "加载邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:470", "加载邀请码失败:", error);
       }
     },
     /**
@@ -310,7 +309,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:518", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:517", "加载用户信息失败:", error);
       }
     },
     /**
@@ -361,7 +360,7 @@ const _sfc_main = {
           });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:569", "加载概览数据失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:568", "加载概览数据失败:", error);
       }
     },
     /**
@@ -436,7 +435,7 @@ const _sfc_main = {
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:640", "生成或复制邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:639", "生成或复制邀请码失败:", error);
         common_vendor.index.showToast({ title: "生成邀请码失败，请稍后重试", icon: "none" });
       }
     },
@@ -474,23 +473,23 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages/user/index.vue:678", "[user-index] 开始绑定邀请码:", {
+        common_vendor.index.__f__("log", "at pages/user/index.vue:677", "[user-index] 开始绑定邀请码:", {
           inviteCode,
           userInfo: common_vendor.index.getStorageSync("userInfo") || {}
         });
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
-        common_vendor.index.__f__("log", "at pages/user/index.vue:686", "[user-index] 绑定邀请码返回结果:", res);
+        common_vendor.index.__f__("log", "at pages/user/index.vue:685", "[user-index] 绑定邀请码返回结果:", res);
         if (res.code === 0) {
           common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
           setTimeout(() => {
-            common_vendor.index.__f__("log", "at pages/user/index.vue:692", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
+            common_vendor.index.__f__("log", "at pages/user/index.vue:691", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
           }, 300);
         } else {
           common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:698", "填写邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:697", "填写邀请码失败:", error);
         common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
@@ -544,7 +543,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/user/index.vue:755", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages/user/index.vue:754", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"

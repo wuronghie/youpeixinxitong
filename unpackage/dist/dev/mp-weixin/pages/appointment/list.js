@@ -122,7 +122,8 @@ const _sfc_main = {
               subject: item.subject || ((_c = item.student_info) == null ? void 0 : _c.subject) || "",
               status: item.status,
               parent_paid: !!item.parent_paid,
-              deposit_paid: !!item.deposit_paid
+              deposit_paid: !!item.deposit_paid,
+              invited_by: item.invited_by || ""
             };
           });
           if (reset) {
@@ -130,13 +131,14 @@ const _sfc_main = {
           } else {
             this.appointmentList = [...this.appointmentList, ...list];
           }
-          this.hasMore = list.length >= this.pageSize;
+          const pagination = res.data.pagination || {};
+          this.hasMore = pagination.hasMore !== void 0 ? pagination.hasMore : list.length >= this.pageSize;
           this.currentPage += 1;
         } else {
           throw new Error(res.message || "获取预约失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/list.vue:268", "获取预约列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/list.vue:269", "获取预约列表失败:", error);
         common_vendor.index.showToast({ title: error.message || "获取预约失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -191,8 +193,9 @@ const _sfc_main = {
         confirmed: "已确认",
         in_progress: "进行中",
         completed: "已完成",
-        rejected: "已取消",
         cancelled: "已取消",
+        rejected: "已拒绝",
+        trial_invited: "试课邀请",
         refunding: "退款处理中",
         refunded: "已退款"
       };
@@ -237,8 +240,13 @@ const _sfc_main = {
       if (!item || item.parent_paid) {
         return false;
       }
-      const allowStatuses = ["pending_payment", "pending_confirm", "confirmed"];
-      return allowStatuses.includes(item.status);
+      if (item.status === "pending_payment") {
+        return true;
+      }
+      if (item.course_type === "trial" && item.invited_by === "teacher") {
+        return ["pending_payment", "pending_confirm", "confirmed"].includes(item.status);
+      }
+      return item.status === "confirmed";
     },
     /**
      * 跳转到预约详情页
