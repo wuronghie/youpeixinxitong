@@ -434,7 +434,7 @@ export default {
 				{ label: '四川农业大学', value: '四川农业大学' },
 				{ label: '西南财经大学', value: '西南财经大学' },
 				{ label: '其他985/211', value: '其他985/211' },
-				{ label: '专职老师', value: '专职老师' }
+				{ label: '专职老师（已毕业）', value: '专职老师（已毕业）' }
 			],
 			// 教师资历筛选选项
 			experienceFilters: [
@@ -443,6 +443,8 @@ export default {
 				{ label: '大二至大四（1年以内）', value: '大二至大四（1年以内）' },
 				{ label: '大二至大四（1-2年）', value: '大二至大四（1-2年）' },
 				{ label: '大二至大四（2年以上）', value: '大二至大四（2年以上）' },
+				{ label: '研究生在读', value: '研究生在读' },
+				{ label: '博士在读', value: '博士在读' },
 				{ label: '专职老师（1-3年）', value: '专职老师（1-3年）' },
 				{ label: '专职老师（3-5年）', value: '专职老师（3-5年）' },
 				{ label: '专职老师（5年以上）', value: '专职老师（5年以上）' }
@@ -532,7 +534,7 @@ export default {
 			if (this.schoolLabel === '四川农业大学') return '川农'
 			if (this.schoolLabel === '西南财经大学') return '西南财大'
 			if (this.schoolLabel === '其他985/211') return '985/211'
-			if (this.schoolLabel === '专职老师') return '专职'
+			if (this.schoolLabel === '专职老师' || this.schoolLabel === '专职老师（已毕业）') return '专职'
 			return '已选'
 		},
 		schoolTabText() {
@@ -1062,7 +1064,7 @@ export default {
 		 * @returns {String} 格式化的院校和教龄信息
 		 */
 		getSchoolAndExperience(teacher) {
-			const school = teacher.school || ''
+			const school = teacher.school === '专职老师' ? '专职老师（已毕业）' : (teacher.school || '')
 			const years = teacher.experience_years || teacher.teaching_experience?.years || 0
 			const parts = []
 			if (school) {

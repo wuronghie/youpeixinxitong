@@ -70,7 +70,8 @@ function isParentProfileComplete(userDoc) {
 }
 
 function isFullTimeTeacher(profile) {
-  return !!(profile && profile.school === '专职老师')
+  const school = profile && profile.school
+  return school === '专职老师' || school === '专职老师（已毕业）'
 }
 
 function isTeacherProfileComplete(profile) {
@@ -770,12 +771,16 @@ module.exports = {
     }
     const db = uniCloud.database()
     const _ = db.command
-    const { page = 1, pageSize = 20, status, parent_id, audit_status } = params
+    const { page = 1, pageSize = 20, status, parent_id, audit_status, keyword } = params
     const skip = Math.max(0, page - 1) * pageSize
     const q = db.collection('parent-recruitments')
     const parts = []
     if (status) parts.push({ status })
     if (parent_id) parts.push({ parent_id })
+    const kw = String(keyword || '').trim()
+    if (kw) {
+      parts.push(_.or([{ _id: kw }, { parent_id: kw }]))
+    }
     if (audit_status === 'pending') {
       parts.push(_.or([{ audit_status: 'pending' }, { audit_status: _.exists(false) }]))
     } else if (audit_status && ['approved', 'rejected'].includes(audit_status)) {

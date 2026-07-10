@@ -133,7 +133,7 @@ const _sfc_main = {
         { label: "四川农业大学", value: "四川农业大学" },
         { label: "西南财经大学", value: "西南财经大学" },
         { label: "其他985/211", value: "其他985/211" },
-        { label: "专职老师", value: "专职老师" }
+        { label: "专职老师（已毕业）", value: "专职老师（已毕业）" }
       ],
       // 教师资历筛选选项
       experienceFilters: [
@@ -142,6 +142,8 @@ const _sfc_main = {
         { label: "大二至大四（1年以内）", value: "大二至大四（1年以内）" },
         { label: "大二至大四（1-2年）", value: "大二至大四（1-2年）" },
         { label: "大二至大四（2年以上）", value: "大二至大四（2年以上）" },
+        { label: "研究生在读", value: "研究生在读" },
+        { label: "博士在读", value: "博士在读" },
         { label: "专职老师（1-3年）", value: "专职老师（1-3年）" },
         { label: "专职老师（3-5年）", value: "专职老师（3-5年）" },
         { label: "专职老师（5年以上）", value: "专职老师（5年以上）" }
@@ -239,7 +241,7 @@ const _sfc_main = {
         return "西南财大";
       if (this.schoolLabel === "其他985/211")
         return "985/211";
-      if (this.schoolLabel === "专职老师")
+      if (this.schoolLabel === "专职老师" || this.schoolLabel === "专职老师（已毕业）")
         return "专职";
       return "已选";
     },
@@ -299,8 +301,8 @@ const _sfc_main = {
    */
   onLoad() {
     this.useMock = utils_mockData.useMockData() === true;
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:596", "[teacher-list] 年级筛选选项:", this.gradeFilters);
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:597", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:598", "[teacher-list] 年级筛选选项:", this.gradeFilters);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:599", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
     this.fetchUserLocation();
     this.$nextTick(() => {
       setTimeout(() => {
@@ -379,7 +381,7 @@ const _sfc_main = {
      * 功能：重新加载第一页数据
      */
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/teacher/list.vue:677", "[teacher-list] 下拉刷新：重新加载教师列表");
+      common_vendor.index.__f__("log", "at pages/teacher/list.vue:679", "[teacher-list] 下拉刷新：重新加载教师列表");
       await this.loadTeachers(true);
     },
     /**
@@ -471,7 +473,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:773", "加载教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:775", "加载教师失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -645,7 +647,7 @@ const _sfc_main = {
           this.favoriteIds = [];
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:940", "获取收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:942", "获取收藏状态失败:", error);
       } finally {
         this.applyFavoriteStatus();
       }
@@ -721,7 +723,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1018", "操作收藏失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1020", "操作收藏失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       }
     },
@@ -745,7 +747,7 @@ const _sfc_main = {
         },
         fail: (err) => {
           this._navigatingDetail = false;
-          common_vendor.index.__f__("warn", "at pages/teacher/list.vue:1041", "[teacher/list] navigateTo detail failed:", err && err.errMsg);
+          common_vendor.index.__f__("warn", "at pages/teacher/list.vue:1043", "[teacher/list] navigateTo detail failed:", err && err.errMsg);
           if (err && /timeout/i.test(err.errMsg || "")) {
             common_vendor.index.showToast({ title: "加载超时，请重试", icon: "none" });
           } else {
@@ -771,7 +773,7 @@ const _sfc_main = {
      */
     getSchoolAndExperience(teacher) {
       var _a;
-      const school = teacher.school || "";
+      const school = teacher.school === "专职老师" ? "专职老师（已毕业）" : teacher.school || "";
       const years = teacher.experience_years || ((_a = teacher.teaching_experience) == null ? void 0 : _a.years) || 0;
       const parts = [];
       if (school) {

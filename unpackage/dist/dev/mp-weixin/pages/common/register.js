@@ -259,17 +259,18 @@ const _sfc_main = {
     async uploadAvatar(localPath) {
       try {
         this.avatarUploading = true;
+        let uploadPath = localPath;
         try {
-          await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+          uploadPath = await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath, { scene: "avatar" });
         } catch (secErr) {
           common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
           return;
         }
-        const extIndex = localPath.lastIndexOf(".");
-        const ext = extIndex > -1 ? localPath.substring(extIndex) : "";
+        const extIndex = uploadPath.lastIndexOf(".");
+        const ext = extIndex > -1 ? uploadPath.substring(extIndex) : "";
         const cloudPath = `parent-avatar/${Date.now()}-${Math.floor(Math.random() * 1e5)}${ext}`;
         const res = await common_vendor.tr.uploadFile({
-          filePath: localPath,
+          filePath: uploadPath,
           cloudPath
         });
         if (res == null ? void 0 : res.fileID) {
@@ -281,7 +282,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:541", "上传头像失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:542", "上传头像失败:", error);
         common_vendor.index.showToast({ title: "上传失败，请稍后重试", icon: "none" });
       } finally {
         this.avatarUploading = false;
@@ -298,7 +299,7 @@ const _sfc_main = {
         const file = (_a = res.fileList) == null ? void 0 : _a[0];
         return (file == null ? void 0 : file.tempFileURL) || fileId;
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:555", "获取临时链接失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:556", "获取临时链接失败:", error);
         return fileId;
       }
     },
@@ -377,7 +378,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages/common/register.vue:633", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages/common/register.vue:634", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -436,16 +437,16 @@ const _sfc_main = {
     },
     async submitForm() {
       if (!this.canEdit || this.isSubmitting) {
-        common_vendor.index.__f__("log", "at pages/common/register.vue:692", "[register] 保存被阻止:", { canEdit: this.canEdit, isSubmitting: this.isSubmitting });
+        common_vendor.index.__f__("log", "at pages/common/register.vue:693", "[register] 保存被阻止:", { canEdit: this.canEdit, isSubmitting: this.isSubmitting });
         return;
       }
       if (!this.validateForm()) {
-        common_vendor.index.__f__("log", "at pages/common/register.vue:696", "[register] 表单验证失败");
+        common_vendor.index.__f__("log", "at pages/common/register.vue:697", "[register] 表单验证失败");
         return;
       }
       try {
         this.isSubmitting = true;
-        common_vendor.index.__f__("log", "at pages/common/register.vue:701", "[register] 开始保存，payload:", {
+        common_vendor.index.__f__("log", "at pages/common/register.vue:702", "[register] 开始保存，payload:", {
           real_name: this.formData.real_name,
           phone: this.formData.phone,
           student_name: this.formData.student_name,
@@ -477,16 +478,16 @@ const _sfc_main = {
           school_name: this.formData.school_name,
           extra_notes: this.formData.extra_notes
         };
-        common_vendor.index.__f__("log", "at pages/common/register.vue:738", "[register] 调用云函数 updateParentProfile");
+        common_vendor.index.__f__("log", "at pages/common/register.vue:739", "[register] 调用云函数 updateParentProfile");
         const userProfile = common_vendor.tr.importObject("user-profile", { customUI: true });
         const res = await userProfile.updateParentProfile(payload);
-        common_vendor.index.__f__("log", "at pages/common/register.vue:741", "[register] 云函数返回:", res);
+        common_vendor.index.__f__("log", "at pages/common/register.vue:742", "[register] 云函数返回:", res);
         if (res.code === 0) {
           try {
             const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
             await inviteCenter.getMyInviteCode();
           } catch (e) {
-            common_vendor.index.__f__("error", "at pages/common/register.vue:749", "[register] 生成邀请码失败（忽略，不影响资料保存）:", e);
+            common_vendor.index.__f__("error", "at pages/common/register.vue:750", "[register] 生成邀请码失败（忽略，不影响资料保存）:", e);
           }
           const stored = common_vendor.index.getStorageSync("userInfo") || {};
           const parentInfo = {
@@ -517,7 +518,7 @@ const _sfc_main = {
             role: "parent"
           };
           common_vendor.index.setStorageSync("userInfo", nextStored);
-          common_vendor.index.__f__("log", "at pages/common/register.vue:782", "[register] 保存成功，已更新本地存储");
+          common_vendor.index.__f__("log", "at pages/common/register.vue:783", "[register] 保存成功，已更新本地存储");
           common_vendor.index.showToast({ title: "保存成功", icon: "success" });
           setTimeout(() => {
             const pages = getCurrentPages();
@@ -533,16 +534,16 @@ const _sfc_main = {
             }
           }, 1200);
         } else {
-          common_vendor.index.__f__("error", "at pages/common/register.vue:799", "[register] 保存失败:", res.message);
+          common_vendor.index.__f__("error", "at pages/common/register.vue:800", "[register] 保存失败:", res.message);
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:803", "[register] 保存家长资料异常:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:804", "[register] 保存家长资料异常:", error);
         const errorMsg = error.message || error.errMsg || "保存失败，请稍后再试";
         common_vendor.index.showToast({ title: errorMsg, icon: "none", duration: 3e3 });
       } finally {
         this.isSubmitting = false;
-        common_vendor.index.__f__("log", "at pages/common/register.vue:808", "[register] 保存流程结束，isSubmitting:", this.isSubmitting);
+        common_vendor.index.__f__("log", "at pages/common/register.vue:809", "[register] 保存流程结束，isSubmitting:", this.isSubmitting);
       }
     },
     goRolePage() {

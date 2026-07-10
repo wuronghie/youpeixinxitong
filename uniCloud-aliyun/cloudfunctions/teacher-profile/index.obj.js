@@ -312,7 +312,7 @@ module.exports = {
       if (!Array.isArray(subjects) || subjects.length === 0) {
         return error('请至少选择一个教学科目')
       }
-      const isFullTimeTeacher = school === '专职老师'
+      const isFullTimeTeacher = school === '专职老师' || school === '专职老师（已毕业）'
       if (!isFullTimeTeacher && (!Array.isArray(grades) || grades.length === 0)) {
         return error('请至少选择一个适合年级')
       }

@@ -18,6 +18,8 @@ const _sfc_main = {
         frozen_amount: 0
       },
       recentTransactions: [],
+      pendingConfirms: [],
+      confirmingId: "",
       useMock: false,
       loading: false
     };
@@ -26,10 +28,67 @@ const _sfc_main = {
     this.useMock = utils_mockData.useMockData() === true;
     this.loadWallet();
   },
+  onShow() {
+    if (!this.useMock) {
+      this.loadPendingConfirms();
+    }
+  },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:88", "[teacher-wallet] 下拉刷新：重新加载钱包");
-      await this.loadWallet();
+      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:117", "[teacher-wallet] 下拉刷新：重新加载钱包");
+      await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
+    },
+    async loadPendingConfirms() {
+      try {
+        const walletObj = common_vendor.tr.importObject("teacher-wallet", { customUI: true });
+        const res = await walletObj.getPendingConfirmWithdraws();
+        if (res.code === 0 && res.data) {
+          this.pendingConfirms = res.data.list || [];
+        }
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at pages-teacher/wallet/index.vue:128", "[teacher-wallet] 加载待确认收款失败", e);
+      }
+    },
+    requestMerchantTransfer(item) {
+      return new Promise((resolve, reject) => {
+        if (typeof common_vendor.wx$1 !== "undefined" && common_vendor.wx$1.canIUse && common_vendor.wx$1.canIUse("requestMerchantTransfer")) {
+          common_vendor.wx$1.requestMerchantTransfer({
+            mchId: item.mchId,
+            appId: item.appId || common_vendor.wx$1.getAccountInfoSync && common_vendor.wx$1.getAccountInfoSync().miniProgram.appId,
+            package: item.package_info,
+            success: (res) => resolve(res),
+            fail: (err) => reject(err)
+          });
+          return;
+        }
+        reject(new Error("当前微信版本过低，请更新微信后重试"));
+      });
+    },
+    async confirmReceive(item) {
+      if (!item || !item.package_info || this.confirmingId)
+        return;
+      this.confirmingId = item._id;
+      try {
+        await this.requestMerchantTransfer(item);
+        const walletObj = common_vendor.tr.importObject("teacher-wallet", { customUI: true });
+        const syncRes = await walletObj.syncWithdrawStatus({ withdraw_id: item._id });
+        if (syncRes.code === 0 && syncRes.data && syncRes.data.status === "completed") {
+          common_vendor.index.showToast({ title: "已到账", icon: "success" });
+        } else {
+          common_vendor.index.showToast({ title: syncRes && syncRes.message || "已提交确认，稍后刷新查看", icon: "none" });
+        }
+        await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
+      } catch (e) {
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:162", "确认收款失败", e);
+        const msg = e && (e.errMsg || e.message) || "确认收款失败";
+        if (String(msg).includes("cancel")) {
+          common_vendor.index.showToast({ title: "已取消确认", icon: "none" });
+        } else {
+          common_vendor.index.showToast({ title: msg, icon: "none" });
+        }
+      } finally {
+        this.confirmingId = "";
+      }
     },
     async loadWallet() {
       if (this.loading)
@@ -78,7 +137,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取钱包信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:139", "获取钱包信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:221", "获取钱包信息失败:", error);
         common_vendor.index.showToast({ title: "获取钱包信息失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -122,13 +181,26 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: common_vendor.t($options.formatCurrency($data.wallet.balance)),
     b: common_vendor.o((...args) => $options.goToWithdraw && $options.goToWithdraw(...args)),
-    c: common_vendor.t($options.formatCurrency($data.wallet.total_income)),
-    d: common_vendor.t($options.formatCurrency($data.wallet.total_withdraw)),
-    e: common_vendor.t($options.formatCurrency($data.wallet.frozen_amount)),
-    f: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
-    g: $data.recentTransactions.length
+    c: $data.pendingConfirms.length
+  }, $data.pendingConfirms.length ? {
+    d: common_vendor.t($data.pendingConfirms.length),
+    e: common_vendor.f($data.pendingConfirms, (item, k0, i0) => {
+      return {
+        a: common_vendor.t($options.formatCurrency(item.amount)),
+        b: common_vendor.t($options.formatTime(item.create_time)),
+        c: $data.confirmingId === item._id,
+        d: common_vendor.o(($event) => $options.confirmReceive(item), item._id),
+        e: item._id
+      };
+    })
+  } : {}, {
+    f: common_vendor.t($options.formatCurrency($data.wallet.total_income)),
+    g: common_vendor.t($options.formatCurrency($data.wallet.total_withdraw)),
+    h: common_vendor.t($options.formatCurrency($data.wallet.frozen_amount)),
+    i: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
+    j: $data.recentTransactions.length
   }, $data.recentTransactions.length ? {
-    h: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
+    k: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.title),
         b: common_vendor.t(item.description || $options.defaultDescription(item.type)),
@@ -140,7 +212,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    i: common_vendor.p({
+    l: common_vendor.p({
       headTitle: "最近交易"
     })
   });

@@ -31,6 +31,25 @@
   height: 32rpx;
   margin-bottom: 4rpx;
 }
+.icon-wrap.data-v-67b9e2b2 {
+  position: relative;
+  width: 32rpx;
+  height: 38rpx;
+  margin-bottom: 4rpx;
+}
+.icon-wrap .icon.data-v-67b9e2b2 {
+  margin-bottom: 0;
+}
+.red-dot.data-v-67b9e2b2 {
+  position: absolute;
+  top: -4rpx;
+  right: -8rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #ff3b30;
+  border: 2rpx solid #ffffff;
+}
 .tabbar-item.active.data-v-67b9e2b2 {
   color: #ff8a5c;
   font-weight: 600;

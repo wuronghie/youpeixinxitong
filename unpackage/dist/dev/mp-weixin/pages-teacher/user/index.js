@@ -76,6 +76,12 @@ const _sfc_main = {
           url: "/pages-teacher/wallet/index"
         },
         {
+          title: "我的优惠券",
+          desc: "支付信息费时可抵扣使用",
+          icon: utils_imageConfig.getIconUrl("wallet.png"),
+          url: "/pages-teacher/coupon/list"
+        },
+        {
           title: "评价管理",
           desc: "查看并回复家长评价",
           icon: utils_imageConfig.getIconUrl("star.png"),
@@ -129,8 +135,24 @@ const _sfc_main = {
     this.loadData();
   },
   methods: {
+    copyUserId() {
+      const uid = this.userInfo && this.userInfo.uid;
+      if (!uid) {
+        common_vendor.index.showToast({ title: "暂无用户ID", icon: "none" });
+        return;
+      }
+      common_vendor.index.setClipboardData({
+        data: String(uid),
+        success: () => {
+          common_vendor.index.showToast({ title: "用户ID已复制", icon: "success" });
+        },
+        fail: () => {
+          common_vendor.index.showToast({ title: "复制失败", icon: "none" });
+        }
+      });
+    },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:268", "[teacher-user-center] 下拉刷新：重新加载个人中心");
+      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:295", "[teacher-user-center] 下拉刷新：重新加载个人中心");
       await this.loadUserInfo();
     },
     async loadData() {
@@ -165,7 +187,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取用户信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:303", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:330", "加载用户信息失败:", error);
         common_vendor.index.showToast({ title: "获取用户信息失败", icon: "none" });
       }
     },
@@ -208,7 +230,7 @@ const _sfc_main = {
             this.userInfo.displayName = profile.display_name;
           }
           const hasQualificationImage = Array.isArray(profile == null ? void 0 : profile.qualifications) && profile.qualifications.some((item) => item && item.image);
-          const isFullTimeTeacher = (profile == null ? void 0 : profile.school) === "专职老师";
+          const isFullTimeTeacher = (profile == null ? void 0 : profile.school) === "专职老师" || (profile == null ? void 0 : profile.school) === "专职老师（已毕业）";
           const gradesComplete = isFullTimeTeacher || (profile == null ? void 0 : profile.grades) && profile.grades.length > 0;
           const isProfileComplete = (profile == null ? void 0 : profile.display_name) && (profile == null ? void 0 : profile.subjects) && profile.subjects.length > 0 && gradesComplete && (profile == null ? void 0 : profile.hourly_rate) && profile.hourly_rate > 0 && Number(((_a = profile == null ? void 0 : profile.teaching_experience) == null ? void 0 : _a.years) || 0) > 0 && (profile == null ? void 0 : profile.introduction) && String(profile.introduction).trim() && hasQualificationImage;
           let verificationStatus = "pending";
@@ -227,7 +249,7 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:377", "加载教师统计失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:404", "加载教师统计失败:", error);
       }
     },
     goToPage(url) {
@@ -275,7 +297,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:427", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:454", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"
@@ -306,13 +328,14 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   } : {}, {
     g: $data.userInfo.uid
   }, $data.userInfo.uid ? {
-    h: common_vendor.t($data.userInfo.uid)
+    h: common_vendor.t($data.userInfo.uid),
+    i: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
   } : {}, {
-    i: common_vendor.t($data.metrics.totalStudents || 0),
-    j: common_vendor.t($data.metrics.totalTrials || 0),
-    k: common_vendor.t($data.metrics.successfulTrials || 0),
-    l: common_vendor.t($data.metrics.totalIncome || 0),
-    m: common_vendor.f($data.actionList, (action, k0, i0) => {
+    j: common_vendor.t($data.metrics.totalStudents || 0),
+    k: common_vendor.t($data.metrics.totalTrials || 0),
+    l: common_vendor.t($data.metrics.successfulTrials || 0),
+    m: common_vendor.t($data.metrics.totalIncome || 0),
+    n: common_vendor.f($data.actionList, (action, k0, i0) => {
       return {
         a: action.icon,
         b: common_vendor.t(action.title),
@@ -320,35 +343,35 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         d: common_vendor.o(($event) => $options.goToPage(action.url), action.url)
       };
     }),
-    n: common_vendor.p({
+    o: common_vendor.p({
       headTitle: "快捷功能"
     }),
-    o: common_vendor.t($data.userInfo.displayName || "-"),
-    p: common_vendor.t($data.userInfo.phone || "未绑定"),
-    q: common_vendor.t($data.statusTextMap[$data.metrics.verificationStatus] || "待完善"),
-    r: common_vendor.n($data.metrics.verificationStatus === "verified" ? "text-success" : ""),
-    s: common_vendor.p({
+    p: common_vendor.t($data.userInfo.displayName || "-"),
+    q: common_vendor.t($data.userInfo.phone || "未绑定"),
+    r: common_vendor.t($data.statusTextMap[$data.metrics.verificationStatus] || "待完善"),
+    s: common_vendor.n($data.metrics.verificationStatus === "verified" ? "text-success" : ""),
+    t: common_vendor.p({
       headTitle: "账号信息"
     }),
-    t: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 || $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 || $data.teacherProfile.hourly_rate
+    v: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 || $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 || $data.teacherProfile.hourly_rate
   }, $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 || $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 || $data.teacherProfile.hourly_rate ? common_vendor.e({
-    v: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0
+    w: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0
   }, $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 ? {
-    w: common_vendor.t(($data.teacherProfile.subjects || []).join("、"))
+    x: common_vendor.t(($data.teacherProfile.subjects || []).join("、"))
   } : {}, {
-    x: $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0
+    y: $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0
   }, $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 ? {
-    y: common_vendor.t(($data.teacherProfile.grades || []).join("、"))
+    z: common_vendor.t(($data.teacherProfile.grades || []).join("、"))
   } : {}, {
-    z: $data.teacherProfile.hourly_rate
+    A: $data.teacherProfile.hourly_rate
   }, $data.teacherProfile.hourly_rate ? {
-    A: common_vendor.t($data.teacherProfile.hourly_rate)
+    B: common_vendor.t($data.teacherProfile.hourly_rate)
   } : {}, {
-    B: common_vendor.p({
+    C: common_vendor.p({
       headTitle: "教师资料"
     })
   }) : {}, {
-    C: common_vendor.f($data.listMenus, (item, k0, i0) => {
+    D: common_vendor.f($data.listMenus, (item, k0, i0) => {
       return {
         a: item.icon,
         b: common_vendor.t(item.title),
@@ -357,12 +380,12 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         e: common_vendor.o(($event) => $options.goToPage(item.url), item.url)
       };
     }),
-    D: common_vendor.p({
+    E: common_vendor.p({
       headTitle: "常用设置"
     }),
-    E: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
-    F: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
-    G: common_vendor.p({
+    F: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
+    G: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
+    H: common_vendor.p({
       current: "user"
     })
   });

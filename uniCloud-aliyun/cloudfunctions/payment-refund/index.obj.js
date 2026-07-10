@@ -770,7 +770,13 @@ module.exports = {
       const kw = String(keyword || '').trim()
       if (kw) {
         const kwCond = dbCmd.or([
+          { _id: kw },
+          { order_no: kw },
           { order_no: new RegExp(kw, 'i') },
+          { order_id: kw },
+          { appointment_id: kw },
+          { payer_id: kw },
+          { teacher_id: kw },
           { reason: new RegExp(kw, 'i') }
         ])
         where = Object.keys(where).length ? dbCmd.and([where, kwCond]) : kwCond

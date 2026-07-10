@@ -43,6 +43,7 @@ if (!Math) {
   "./pages-teacher/wallet/index.js";
   "./pages-teacher/wallet/income.js";
   "./pages-teacher/wallet/withdraw.js";
+  "./pages-teacher/coupon/list.js";
   "./pages-teacher/review/list.js";
   "./pages-teacher/recruitment/list.js";
   "./pages-teacher/recruitment/detail.js";

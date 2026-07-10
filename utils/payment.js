@@ -44,7 +44,8 @@ async function createPaymentOrderProd(options) {
 		console.log('[创建订单] 调用云服务创建订单:', {
 			appointment_id: options.appointment_id,
 			payment_type: options.payment_type,
-			amount: options.amount
+			amount: options.amount,
+			user_coupon_id: options.user_coupon_id || null
 		})
 		
 		const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
@@ -294,7 +295,7 @@ export async function createAndPayWithUniPay(payComponent, options) {
 		throw new Error('支付参数不完整')
 	}
 
-	if (!payComponent) {
+	if (!payComponent && amount > 0) {
 		throw new Error('uni-pay 组件未找到')
 	}
 
@@ -311,8 +312,8 @@ export async function createAndPayWithUniPay(payComponent, options) {
 			转换后金额_元: amountInYuan
 		})
 		
-		if (amountInYuan <= 0 || isNaN(amountInYuan)) {
-			throw new Error(`支付金额必须大于0，当前金额：${amount}分（${amountInYuan}元）`)
+		if (amountInYuan < 0 || isNaN(amountInYuan)) {
+			throw new Error(`支付金额不合法，当前金额：${amount}分（${amountInYuan}元）`)
 		}
 		
 		const createRes = await createPaymentOrderProd({
@@ -344,6 +345,23 @@ export async function createAndPayWithUniPay(payComponent, options) {
 			amount: orderInfo.amount
 		})
 		
+		if (amountInYuan === 0) {
+			const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
+			const payRes = await paymentCreate.mockPaySuccess({ order_no })
+			if (payRes.code !== 0) {
+				throw new Error(payRes.message || '优惠券抵扣失败')
+			}
+			return {
+				code: 0,
+				message: '优惠券已全额抵扣',
+				data: {
+					order_id,
+					order_no,
+					zero_pay: true
+				}
+			}
+		}
+
 		// 2. 生成支付单号（必须不超过32字节）
 		const out_trade_no = generateOutTradeNo(appointment_id, payment_type || 'course_fee')
 		
@@ -359,7 +377,8 @@ export async function createAndPayWithUniPay(payComponent, options) {
 			custom: {
 				appointment_id,
 				payment_type: payment_type || 'course_fee',
-				order_id // 保存订单ID，供支付成功后使用
+				order_id, // 保存订单ID，供支付成功后使用
+				user_coupon_id: user_coupon_id || null
 			}
 		})
 

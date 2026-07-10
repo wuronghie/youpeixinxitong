@@ -354,7 +354,7 @@ module.exports = {
         missingFieldsText.push('教学科目')
       }
 
-      const isFullTimeTeacher = profile.school === '专职老师'
+      const isFullTimeTeacher = profile.school === '专职老师' || profile.school === '专职老师（已毕业）'
       if (!isFullTimeTeacher && (!profile.grades || !Array.isArray(profile.grades) || profile.grades.length === 0)) {
         missingFields.push('grades')
         missingFieldsText.push('适合年级')

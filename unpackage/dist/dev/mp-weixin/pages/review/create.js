@@ -59,7 +59,9 @@ const _sfc_main = {
         setTimeout(() => common_vendor.index.navigateBack(), 1500);
         return;
       }
-      loadData();
+      setTimeout(() => {
+        loadData();
+      }, 0);
     });
     common_vendor.onMounted(() => {
     });
@@ -110,7 +112,7 @@ const _sfc_main = {
           }
         }
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:253", "加载评价页面失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:256", "加载评价页面失败:", e);
         common_vendor.index.showToast({ title: e.message || "加载失败", icon: "none" });
       } finally {
         isLoading.value = false;
@@ -182,7 +184,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "已提交并完成确认", icon: "success" });
         setTimeout(() => common_vendor.index.navigateBack(), 1e3);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:339", "[review.submit] 失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:342", "[review.submit] 失败:", e);
         common_vendor.index.showToast({ title: e.message || "提交失败", icon: "none" });
       } finally {
         isSubmitting.value = false;

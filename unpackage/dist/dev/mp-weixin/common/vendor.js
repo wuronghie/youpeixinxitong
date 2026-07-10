@@ -7072,9 +7072,9 @@ function isConsoleWritable() {
   return isWritable;
 }
 function initRuntimeSocketService() {
-  const hosts = "192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
+  const hosts = "198.18.0.1,192.168.109.1,192.168.226.1,192.168.3.68,127.0.0.1";
   const port = "8090";
-  const id = "mp-weixin_bsCss9";
+  const id = "mp-weixin_kV4c6r";
   const lazy = typeof swan !== "undefined";
   let restoreError = lazy ? () => {
   } : initOnError();
@@ -8353,6 +8353,14 @@ const subPackages = [
         }
       },
       {
+        path: "coupon/list",
+        style: {
+          navigationBarTitleText: "我的优惠券",
+          enableShareAppMessage: true,
+          enableShareTimeline: true
+        }
+      },
+      {
         path: "review/list",
         style: {
           navigationBarTitleText: "评价管理",
@@ -8753,7 +8761,7 @@ class S {
 function T(e2) {
   return e2 && "string" == typeof e2 ? JSON.parse(e2) : e2;
 }
-const b = true, E = "mp-weixin", A = T(define_process_env_UNI_SECURE_NETWORK_CONFIG_default), P = E, C = T('{"address":["127.0.0.1","192.168.109.1","192.168.226.1","192.168.3.68"],"servePort":7000,"debugPort":9000,"initialLaunchType":"remote","skipFiles":["<node_internals>/**","D:/software/HBuilderX/plugins/unicloud/**/*.js"]}'), O = T('[{"provider":"aliyun","spaceName":"liye","spaceId":"mp-feefb659-358b-4c0f-938b-e3764472432b","clientSecret":"QTC11Il6JFL4h23WSkmG9A==","endpoint":"https://api.next.bspapp.com"}]') || [];
+const b = true, E = "mp-weixin", A = T(define_process_env_UNI_SECURE_NETWORK_CONFIG_default), P = E, C = T('{"address":["127.0.0.1","198.18.0.1","192.168.109.1","192.168.226.1","192.168.3.68"],"servePort":7000,"debugPort":9000,"initialLaunchType":"remote","skipFiles":["<node_internals>/**","D:/software/HBuilderX/plugins/unicloud/**/*.js"]}'), O = T('[{"provider":"aliyun","spaceName":"liye","spaceId":"mp-feefb659-358b-4c0f-938b-e3764472432b","clientSecret":"QTC11Il6JFL4h23WSkmG9A==","endpoint":"https://api.next.bspapp.com"}]') || [];
 let N = "";
 try {
   N = "__UNI__863DB44";
@@ -11303,4 +11311,5 @@ exports.sr = sr;
 exports.t = t$1;
 exports.tr = tr;
 exports.unref = unref;
+exports.wx$1 = wx$1;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/common/vendor.js.map

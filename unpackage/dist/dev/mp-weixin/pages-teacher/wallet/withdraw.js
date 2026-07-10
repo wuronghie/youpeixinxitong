@@ -16,9 +16,9 @@ const _sfc_main = {
         total_withdraw: 0
       },
       withdrawAmount: "",
-      quickAmounts: [100, 200, 500, 1e3],
+      quickAmounts: [50, 100, 200, 500],
       selectedMethod: "wxpay",
-      minAmount: 100,
+      minAmount: 0.3,
       isSubmitting: false,
       useMock: false
     };
@@ -37,6 +37,21 @@ const _sfc_main = {
     this.loadWallet();
   },
   methods: {
+    requestMerchantTransfer(payload) {
+      return new Promise((resolve, reject) => {
+        if (typeof common_vendor.wx$1 !== "undefined" && common_vendor.wx$1.canIUse && common_vendor.wx$1.canIUse("requestMerchantTransfer")) {
+          common_vendor.wx$1.requestMerchantTransfer({
+            mchId: payload.mchId,
+            appId: payload.appId || common_vendor.wx$1.getAccountInfoSync && common_vendor.wx$1.getAccountInfoSync().miniProgram.appId,
+            package: payload.package_info,
+            success: (res) => resolve(res),
+            fail: (err) => reject(err)
+          });
+          return;
+        }
+        reject(new Error("当前微信版本过低，请更新微信后重试"));
+      });
+    },
     async loadWallet() {
       var _a, _b, _c, _d;
       try {
@@ -63,7 +78,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取钱包信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/withdraw.vue:165", "获取钱包信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/withdraw.vue:182", "获取钱包信息失败:", error);
         common_vendor.index.showToast({ title: "获取钱包信息失败，请稍后再试", icon: "none" });
       }
     },
@@ -133,17 +148,30 @@ const _sfc_main = {
           method: this.selectedMethod
         });
         if (res.code === 0) {
-          common_vendor.index.showToast({ title: "提现申请已提交", icon: "success" });
+          const data = res.data || {};
+          if (data.status === "wait_confirm" && data.package_info) {
+            try {
+              await this.requestMerchantTransfer(data);
+              await walletObj.syncWithdrawStatus({ withdraw_id: data.withdraw_id || data.request_id });
+              common_vendor.index.showToast({ title: "请完成确认后查看到账", icon: "none" });
+            } catch (confirmErr) {
+              common_vendor.index.showToast({ title: "请到钱包页完成确认收款", icon: "none" });
+            }
+          } else if (data.status === "completed") {
+            common_vendor.index.showToast({ title: "已转入微信零钱", icon: "success" });
+          } else {
+            common_vendor.index.showToast({ title: res.message || "提现已提交", icon: "success" });
+          }
           this.withdrawAmount = "";
           await this.loadWallet();
           setTimeout(() => {
             common_vendor.index.navigateBack();
           }, 800);
         } else {
-          common_vendor.index.showToast({ title: res.message || "提现申请失败", icon: "none" });
+          common_vendor.index.showToast({ title: res.message || "提现失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/withdraw.vue:248", "提现提交失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/withdraw.vue:278", "提现提交失败:", error);
         common_vendor.index.showToast({ title: "提现申请失败，请稍后再试", icon: "none" });
       } finally {
         this.isSubmitting = false;
@@ -184,7 +212,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     n: common_vendor.p({
       headTitle: "到账说明"
     }),
-    o: common_vendor.t($data.isSubmitting ? "提交中..." : "提交提现申请"),
+    o: common_vendor.t($data.isSubmitting ? "处理中..." : "立即提现到微信零钱"),
     p: $options.submitDisabled || $data.isSubmitting,
     q: common_vendor.o((...args) => $options.submitWithdraw && $options.submitWithdraw(...args))
   };

@@ -332,6 +332,14 @@
 					}
 				},
 				{
+					"path": "coupon/list",
+					"style": {
+						"navigationBarTitleText": "我的优惠券",
+						"enableShareAppMessage": true,
+						"enableShareTimeline": true
+					}
+				},
+				{
 					"path": "review/list",
 					"style": {
 						"navigationBarTitleText": "评价管理",

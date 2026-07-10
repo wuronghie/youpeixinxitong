@@ -4,8 +4,7 @@
  *
  * 交易结算规则（2026/06）：
  * 1) 教师信息费（order_type='deposit'，金额=hourly_rate × 2）在聊天开启时支付：
- *    · 试课成功 → 信息费归平台收取，不退回
- *    · 试课失败 → 信息费全额退回教师钱包
+ *    · 无论试课成功/失败，信息费均归平台收取，不退回
  * 2) 试课费分账：
  *    · 试课成功 → 教师收入 = 100% × original_amount
  *    · 试课失败 → 教师收入 = 70% × original_amount；家长自动退款 30% × actualPaidAmount
@@ -123,6 +122,78 @@ function buildSettlementResult(appointment, paymentOrder) {
     platformFee: 0,
     teacherIncome: roundCurrency(teacherIncome)
   }
+}
+
+/**
+ * 课程/试课收入：优先自动转到微信零钱，失败则入钱包兜底
+ */
+async function settleTeacherIncome(teacherId, income = 0, meta = {}) {
+  const incomeNum = roundCurrency(income)
+  if (incomeNum <= 0) {
+    return { settled: false, duplicate: false, auto_transferred: false }
+  }
+
+  const db = uniCloud.database()
+  const isInfoFeeRefund = meta.source === 'info_fee_refund'
+  if (meta.appointment_id) {
+    const dupWhere = isInfoFeeRefund
+      ? {
+          teacher_id: teacherId,
+          appointment_id: meta.appointment_id,
+          source: 'info_fee_refund'
+        }
+      : {
+          teacher_id: teacherId,
+          appointment_id: meta.appointment_id,
+          type: 'income'
+        }
+    const existingTransactionDoc = await db.collection('teacher-transactions')
+      .where(dupWhere)
+      .limit(1)
+      .get()
+    if (existingTransactionDoc.data && existingTransactionDoc.data.length > 0) {
+      console.log('[结算] 已存在流水，跳过重复结算:', {
+        teacher_id: teacherId,
+        appointment_id: meta.appointment_id,
+        source: meta.source
+      })
+      return { settled: false, duplicate: true, auto_transferred: false }
+    }
+  }
+
+  try {
+    const teacherWallet = uniCloud.importObject('teacher-wallet', { customUI: true })
+    const remark = isInfoFeeRefund
+      ? '信息费退还到账'
+      : (meta.course_type === 'trial' ? '试课收入到账' : '课程收入到账')
+    const res = await teacherWallet.settleToWechat({
+      teacher_id: teacherId,
+      amount: incomeNum,
+      appointment_id: meta.appointment_id || '',
+      remark,
+      income_title: isInfoFeeRefund ? '信息费退还' : (meta.course_type === 'trial' ? '试课收入' : '课程收入'),
+      income_type: isInfoFeeRefund ? 'refund' : 'income',
+      income_source: meta.source || 'appointment_complete'
+    })
+    if (res && res.code === 0) {
+      return {
+        settled: true,
+        duplicate: false,
+        auto_transferred: !!(res.data && res.data.auto_transferred),
+        need_confirm: !!(res.data && res.data.need_confirm),
+        transfer: res.data || null
+      }
+    }
+    console.warn('[结算] settleToWechat 返回失败，回退钱包入账:', res && res.message)
+  } catch (e) {
+    console.error('[结算] settleToWechat 调用失败，回退钱包入账:', e)
+  }
+
+  // 回退：仅入钱包
+  if (isInfoFeeRefund) {
+    return await updateTeacherWallet(teacherId, 0, incomeNum, meta)
+  }
+  return await updateTeacherWallet(teacherId, incomeNum, 0, meta)
 }
 
 /**
@@ -520,8 +591,8 @@ module.exports = {
         update_time: settlementTime
       })
       
-      // 7. 更新教师钱包
-      const walletResult = await updateTeacherWallet(appointment.teacher_id, settlement.teacherIncome, 0, {
+      // 7. 教师收入：优先自动到微信零钱
+      const walletResult = await settleTeacherIncome(appointment.teacher_id, settlement.teacherIncome, {
         appointment_id,
         course_type: appointment.course_type,
         source: 'trial_complete'
@@ -589,7 +660,7 @@ module.exports = {
    * 结算规则：
    *   · 教师收入 = 70% × original_amount
    *   · 家长退款 = 30% × actualPaidAmount（微信原路退回）
-   *   · 信息费退回教师钱包
+   *   · 信息费归平台，不退回
    *
    * @param {Object} params
    * @param {String} params.appointment_id 预约ID
@@ -674,11 +745,10 @@ module.exports = {
         update_time: settlementTime
       })
 
-      // 7. 教师钱包：发放 70% 试课收入
-      const walletResult = await updateTeacherWallet(
+      // 7. 教师收入：优先自动到微信零钱（试课失败 70%）
+      const walletResult = await settleTeacherIncome(
         appointment.teacher_id,
         settlement.teacherIncome,
-        0,
         {
           appointment_id,
           course_type: appointment.course_type,
@@ -712,56 +782,8 @@ module.exports = {
         }
       }
 
-      // 8. 信息费退回教师钱包（订单标记 info_fee_refunded）
-      try {
-        const refundCmd = db.command
-        const infoFeeOrderDoc = await db.collection('payment-orders')
-          .where({
-            appointment_id,
-            order_type: 'deposit',
-            status: refundCmd.in(['paid', 'success'])
-          })
-          .orderBy('payment_time', 'desc')
-          .limit(1)
-          .get()
-        const infoFeeOrder = infoFeeOrderDoc.data && infoFeeOrderDoc.data.length > 0
-          ? infoFeeOrderDoc.data[0]
-          : null
-        const infoFeeAmount = infoFeeOrder ? roundCurrency(infoFeeOrder.amount || 0) : 0
-        if (infoFeeOrder && infoFeeAmount > 0 && !infoFeeOrder.info_fee_refunded) {
-          await updateTeacherWallet(
-            appointment.teacher_id,
-            0,
-            infoFeeAmount,
-            {
-              appointment_id,
-              course_type: appointment.course_type,
-              source: 'info_fee_refund'
-            }
-          )
-          await db.collection('payment-orders').doc(infoFeeOrder._id).update({
-            info_fee_refunded: true,
-            info_fee_refund_amount: infoFeeAmount,
-            info_fee_refund_time: Date.now(),
-            update_time: Date.now()
-          })
-          console.log('[confirmTrialFail] 信息费已退回教师钱包:', {
-            appointment_id,
-            teacher_id: appointment.teacher_id,
-            infoFeeOrderNo: infoFeeOrder.order_no,
-            infoFeeAmount
-          })
-        } else {
-          console.warn('[confirmTrialFail] 跳过信息费退回:', {
-            appointment_id,
-            hasOrder: !!infoFeeOrder,
-            infoFeeAmount,
-            alreadyRefunded: infoFeeOrder && infoFeeOrder.info_fee_refunded
-          })
-        }
-      } catch (refundInfoErr) {
-        console.error('[confirmTrialFail] 退回信息费失败（不影响主流程）:', refundInfoErr)
-      }
+      // 8. 信息费归平台，试课失败也不退回
+      console.log('[confirmTrialFail] 信息费不退回，归平台收取:', { appointment_id })
 
       // 9. 更新教师试课统计
       const dbCmd = db.command
@@ -797,7 +819,7 @@ module.exports = {
         teacher_income: settlement.teacherIncome,
         parent_refund_amount: parentRefundResult.refundAmount || parentRefundAmount,
         platform_fee: settlement.platformFee,
-        info_fee_refunded: true,
+        info_fee_refunded: false,
         can_review: true,
         can_reinvite_trial: true
       }, parentRefundResult.success
@@ -919,14 +941,14 @@ module.exports = {
         update_time: settlementTime
       })
       
-      // 8. 更新教师钱包
+      // 8. 教师收入：优先自动到微信零钱
       if (settlement.teacherIncome > 0) {
-        console.log('[completeCourse] 即将更新教师钱包:', {
+        console.log('[completeCourse] 即将结算教师收入:', {
           teacher_id: appointment.teacher_id,
           teacherIncome: settlement.teacherIncome,
           appointment_id
         })
-        const walletResult = await updateTeacherWallet(appointment.teacher_id, settlement.teacherIncome, 0, {
+        const walletResult = await settleTeacherIncome(appointment.teacher_id, settlement.teacherIncome, {
           appointment_id,
           course_type: appointment.course_type,
           source: 'regular_complete'
@@ -937,13 +959,14 @@ module.exports = {
           wallet_settlement_amount: settlement.teacherIncome,
           update_time: Date.now()
         })
-        console.log('[completeCourse] 教师钱包更新完成:', {
+        console.log('[completeCourse] 教师收入结算完成:', {
           teacher_id: appointment.teacher_id,
           teacherIncome: settlement.teacherIncome,
+          auto_transferred: walletResult.auto_transferred,
           appointment_id
         })
       } else {
-        console.warn(`[completeCourse] 教师收入为0或无效，跳过钱包更新: teacherIncome=${settlement.teacherIncome}, appointment_id=${appointment_id}`)
+        console.warn(`[completeCourse] 教师收入为0或无效，跳过结算: teacherIncome=${settlement.teacherIncome}, appointment_id=${appointment_id}`)
       }
       
       // 9. 更新教师统计

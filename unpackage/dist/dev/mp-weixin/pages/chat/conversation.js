@@ -38,6 +38,8 @@ const _sfc_main = {
         subjects: []
       },
       conversationInfo: {},
+      trialInviteStatusMap: {},
+      rejectingInviteIds: {},
       pagination: {
         page: 1,
         pageSize: 30,
@@ -75,6 +77,14 @@ const _sfc_main = {
       const hasTeacherMessage = this.messages.some((msg) => msg.sender_role === "teacher");
       const hasParentMessage = this.messages.some((msg) => msg.sender_role === "parent");
       return hasParentMessage && !hasTeacherMessage;
+    },
+    pendingPaymentInviteId() {
+      const entries = Object.entries(this.trialInviteStatusMap || {});
+      const hit = entries.find(([, item]) => item && item.status === "pending_payment");
+      return hit ? hit[0] : "";
+    },
+    needPayTrialFee() {
+      return this.currentUserRole === "parent" && !!this.pendingPaymentInviteId;
     },
     canSendMessage() {
       if (this.sending)
@@ -158,7 +168,7 @@ const _sfc_main = {
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:299", "[chat-conversation] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:316", "[chat-conversation] 下拉刷新：重新加载消息");
       await this.refreshMessages();
     },
     async initConversation() {
@@ -177,7 +187,7 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: res.message || "获取会话失败", icon: "none" });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/chat/conversation.vue:319", "获取会话失败:", error);
+              common_vendor.index.__f__("error", "at pages/chat/conversation.vue:336", "获取会话失败:", error);
               common_vendor.index.showToast({ title: "获取会话失败", icon: "none" });
             }
           } else {
@@ -240,7 +250,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:379", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:396", "加载用户信息失败:", error);
       }
     },
     async refreshMessages() {
@@ -306,9 +316,10 @@ const _sfc_main = {
             });
           }
           await chatSend.markRead({ conversation_id: this.conversationId });
+          this.loadTrialInviteStatuses();
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:463", "加载新消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:481", "加载新消息失败:", error);
         if (this.messages.length === 0) {
           await this.refreshMessages();
         }
@@ -346,7 +357,7 @@ const _sfc_main = {
         await Promise.all([this.refreshConversationInfo(), this.refreshMessages()]);
         this.showRefreshTipWithText("刷新完成");
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:501", "刷新失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:519", "刷新失败:", error);
         common_vendor.index.showToast({ title: "刷新失败，请稍后再试", icon: "none" });
         this.showRefreshTipWithText("刷新失败");
       } finally {
@@ -392,7 +403,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:545", "刷新会话信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:563", "刷新会话信息失败:", error);
       }
     },
     async fetchMessages({ page = 1, reset = false, prepend = false } = {}) {
@@ -443,12 +454,13 @@ const _sfc_main = {
           this.pagination.hasMore = !!res.data.hasMore;
           if (!prepend) {
             await chatSend.markRead({ conversation_id: this.conversationId });
+            this.loadTrialInviteStatuses();
           }
         } else {
           common_vendor.index.showToast({ title: res.message || "消息加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:607", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:626", "加载消息失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -467,7 +479,7 @@ const _sfc_main = {
           await this.fetchMessages({ page: 1, reset: true });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:624", "通过预约加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:643", "通过预约加载消息失败:", error);
       }
     },
     async sendMessage() {
@@ -516,7 +528,7 @@ const _sfc_main = {
           this.rollbackTempMessage(tempMsg.message_id, res.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:676", "发送消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:695", "发送消息失败:", error);
         this.rollbackTempMessage(tempMsg.message_id);
       } finally {
         this.sending = false;
@@ -593,6 +605,77 @@ const _sfc_main = {
         return "";
       }
     },
+    canRespondTrialInvite(msg) {
+      var _a;
+      if (msg.sender_role === this.currentUserRole)
+        return false;
+      const inviteId = this.getInviteIdFromMessage(msg);
+      if (!inviteId || this.rejectingInviteIds[inviteId])
+        return false;
+      return ((_a = this.trialInviteStatusMap[inviteId]) == null ? void 0 : _a.status) === "trial_invited";
+    },
+    getTrialInviteStatusText(msg) {
+      const inviteId = this.getInviteIdFromMessage(msg);
+      const info = this.trialInviteStatusMap[inviteId] || {};
+      const status = info.status;
+      if (status === "trial_invited") {
+        return msg.sender_role === this.currentUserRole ? "已发送邀请" : "待处理邀请";
+      }
+      if (status === "rejected")
+        return "已不通过";
+      if (status === "pending_payment")
+        return "已通过，待支付试课费";
+      if (status === "pending_confirm")
+        return "已支付，等待老师确认";
+      if (["confirmed", "in_progress"].includes(status)) {
+        return info.parent_paid ? "试课费已支付，请按约定时间上课" : "已通过";
+      }
+      if (status === "completed")
+        return "试课已完成";
+      if (status)
+        return "邀请已处理";
+      return "加载中...";
+    },
+    async loadTrialInviteStatuses() {
+      const inviteIds = Array.from(new Set((this.messages || []).map((msg) => this.getInviteIdFromMessage(msg)).filter(Boolean)));
+      if (!inviteIds.length || this.useMock)
+        return;
+      try {
+        const appointmentQuery = common_vendor.tr.importObject("appointment-query", { customUI: true });
+        const entries = await Promise.all(inviteIds.map(async (inviteId) => {
+          try {
+            const res = await appointmentQuery.getAppointmentDetail({ appointment_id: inviteId });
+            if (res.code === 0 && res.data) {
+              return [inviteId, {
+                status: res.data.status,
+                parent_paid: !!res.data.parent_paid,
+                total_amount: Number(res.data.total_amount || 0)
+              }];
+            }
+          } catch (e) {
+            common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:812", "[chat-conversation] 加载试课邀请状态失败:", inviteId, e);
+          }
+          return [inviteId, this.trialInviteStatusMap[inviteId] || { status: "" }];
+        }));
+        const nextMap = { ...this.trialInviteStatusMap };
+        entries.forEach(([inviteId, item]) => {
+          nextMap[inviteId] = item;
+        });
+        this.trialInviteStatusMap = nextMap;
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:822", "[chat-conversation] 批量加载试课邀请状态失败:", e);
+      }
+    },
+    goPayTrialFee() {
+      const inviteId = this.pendingPaymentInviteId || this.appointmentId;
+      if (!inviteId) {
+        common_vendor.index.showToast({ title: "未找到待支付试课", icon: "none" });
+        return;
+      }
+      common_vendor.index.navigateTo({
+        url: `/pages/appointment/detail?id=${inviteId}`
+      });
+    },
     /**
      * 处理接受邀请（点击邀请卡片）
      * @param {Object} msg - 邀请消息对象
@@ -617,6 +700,45 @@ const _sfc_main = {
       common_vendor.index.navigateTo({
         url: `/pages/appointment/create?invite_id=${inviteId}`
       });
+    },
+    async handleRejectInvite(msg) {
+      const inviteId = this.getInviteIdFromMessage(msg);
+      if (!inviteId) {
+        common_vendor.index.showToast({ title: "邀请信息无效", icon: "none" });
+        return;
+      }
+      if (this.rejectingInviteIds[inviteId])
+        return;
+      common_vendor.index.showModal({
+        title: "不通过试课邀请",
+        content: "确认不通过本次试课邀请？老师之后可以重新发起邀请。",
+        success: async (modalRes) => {
+          if (!modalRes.confirm)
+            return;
+          this.rejectingInviteIds = { ...this.rejectingInviteIds, [inviteId]: true };
+          try {
+            const appointmentCreate = common_vendor.tr.importObject("appointment-create", { customUI: true });
+            const res = await appointmentCreate.rejectTrialInvite({ invite_id: inviteId });
+            if (res.code !== 0) {
+              common_vendor.index.showToast({ title: res.message || "操作失败", icon: "none" });
+              return;
+            }
+            this.trialInviteStatusMap = {
+              ...this.trialInviteStatusMap,
+              [inviteId]: { status: "rejected" }
+            };
+            common_vendor.index.showToast({ title: "已不通过", icon: "success" });
+            setTimeout(() => this.loadNewMessages(), 500);
+          } catch (e) {
+            common_vendor.index.__f__("error", "at pages/chat/conversation.vue:886", "拒绝试课邀请失败:", e);
+            common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
+          } finally {
+            const next = { ...this.rejectingInviteIds };
+            delete next[inviteId];
+            this.rejectingInviteIds = next;
+          }
+        }
+      });
     }
   }
 };
@@ -636,39 +758,46 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       }, item.type === "time" ? {
         b: common_vendor.t(item.label)
       } : $options.isTrialInviteMessage(item.data) ? common_vendor.e({
-        d: item.data.sender_role !== $data.currentUserRole
-      }, item.data.sender_role !== $data.currentUserRole ? {
-        e: common_vendor.o(($event) => $options.handleAcceptInvite(item.data), item.id)
-      } : {}) : common_vendor.e({
-        f: item.data.sender_role !== $data.currentUserRole
-      }, item.data.sender_role !== $data.currentUserRole ? {
-        g: $options.otherAvatar,
-        h: common_vendor.t(item.data.content)
+        d: $options.canRespondTrialInvite(item.data)
+      }, $options.canRespondTrialInvite(item.data) ? {
+        e: common_vendor.o(($event) => $options.handleRejectInvite(item.data), item.id),
+        f: common_vendor.o(($event) => $options.handleAcceptInvite(item.data), item.id)
       } : {
-        i: common_vendor.t(item.data.content),
-        j: $data.currentUserInfo.avatar || _ctx.defaultAvatarUrl
+        g: common_vendor.t($options.getTrialInviteStatusText(item.data))
+      }) : common_vendor.e({
+        h: item.data.sender_role !== $data.currentUserRole
+      }, item.data.sender_role !== $data.currentUserRole ? {
+        i: $options.otherAvatar,
+        j: common_vendor.t(item.data.content)
+      } : {
+        k: common_vendor.t(item.data.content),
+        l: $data.currentUserInfo.avatar || _ctx.defaultAvatarUrl
       }, {
-        k: item.data.sender_role === $data.currentUserRole ? 1 : ""
+        m: item.data.sender_role === $data.currentUserRole ? 1 : ""
       }), {
         c: $options.isTrialInviteMessage(item.data),
-        l: item.id,
-        m: item.id
+        n: item.id,
+        o: item.id
       });
     }),
     h: !$options.formattedMessages.length && !$data.loading
   }, !$options.formattedMessages.length && !$data.loading ? {} : {}, {
     i: $data.scrollIntoView,
     j: common_vendor.o((...args) => $options.handleScroll && $options.handleScroll(...args)),
-    k: $options.needWaitForTeacherReply
+    k: $options.needPayTrialFee
+  }, $options.needPayTrialFee ? {
+    l: common_vendor.o((...args) => $options.goPayTrialFee && $options.goPayTrialFee(...args))
+  } : {}, {
+    m: $options.needWaitForTeacherReply
   }, $options.needWaitForTeacherReply ? {} : {}, {
-    l: $options.needWaitForTeacherReply ? "请等待老师回复..." : "请输入聊天内容...",
-    m: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args)),
-    n: $data.sending || $options.needWaitForTeacherReply,
-    o: $data.inputText,
-    p: common_vendor.o(($event) => $data.inputText = $event.detail.value),
-    q: common_vendor.t($data.sending ? "发送中" : "发送"),
-    r: $options.canSendMessage ? 1 : "",
-    s: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args))
+    n: $options.needWaitForTeacherReply ? "请等待老师回复..." : "请输入聊天内容...",
+    o: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args)),
+    p: $data.sending || $options.needWaitForTeacherReply,
+    q: $data.inputText,
+    r: common_vendor.o(($event) => $data.inputText = $event.detail.value),
+    s: common_vendor.t($data.sending ? "发送中" : "发送"),
+    t: $options.canSendMessage ? 1 : "",
+    v: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-ad2b89bd"]]);

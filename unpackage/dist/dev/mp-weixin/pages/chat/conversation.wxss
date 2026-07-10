@@ -202,6 +202,29 @@
 	font-size: 24rpx;
 	color: #FF9500;
 }
+.pay-tip.data-v-ad2b89bd {
+	background: #E8F3FF;
+	padding: 20rpx 30rpx;
+	border-bottom: 1rpx solid #B7D8FF;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+.pay-tip-text.data-v-ad2b89bd {
+	flex: 1;
+	font-size: 24rpx;
+	color: #2979FF;
+}
+.pay-tip-btn.data-v-ad2b89bd {
+	padding: 8rpx 24rpx;
+	background: #2979FF;
+	border-radius: 28rpx;
+}
+.pay-tip-btn-text.data-v-ad2b89bd {
+	font-size: 24rpx;
+	color: #FFFFFF;
+}
 .input-wrapper.data-v-ad2b89bd {
 	display: flex;
 	align-items: flex-end;
@@ -303,7 +326,7 @@
 	line-height: 1.6;
 }
 .trial-invite-btn.data-v-ad2b89bd {
-	width: 100%;
+	flex: 1;
 	height: 72rpx;
 	background-color: #4A90E2;
 	border-radius: 36rpx;
@@ -311,10 +334,24 @@
 	align-items: center;
 	justify-content: center;
 }
+.trial-invite-actions.data-v-ad2b89bd {
+	display: flex;
+	gap: 20rpx;
+}
+.trial-invite-btn-accept.data-v-ad2b89bd {
+	background-color: #4A90E2;
+}
+.trial-invite-btn-reject.data-v-ad2b89bd {
+	background-color: #F5F5F5;
+	border: 1rpx solid #DDDDDD;
+}
 .trial-invite-btn-text.data-v-ad2b89bd {
 	color: #FFFFFF;
 	font-size: 28rpx;
 	font-weight: 500;
+}
+.trial-invite-btn-reject-text.data-v-ad2b89bd {
+	color: #666666;
 }
 .trial-invite-status.data-v-ad2b89bd {
 	width: 100%;

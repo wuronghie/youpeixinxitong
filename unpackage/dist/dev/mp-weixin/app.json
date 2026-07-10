@@ -44,6 +44,7 @@
         "wallet/index",
         "wallet/income",
         "wallet/withdraw",
+        "coupon/list",
         "review/list",
         "recruitment/list",
         "recruitment/detail",

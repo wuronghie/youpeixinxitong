@@ -15,7 +15,12 @@
 							<view class="icon-phone mr-1" style="width: 28rpx; height: 28rpx;"></view>
 							{{ userInfo.phone }}
 						</view>
-						<text v-if="userInfo.uid" class="font-xs" style="opacity: 0.85;">ID: {{ userInfo.uid }}</text>
+						<text
+							v-if="userInfo.uid"
+							class="font-xs user-id-copy"
+							style="opacity: 0.85;"
+							@click.stop="copyUserId"
+						>ID: {{ userInfo.uid }}</text>
 					</view>
 				</view>
 			</view>
@@ -212,6 +217,12 @@ export default {
 					url: '/pages-teacher/wallet/index'
 				},
 				{
+					title: '我的优惠券',
+					desc: '支付信息费时可抵扣使用',
+					icon: getIconUrl('wallet.png'),
+					url: '/pages-teacher/coupon/list'
+				},
+				{
 					title: '评价管理',
 					desc: '查看并回复家长评价',
 					icon: getIconUrl('star.png'),
@@ -264,6 +275,22 @@ export default {
 		this.loadData()
 	},
 	methods: {
+		copyUserId() {
+			const uid = this.userInfo && this.userInfo.uid
+			if (!uid) {
+				uni.showToast({ title: '暂无用户ID', icon: 'none' })
+				return
+			}
+			uni.setClipboardData({
+				data: String(uid),
+				success: () => {
+					uni.showToast({ title: '用户ID已复制', icon: 'success' })
+				},
+				fail: () => {
+					uni.showToast({ title: '复制失败', icon: 'none' })
+				}
+			})
+		},
 		async refreshData() {
 			console.log('[teacher-user-center] 下拉刷新：重新加载个人中心')
 			await this.loadUserInfo()
@@ -345,7 +372,7 @@ export default {
 					
 					// 判断资料是否完善：检查必填字段
 					const hasQualificationImage = Array.isArray(profile?.qualifications) && profile.qualifications.some(item => item && item.image)
-					const isFullTimeTeacher = profile?.school === '专职老师'
+					const isFullTimeTeacher = profile?.school === '专职老师' || profile?.school === '专职老师（已毕业）'
 					const gradesComplete = isFullTimeTeacher || (profile?.grades && profile.grades.length > 0)
 					const isProfileComplete = profile?.display_name &&
 						profile?.subjects && profile.subjects.length > 0 &&

@@ -590,7 +590,7 @@ export default {
 						// 直接使用现有订单进行支付
 						uni.showModal({
 							title: '支付信息费',
-							content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
+							content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n信息费由平台收取，试课成功或失败均不退回。`,
 							success: async (res) => {
 								if (!res.confirm) return
 								await this.payWithExistingOrder(pendingOrder.order_no)
@@ -605,7 +605,7 @@ export default {
 			
 			uni.showModal({
 				title: '支付信息费',
-				content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
+				content: `支付${this.infoFeeAmount}元信息费（= 课时费 ¥${this.teacherHourlyRate || (this.appointment && this.appointment.hourly_rate) || 0} × 2，一节 2 小时）后可开启与家长的聊天。\n信息费由平台收取，试课成功或失败均不退回。`,
 				success: async (res) => {
 					if (!res.confirm) return
 					

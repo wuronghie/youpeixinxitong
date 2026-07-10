@@ -10,18 +10,20 @@
     <view v-if="showInfoFeePending" class="fee-card__row">
       <text class="fee-card__label">信息费</text>
       <text class="fee-card__amount fee-card__amount--warning">
-        ¥{{ infoFeeAmount }}（需支付 · 一节试课 2 小时费用）
+        ¥{{ infoFeeAmount }}（需支付 · 保证金，一节试课 2 小时费用）
       </text>
     </view>
 
     <view v-else-if="appointment.deposit_paid" class="fee-card__row">
       <text class="fee-card__label">信息费</text>
-      <text class="fee-card__amount fee-card__amount--success">¥{{ infoFeeAmount }}（已支付）</text>
+      <text class="fee-card__amount fee-card__amount--success">¥{{ infoFeeAmount }}（保证金，已支付）</text>
     </view>
 
     <view v-if="isTrial" class="fee-card__notice fee-card__notice--warning">
       <text class="fee-card__notice-text">
-        试课说明：平台收取一节试课完整费用作为中介费（仅该家长与您首次试课成功时收取），本单试课收入为 0；确认完成后会记录流水。
+        试课流程：您须先支付信息费（保证金，= 课时费×2 小时）方可联系家长并发起邀请；家长接受邀请并支付试课费后安排上课。您完成下课打卡后，家长确认结果并完成结算：
+        · 试课成功 → 家长支付的试课费 100% 结算到您的钱包；您已付信息费由平台收取；
+        · 试课不满意 → 试课费 70% 给您、30% 退还给家长；信息费由平台收取，不退回。
       </text>
     </view>
 

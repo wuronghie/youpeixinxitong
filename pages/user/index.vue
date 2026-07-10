@@ -41,9 +41,17 @@
 					<view v-if="!isLoggedIn" class="guest-login-btn rounded px-3 py-1 d-inline-flex a-center" @click="goLogin">
 						<text class="font-sm">点击登录</text>
 					</view>
-					<view v-else class="font-sm" style="opacity: 0.88;" @click="goToPage('/pages/common/register')">
-						查看或完善资料
-					</view>
+					<template v-else>
+						<view class="font-sm" style="opacity: 0.88;" @click="goToPage('/pages/common/register')">
+							查看或完善资料
+						</view>
+						<text
+							v-if="userInfo.uid"
+							class="font-xs user-id-copy d-block mt-1"
+							style="opacity: 0.85;"
+							@click.stop="copyUserId"
+						>ID: {{ userInfo.uid }}</text>
+					</template>
 				</view>
 			</view>
 		</view>
@@ -604,6 +612,22 @@ export default {
 				content: '请添加客服微信：jiajiabang_service 或拨打 400-123-4567',
 				showCancel: false,
 				confirmText: '我知道了'
+			})
+		},
+		copyUserId() {
+			const uid = this.userInfo && this.userInfo.uid
+			if (!uid) {
+				uni.showToast({ title: '暂无用户ID', icon: 'none' })
+				return
+			}
+			uni.setClipboardData({
+				data: String(uid),
+				success: () => {
+					uni.showToast({ title: '用户ID已复制', icon: 'success' })
+				},
+				fail: () => {
+					uni.showToast({ title: '复制失败', icon: 'none' })
+				}
 			})
 		},
 		/**

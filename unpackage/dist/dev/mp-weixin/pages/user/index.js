@@ -240,7 +240,7 @@ const _sfc_main = {
       try {
         await Promise.all([this.loadUserProfile(), this.loadOverview()]);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:448", "初始化家长个人中心失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:456", "初始化家长个人中心失败:", error);
       } finally {
         if (fromPullDown) {
           common_vendor.index.stopPullDownRefresh();
@@ -262,7 +262,7 @@ const _sfc_main = {
           this.myInviteCode = res.data.invite_code;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:470", "加载邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:478", "加载邀请码失败:", error);
       }
     },
     /**
@@ -309,7 +309,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:517", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:525", "加载用户信息失败:", error);
       }
     },
     /**
@@ -360,7 +360,7 @@ const _sfc_main = {
           });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:568", "加载概览数据失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:576", "加载概览数据失败:", error);
       }
     },
     /**
@@ -404,6 +404,22 @@ const _sfc_main = {
         confirmText: "我知道了"
       });
     },
+    copyUserId() {
+      const uid = this.userInfo && this.userInfo.uid;
+      if (!uid) {
+        common_vendor.index.showToast({ title: "暂无用户ID", icon: "none" });
+        return;
+      }
+      common_vendor.index.setClipboardData({
+        data: String(uid),
+        success: () => {
+          common_vendor.index.showToast({ title: "用户ID已复制", icon: "success" });
+        },
+        fail: () => {
+          common_vendor.index.showToast({ title: "复制失败", icon: "none" });
+        }
+      });
+    },
     /**
      * 复制 / 生成【自己的】邀请码
      * - 如果已有：直接复制
@@ -435,7 +451,7 @@ const _sfc_main = {
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:639", "生成或复制邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:663", "生成或复制邀请码失败:", error);
         common_vendor.index.showToast({ title: "生成邀请码失败，请稍后重试", icon: "none" });
       }
     },
@@ -473,23 +489,23 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages/user/index.vue:677", "[user-index] 开始绑定邀请码:", {
+        common_vendor.index.__f__("log", "at pages/user/index.vue:701", "[user-index] 开始绑定邀请码:", {
           inviteCode,
           userInfo: common_vendor.index.getStorageSync("userInfo") || {}
         });
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
-        common_vendor.index.__f__("log", "at pages/user/index.vue:685", "[user-index] 绑定邀请码返回结果:", res);
+        common_vendor.index.__f__("log", "at pages/user/index.vue:709", "[user-index] 绑定邀请码返回结果:", res);
         if (res.code === 0) {
           common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
           setTimeout(() => {
-            common_vendor.index.__f__("log", "at pages/user/index.vue:691", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
+            common_vendor.index.__f__("log", "at pages/user/index.vue:715", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
           }, 300);
         } else {
           common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:697", "填写邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:721", "填写邀请码失败:", error);
         common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
@@ -543,7 +559,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/user/index.vue:754", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages/user/index.vue:778", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"
@@ -570,15 +586,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     e: !$options.isLoggedIn
   }, !$options.isLoggedIn ? {
     f: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
-  } : {
-    g: common_vendor.o(($event) => $options.goToPage("/pages/common/register"))
-  }, {
-    h: !$options.isLoggedIn
+  } : common_vendor.e({
+    g: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
+    h: $data.userInfo.uid
+  }, $data.userInfo.uid ? {
+    i: common_vendor.t($data.userInfo.uid),
+    j: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
+  } : {}), {
+    k: !$options.isLoggedIn
   }, !$options.isLoggedIn ? {
-    i: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+    l: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
   } : {}, {
-    j: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
-    k: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
+    m: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
+    n: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
       return common_vendor.e({
         a: common_vendor.n(item.icon),
         b: common_vendor.t(item.name),
@@ -590,25 +610,25 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         f: common_vendor.o(($event) => $options.openAppointment(item), index)
       });
     }),
-    l: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
-    m: common_vendor.o(($event) => $options.goToPage("/pages/recruitment/list")),
-    n: $data.myInviteCode
+    o: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
+    p: common_vendor.o(($event) => $options.goToPage("/pages/recruitment/list")),
+    q: $data.myInviteCode
   }, $data.myInviteCode ? {} : {}, {
-    o: common_vendor.t($data.myInviteCode || "--"),
-    p: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
-    q: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
-    r: common_vendor.o(($event) => $options.goToPage("/pages/user/collection")),
-    s: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
-    t: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
-    v: $data.overview.unreadMessages > 0
+    r: common_vendor.t($data.myInviteCode || "--"),
+    s: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
+    t: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
+    v: common_vendor.o(($event) => $options.goToPage("/pages/user/collection")),
+    w: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
+    x: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
+    y: $data.overview.unreadMessages > 0
   }, $data.overview.unreadMessages > 0 ? {
-    w: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
+    z: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
   } : {}, {
-    x: common_vendor.o(($event) => $options.goToPage("/pages/user/messages")),
-    y: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
-    z: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
-    A: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
-    B: common_vendor.p({
+    A: common_vendor.o(($event) => $options.goToPage("/pages/user/messages")),
+    B: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
+    C: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
+    D: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
+    E: common_vendor.p({
       current: "user"
     })
   });

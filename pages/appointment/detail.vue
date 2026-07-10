@@ -112,11 +112,11 @@
 			</view>
 			<view class="mt-2 pt-2 border-top">
 				<text class="font-sm text-light-muted" v-if="appointment.course_type === 'trial'">
-					课程结束后由您确认结果：
-					· 试课成功 → 教师拿 70%、平台收 30%，教师之前支付的信息费由平台收取；
-					· 试课不满意 → 同样 70%/30% 分账，教师之前支付的信息费全额退回教师钱包，平台不会自动退您的钱；
-					· 如遇老师爽约/欺诈等异常情况，请在确认结果之前使用「异常情况申请退款」入口，由平台管理员审核后处理；
-					· 一旦您点击「去评价并确认结果」提交，视为认可本次结算，将不可再申请退款。
+					试课流程：教师须先向平台支付信息费（保证金，= 课时费×2 小时）方可联系您并发起邀请；您接受邀请并支付试课费后安排上课。教师下课打卡后，请点击「去评价并确认结果」完成结算：
+					· 试课成功 → 您支付的试课费 100% 结算给教师；教师已付信息费由平台收取；
+					· 试课不满意 → 试课费 70% 给教师、30% 原路退回给您；教师信息费由平台收取不退回；
+					· 如遇老师爽约/欺诈等异常，请在确认结果前通过「异常情况申请退款」由平台审核；
+					· 提交确认后视为认可本次结算，将不可再申请退款。
 				</text>
 				<text class="font-sm text-light-muted" v-else>
 					您与该老师试课成功一次后，后续正式课平台不收费。优惠券由平台承担，老师获得完整课程金额；家长确认课程完成后结算到教师钱包并生成收支流水。一旦您点击「去评价并确认完成」提交，将不可再申请退款。
@@ -235,6 +235,7 @@ export default {
 			couponLoading: false,
 			isLoading: false,
 			isRefreshing: false,
+			navigatingToReview: false,
 			scrollTop: 0,
 			canRefresh: true,
 			// 默认头像URL（从CDN）
@@ -252,6 +253,7 @@ export default {
 	},
 	// 从其他页面返回（例如提交评价后）时刷新一次详情，确保状态最新
 	onShow() {
+		if (this.navigatingToReview || this.isLoading) return
 		if (this.appointmentId) {
 			this.loadDetail()
 		}
@@ -298,7 +300,7 @@ export default {
 				!!(apt.parent_payment_time || apt.payment_time)
 		},
 		confirmActionId() {
-			return this.appointmentId
+			return this.confirmAppointmentId || this.appointmentId
 		},
 		canPayCourse() {
 			if (!this.appointment || this.isParentPaid) {
@@ -928,7 +930,9 @@ export default {
 								
 								uni.hideLoading()
 								uni.showToast({ 
-									title: '支付成功，等待老师确认', 
+									title: (this.appointment && this.appointment.invited_by === 'teacher')
+										? '支付成功，试课已确认'
+										: '支付成功，等待老师确认', 
 									icon: 'success',
 									duration: 2000
 								})
@@ -984,7 +988,9 @@ export default {
 							}
 							
 							uni.showToast({ 
-								title: '支付成功，等待老师确认', 
+								title: (this.appointment && this.appointment.invited_by === 'teacher')
+									? '支付成功，试课已确认'
+									: '支付成功，等待老师确认', 
 								icon: 'success',
 								duration: 2000
 							})
@@ -1093,7 +1099,9 @@ export default {
 					}
 					
 					uni.showToast({ 
-						title: '支付成功，等待老师确认', 
+						title: (this.appointment && this.appointment.invited_by === 'teacher')
+							? '支付成功，试课已确认'
+							: '支付成功，等待老师确认', 
 						icon: 'success',
 						duration: 2000
 					})
@@ -1113,7 +1121,9 @@ export default {
 				}
 				
 				uni.showToast({ 
-					title: '支付成功，等待老师确认', 
+					title: (this.appointment && this.appointment.invited_by === 'teacher')
+						? '支付成功，试课已确认'
+						: '支付成功，等待老师确认', 
 					icon: 'success',
 					duration: 2000
 				})
@@ -1186,11 +1196,53 @@ export default {
 				})
 			}
 		},
+		buildReviewPageUrl(actionId) {
+			const courseType = this.appointment && this.appointment.course_type ? this.appointment.course_type : ''
+			const params = [
+				`appointmentId=${encodeURIComponent(actionId)}`,
+				`courseType=${encodeURIComponent(courseType)}`
+			]
+			return `/pages/review/create?${params.join('&')}`
+		},
+		openReviewPage(actionId) {
+			if (this.navigatingToReview) return
+			const url = this.buildReviewPageUrl(actionId)
+			this.navigatingToReview = true
+			const pages = getCurrentPages()
+			const useRedirect = pages.length >= 9
+			const resetFlag = () => {
+				this.navigatingToReview = false
+			}
+			const openPage = (method) => {
+				uni[method]({
+					url,
+					success: resetFlag,
+					fail: (err) => {
+						console.warn(`[appointment/detail] ${method} 评价页失败:`, err)
+						if (method === 'navigateTo') {
+							uni.redirectTo({
+								url,
+								success: resetFlag,
+								fail: (redirectErr) => {
+									resetFlag()
+									uni.showToast({ title: '打开评价页失败，请稍后重试', icon: 'none' })
+									console.error('[appointment/detail] redirectTo 评价页失败:', redirectErr)
+								}
+							})
+							return
+						}
+						resetFlag()
+						uni.showToast({ title: '打开评价页失败，请稍后重试', icon: 'none' })
+					}
+				})
+			}
+			// 延后跳转，避免详情页 onShow/loadDetail 与页面切换抢占主线程导致 timeout
+			setTimeout(() => openPage(useRedirect ? 'redirectTo' : 'navigateTo'), 50)
+		},
 		createReview() {
 			const actionId = this.confirmActionId
 			if (!actionId) return
-			const courseType = this.appointment && this.appointment.course_type ? this.appointment.course_type : ''
-			uni.navigateTo({ url: `/pages/review/create?appointmentId=${actionId}&courseType=${encodeURIComponent(courseType)}` })
+			this.openReviewPage(actionId)
 		},
 		// 一步合并入口：去评价页同时完成「确认结果（结算） + 评价」
 		goReviewAndConfirm() {
@@ -1200,8 +1252,7 @@ export default {
 				uni.showToast({ title: '老师尚未下课打卡', icon: 'none' })
 				return
 			}
-			const courseType = this.appointment && this.appointment.course_type ? this.appointment.course_type : ''
-			uni.navigateTo({ url: `/pages/review/create?appointmentId=${actionId}&courseType=${encodeURIComponent(courseType)}` })
+			this.openReviewPage(actionId)
 		},
 		async handleRefund() {
 			if (!this.appointmentId) return
@@ -1411,7 +1462,7 @@ export default {
 			
 			uni.showModal({
 				title: '确认试课不满意',
-				content: '确认本次试课不满意？\n\n· 教师获得 70% 试课费；\n· 您将获得 30% 试课费自动退款；\n· 教师之前支付的信息费会全额退回教师钱包；\n· 教师可再次向您发起试课邀请。',
+				content: '确认本次试课不满意？\n\n· 教师获得 70% 试课费；\n· 您将获得 30% 试课费自动退款；\n· 教师之前支付的信息费由平台收取，不退回；\n· 教师可再次向您发起试课邀请。',
 				confirmText: '确认不满意',
 				cancelText: '再想想',
 				success: async res => {
@@ -1451,7 +1502,7 @@ export default {
 			uni.showModal({
 				title: isTrial ? '确认试课成功' : '确认课程完成',
 				content: isTrial
-					? '确认本次试课成功？\n\n· 教师将获得 70% 试课费、平台收取 30%；\n· 教师之前支付的「信息费」由平台收取，不退回；\n· 确认后您可以发表评价。'
+					? '确认本次试课成功？\n\n· 您支付的试课费 100% 结算给教师；\n· 教师之前支付的信息费由平台收取，不退回；\n· 确认后您可以发表评价。'
 					: '确认课程已顺利完成？确认后将开启评价。',
 				confirmText: '确认',
 				success: async res => {

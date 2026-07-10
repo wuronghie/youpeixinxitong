@@ -37,7 +37,8 @@ function isParentProfileComplete(userDoc) {
 }
 
 function isFullTimeTeacher(profile) {
-  return !!(profile && profile.school === '专职老师')
+  const school = profile && profile.school
+  return school === '专职老师' || school === '专职老师（已毕业）'
 }
 
 function isTeacherProfileComplete(profile) {
@@ -79,6 +80,28 @@ async function assertUserProfileCompleteForChat(db, user_id) {
     if (!isTeacherProfileComplete(profile)) {
       throw new Error('请先完善教师资料后再聊天')
     }
+  }
+}
+
+async function resolveUserId(context) {
+  const token = context.getUniIdToken()
+  if (!token) return null
+
+  try {
+    const payload = await context.uniID.checkToken(token)
+    if (!payload.code) {
+      return payload.uid
+    }
+  } catch (e) {
+    // 兼容项目内简单 token
+  }
+
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const parts = decoded.split('_')
+    return parts.length >= 1 ? parts[0] : null
+  } catch (e) {
+    return null
   }
 }
 
@@ -961,6 +984,55 @@ module.exports = {
       
     } catch (e) {
       console.error('获取会话列表失败:', e)
+      return error(e.message || '获取失败')
+    }
+  },
+
+  /**
+   * 获取当前用户聊天未读汇总，用于自定义底部导航消息红点
+   */
+  async getUnreadSummary() {
+    try {
+      const db = uniCloud.database()
+      const dbCmd = db.command
+      const user_id = await resolveUserId(this)
+      if (!user_id) {
+        return error('未获取到token，请先登录')
+      }
+
+      const userDoc = await db.collection('uni-id-users')
+        .doc(user_id)
+        .field({ role: true })
+        .get()
+      if (!userDoc.data || userDoc.data.length === 0) {
+        return error('用户不存在')
+      }
+
+      const user = userDoc.data[0]
+      const role = Array.isArray(user.role) ? user.role[0] : user.role
+      const isParent = role === 'parent'
+      const whereCondition = isParent
+        ? { parent_id: user_id, parent_deleted: dbCmd.neq(true) }
+        : { teacher_id: user_id, teacher_deleted: dbCmd.neq(true) }
+      const field = isParent ? 'unread_count_parent' : 'unread_count_teacher'
+
+      const conversationRes = await db.collection('chat-conversations')
+        .where(whereCondition)
+        .field({ [field]: true })
+        .get()
+
+      const list = conversationRes.data || []
+      const unreadMessages = list.reduce((sum, item) => {
+        return sum + Number(item[field] || 0)
+      }, 0)
+      const unreadConversations = list.filter(item => Number(item[field] || 0) > 0).length
+
+      return success({
+        unreadMessages,
+        unreadConversations
+      }, '获取成功')
+    } catch (e) {
+      console.error('获取聊天未读汇总失败:', e)
       return error(e.message || '获取失败')
     }
   },

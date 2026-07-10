@@ -28,6 +28,71 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+/**
+ * 向会话写入一条系统提醒（居中展示用文本消息），并更新会话摘要
+ */
+async function appendConversationNotice(db, {
+  teacher_id,
+  parent_id,
+  appointment_id = '',
+  content = '',
+  sender_id = '',
+  sender_role = 'parent',
+  unread_for = 'teacher'
+} = {}) {
+  if (!teacher_id || !parent_id || !content) return null
+  const dbCmd = db.command
+  const now = Date.now()
+  let conversation = null
+
+  if (appointment_id) {
+    const byApt = await db.collection('chat-conversations')
+      .where({ appointment_id })
+      .limit(1)
+      .get()
+    if (byApt.data && byApt.data.length) conversation = byApt.data[0]
+  }
+  if (!conversation) {
+    const byPair = await db.collection('chat-conversations')
+      .where({ teacher_id, parent_id })
+      .orderBy('update_time', 'desc')
+      .limit(1)
+      .get()
+    if (byPair.data && byPair.data.length) conversation = byPair.data[0]
+  }
+  if (!conversation) return null
+
+  const receiver_id = sender_role === 'parent' ? teacher_id : parent_id
+  const receiver_role = sender_role === 'parent' ? 'teacher' : 'parent'
+  const messageResult = await db.collection('chat-messages').add({
+    conversation_id: conversation._id,
+    sender_id: sender_id || (sender_role === 'parent' ? parent_id : teacher_id),
+    sender_role,
+    receiver_id,
+    receiver_role,
+    message_type: 'text',
+    content,
+    is_read: false,
+    send_time: now
+  })
+
+  const conversationUpdate = {
+    last_message: content,
+    last_message_time: now,
+    update_time: now
+  }
+  if (appointment_id) conversationUpdate.appointment_id = appointment_id
+  if (unread_for === 'teacher') conversationUpdate.unread_count_teacher = dbCmd.inc(1)
+  if (unread_for === 'parent') conversationUpdate.unread_count_parent = dbCmd.inc(1)
+  if (unread_for === 'both') {
+    conversationUpdate.unread_count_teacher = dbCmd.inc(1)
+    conversationUpdate.unread_count_parent = dbCmd.inc(1)
+  }
+
+  await db.collection('chat-conversations').doc(conversation._id).update(conversationUpdate)
+  return messageResult.id || null
+}
+
 // 解析用户ID（从token中）
 async function resolveUserId(context) {
   try {
@@ -74,7 +139,8 @@ function isParentProfileComplete(userDoc) {
 }
 
 function isFullTimeTeacher(profile) {
-  return !!(profile && profile.school === '专职老师')
+  const school = profile && profile.school
+  return school === '专职老师' || school === '专职老师（已毕业）'
 }
 
 function isTeacherProfileComplete(profile) {
@@ -326,6 +392,100 @@ module.exports = {
       return error(e.message || '邀请试课失败')
     }
   },
+
+  /**
+   * 家长拒绝教师发起的试课邀请
+   * @param {Object} params
+   * @param {String} params.invite_id 试课邀请预约ID
+   */
+  async rejectTrialInvite(params = {}) {
+    const { invite_id } = params
+
+    try {
+      const db = uniCloud.database()
+      const dbCmd = db.command
+      const parent_id = await resolveUserId(this)
+      if (!parent_id) {
+        return error('请先登录')
+      }
+      if (!invite_id) {
+        return error('邀请ID不能为空')
+      }
+
+      const userDoc = await db.collection('uni-id-users').doc(parent_id).get()
+      if (!userDoc.data || userDoc.data.length === 0 || !hasRole(userDoc.data[0], 'parent')) {
+        return error('只有家长可以操作试课邀请')
+      }
+
+      const inviteDoc = await db.collection('appointments').doc(invite_id).get()
+      if (!inviteDoc.data || inviteDoc.data.length === 0) {
+        return error('试课邀请不存在')
+      }
+
+      const invite = inviteDoc.data[0]
+      if (invite.parent_id !== parent_id) {
+        return error('无权操作此试课邀请')
+      }
+      if (invite.course_type !== 'trial' || invite.invited_by !== 'teacher') {
+        return error('该预约不是教师发起的试课邀请')
+      }
+      if (invite.status !== 'trial_invited') {
+        return error('该试课邀请已处理')
+      }
+
+      const now = Date.now()
+      await db.collection('appointments').doc(invite_id).update({
+        status: 'rejected',
+        trial_invite_result: 'rejected',
+        rejected_by: 'parent',
+        reject_time: now,
+        update_time: now
+      })
+
+      const conversationDoc = await db.collection('chat-conversations')
+        .where({
+          teacher_id: invite.teacher_id,
+          parent_id: invite.parent_id
+        })
+        .orderBy('update_time', 'desc')
+        .limit(1)
+        .get()
+
+      if (conversationDoc.data && conversationDoc.data.length > 0) {
+        const conversation = conversationDoc.data[0]
+        const content = '家长暂不接受本次试课邀请，老师可重新发起邀请。'
+        const messageResult = await db.collection('chat-messages').add({
+          conversation_id: conversation._id,
+          sender_id: parent_id,
+          sender_role: 'parent',
+          receiver_id: invite.teacher_id,
+          receiver_role: 'teacher',
+          message_type: 'text',
+          content,
+          is_read: false,
+          send_time: now
+        })
+
+        await db.collection('chat-conversations').doc(conversation._id).update({
+          appointment_id: invite_id,
+          last_message: content,
+          last_message_time: now,
+          unread_count_teacher: dbCmd.inc(1),
+          update_time: now
+        })
+
+        return success({
+          appointment_id: invite_id,
+          message_id: messageResult.id || ''
+        }, '已拒绝试课邀请')
+      }
+
+      return success({ appointment_id: invite_id }, '已拒绝试课邀请')
+    } catch (e) {
+      console.error('拒绝试课邀请失败:', e)
+      return error(e.message || '操作失败')
+    }
+  },
   
   /**
    * 家长创建预约（支持从试课邀请创建）
@@ -461,6 +621,14 @@ module.exports = {
       if (!date || !start_time) {
         return error('请选择上课日期和时间')
       }
+
+      const scheduleTs = new Date(`${String(date).trim()} ${String(start_time).trim()}`.replace(/-/g, '/')).getTime()
+      if (!scheduleTs || Number.isNaN(scheduleTs)) {
+        return error('上课时间格式不正确')
+      }
+      if (scheduleTs < Date.now() + 60 * 60 * 1000) {
+        return error('上课时间须至少在一小时之后')
+      }
       
       if (!student_name) {
         return error('请填写学生姓名')
@@ -531,6 +699,22 @@ module.exports = {
           // invited_by: 'teacher' 字段会被保留，因为 update 不会删除未指定的字段
         })
         appointmentId = invite_id
+
+        // 聊天提醒：家长已确认试课信息，待支付
+        try {
+          const amountText = Number(totalAmount || 0).toFixed(2)
+          await appendConversationNotice(db, {
+            teacher_id: inviteAppointment.teacher_id || finalTeacherId,
+            parent_id,
+            appointment_id: appointmentId,
+            sender_id: parent_id,
+            sender_role: 'parent',
+            unread_for: 'teacher',
+            content: `家长已确认试课信息，待支付试课费 ¥${amountText}。请家长尽快完成支付。`
+          })
+        } catch (noticeErr) {
+          console.warn('[appointment-create] 写入待支付提醒失败:', noticeErr)
+        }
       } else {
         // 创建新预约
         const appointmentData = {

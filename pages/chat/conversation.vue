@@ -43,15 +43,16 @@
 							<view class="trial-invite-content">
 								<text class="trial-invite-desc">老师邀请您预约试课，点击填写信息并支付费用</text>
 							</view>
-							<view 
-								v-if="item.data.sender_role !== currentUserRole" 
-								class="trial-invite-btn" 
-								@click="handleAcceptInvite(item.data)"
-							>
-								<text class="trial-invite-btn-text">填写信息并预约</text>
+							<view v-if="canRespondTrialInvite(item.data)" class="trial-invite-actions">
+								<view class="trial-invite-btn trial-invite-btn-reject" @click="handleRejectInvite(item.data)">
+									<text class="trial-invite-btn-text trial-invite-btn-reject-text">不通过</text>
+								</view>
+								<view class="trial-invite-btn trial-invite-btn-accept" @click="handleAcceptInvite(item.data)">
+									<text class="trial-invite-btn-text">通过</text>
+								</view>
 							</view>
 							<view v-else class="trial-invite-status">
-								<text class="trial-invite-status-text">已发送邀请</text>
+								<text class="trial-invite-status-text">{{ getTrialInviteStatusText(item.data) }}</text>
 							</view>
 						</view>
 					</view>
@@ -94,6 +95,12 @@
 
 		<!-- 输入栏 -->
 		<view class="input-bar">
+			<view v-if="needPayTrialFee" class="pay-tip">
+				<text class="pay-tip-text">试课信息已确认，请尽快支付试课费</text>
+				<view class="pay-tip-btn" @click="goPayTrialFee">
+					<text class="pay-tip-btn-text">去支付</text>
+				</view>
+			</view>
 			<view v-if="needWaitForTeacherReply" class="wait-tip">
 				<text class="wait-tip-text">请等待老师回复后再继续发送消息</text>
 			</view>
@@ -162,6 +169,8 @@ export default {
 				subjects: []
 			},
 			conversationInfo: {},
+			trialInviteStatusMap: {},
+			rejectingInviteIds: {},
 			pagination: {
 				page: 1,
 				pageSize: 30,
@@ -198,6 +207,14 @@ export default {
 			const hasTeacherMessage = this.messages.some(msg => msg.sender_role === 'teacher')
 			const hasParentMessage = this.messages.some(msg => msg.sender_role === 'parent')
 			return hasParentMessage && !hasTeacherMessage
+		},
+		pendingPaymentInviteId() {
+			const entries = Object.entries(this.trialInviteStatusMap || {})
+			const hit = entries.find(([, item]) => item && item.status === 'pending_payment')
+			return hit ? hit[0] : ''
+		},
+		needPayTrialFee() {
+			return this.currentUserRole === 'parent' && !!this.pendingPaymentInviteId
 		},
 		canSendMessage() {
 			if (this.sending) return false
@@ -458,6 +475,7 @@ export default {
 					
 					// 标记已读
 					await chatSend.markRead({ conversation_id: this.conversationId })
+					this.loadTrialInviteStatuses()
 				}
 			} catch (error) {
 				console.error('加载新消息失败:', error)
@@ -599,6 +617,7 @@ export default {
 
 					if (!prepend) {
 						await chatSend.markRead({ conversation_id: this.conversationId })
+						this.loadTrialInviteStatuses()
 					}
 				} else {
 					uni.showToast({ title: res.message || '消息加载失败', icon: 'none' })
@@ -749,6 +768,70 @@ export default {
 				return ''
 			}
 		},
+		canRespondTrialInvite(msg) {
+			if (msg.sender_role === this.currentUserRole) return false
+			const inviteId = this.getInviteIdFromMessage(msg)
+			if (!inviteId || this.rejectingInviteIds[inviteId]) return false
+			return this.trialInviteStatusMap[inviteId]?.status === 'trial_invited'
+		},
+		getTrialInviteStatusText(msg) {
+			const inviteId = this.getInviteIdFromMessage(msg)
+			const info = this.trialInviteStatusMap[inviteId] || {}
+			const status = info.status
+			if (status === 'trial_invited') {
+				return msg.sender_role === this.currentUserRole ? '已发送邀请' : '待处理邀请'
+			}
+			if (status === 'rejected') return '已不通过'
+			if (status === 'pending_payment') return '已通过，待支付试课费'
+			if (status === 'pending_confirm') return '已支付，等待老师确认'
+			if (['confirmed', 'in_progress'].includes(status)) {
+				return info.parent_paid ? '试课费已支付，请按约定时间上课' : '已通过'
+			}
+			if (status === 'completed') return '试课已完成'
+			if (status) return '邀请已处理'
+			return '加载中...'
+		},
+		async loadTrialInviteStatuses() {
+			const inviteIds = Array.from(new Set((this.messages || [])
+				.map(msg => this.getInviteIdFromMessage(msg))
+				.filter(Boolean)))
+			if (!inviteIds.length || this.useMock) return
+			try {
+				const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
+				const entries = await Promise.all(inviteIds.map(async inviteId => {
+					try {
+						const res = await appointmentQuery.getAppointmentDetail({ appointment_id: inviteId })
+						if (res.code === 0 && res.data) {
+							return [inviteId, {
+								status: res.data.status,
+								parent_paid: !!res.data.parent_paid,
+								total_amount: Number(res.data.total_amount || 0)
+							}]
+						}
+					} catch (e) {
+						console.warn('[chat-conversation] 加载试课邀请状态失败:', inviteId, e)
+					}
+					return [inviteId, this.trialInviteStatusMap[inviteId] || { status: '' }]
+				}))
+				const nextMap = { ...this.trialInviteStatusMap }
+				entries.forEach(([inviteId, item]) => {
+					nextMap[inviteId] = item
+				})
+				this.trialInviteStatusMap = nextMap
+			} catch (e) {
+				console.warn('[chat-conversation] 批量加载试课邀请状态失败:', e)
+			}
+		},
+		goPayTrialFee() {
+			const inviteId = this.pendingPaymentInviteId || this.appointmentId
+			if (!inviteId) {
+				uni.showToast({ title: '未找到待支付试课', icon: 'none' })
+				return
+			}
+			uni.navigateTo({
+				url: `/pages/appointment/detail?id=${inviteId}`
+			})
+		},
 		/**
 		 * 处理接受邀请（点击邀请卡片）
 		 * @param {Object} msg - 邀请消息对象
@@ -771,6 +854,43 @@ export default {
 			})
 			uni.navigateTo({
 				url: `/pages/appointment/create?invite_id=${inviteId}`
+			})
+		},
+		async handleRejectInvite(msg) {
+			const inviteId = this.getInviteIdFromMessage(msg)
+			if (!inviteId) {
+				uni.showToast({ title: '邀请信息无效', icon: 'none' })
+				return
+			}
+			if (this.rejectingInviteIds[inviteId]) return
+			uni.showModal({
+				title: '不通过试课邀请',
+				content: '确认不通过本次试课邀请？老师之后可以重新发起邀请。',
+				success: async (modalRes) => {
+					if (!modalRes.confirm) return
+					this.rejectingInviteIds = { ...this.rejectingInviteIds, [inviteId]: true }
+					try {
+						const appointmentCreate = uniCloud.importObject('appointment-create', { customUI: true })
+						const res = await appointmentCreate.rejectTrialInvite({ invite_id: inviteId })
+						if (res.code !== 0) {
+							uni.showToast({ title: res.message || '操作失败', icon: 'none' })
+							return
+						}
+						this.trialInviteStatusMap = {
+							...this.trialInviteStatusMap,
+							[inviteId]: { status: 'rejected' }
+						}
+						uni.showToast({ title: '已不通过', icon: 'success' })
+						setTimeout(() => this.loadNewMessages(), 500)
+					} catch (e) {
+						console.error('拒绝试课邀请失败:', e)
+						uni.showToast({ title: '操作失败，请稍后再试', icon: 'none' })
+					} finally {
+						const next = { ...this.rejectingInviteIds }
+						delete next[inviteId]
+						this.rejectingInviteIds = next
+					}
+				}
 			})
 		}
 	}
@@ -1014,6 +1134,33 @@ export default {
 	color: #FF9500;
 }
 
+.pay-tip {
+	background: #E8F3FF;
+	padding: 20rpx 30rpx;
+	border-bottom: 1rpx solid #B7D8FF;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+
+.pay-tip-text {
+	flex: 1;
+	font-size: 24rpx;
+	color: #2979FF;
+}
+
+.pay-tip-btn {
+	padding: 8rpx 24rpx;
+	background: #2979FF;
+	border-radius: 28rpx;
+}
+
+.pay-tip-btn-text {
+	font-size: 24rpx;
+	color: #FFFFFF;
+}
+
 .input-wrapper {
 	display: flex;
 	align-items: flex-end;
@@ -1132,7 +1279,7 @@ export default {
 }
 
 .trial-invite-btn {
-	width: 100%;
+	flex: 1;
 	height: 72rpx;
 	background-color: #4A90E2;
 	border-radius: 36rpx;
@@ -1141,10 +1288,28 @@ export default {
 	justify-content: center;
 }
 
+.trial-invite-actions {
+	display: flex;
+	gap: 20rpx;
+}
+
+.trial-invite-btn-accept {
+	background-color: #4A90E2;
+}
+
+.trial-invite-btn-reject {
+	background-color: #F5F5F5;
+	border: 1rpx solid #DDDDDD;
+}
+
 .trial-invite-btn-text {
 	color: #FFFFFF;
 	font-size: 28rpx;
 	font-weight: 500;
+}
+
+.trial-invite-btn-reject-text {
+	color: #666666;
 }
 
 .trial-invite-status {

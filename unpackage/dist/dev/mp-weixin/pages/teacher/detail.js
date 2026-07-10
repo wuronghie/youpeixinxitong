@@ -553,6 +553,11 @@ const _sfc_main = {
         return "女";
       return "";
     },
+    formatSchoolLabel(school) {
+      if (!school)
+        return "";
+      return school === "专职老师" ? "专职老师（已毕业）" : school;
+    },
     teacherGenderClass(gender) {
       if (gender === "male" || gender === 1 || gender === "1")
         return "male";
@@ -682,7 +687,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   }, $data.teacherInfo.is_verified ? {} : {}, {
     g: $data.teacherInfo.school || $data.teacherInfo.experience
   }, $data.teacherInfo.school || $data.teacherInfo.experience ? {
-    h: common_vendor.t([$data.teacherInfo.school, $data.teacherInfo.experience].filter(Boolean).join(" · "))
+    h: common_vendor.t([$options.formatSchoolLabel($data.teacherInfo.school), $data.teacherInfo.experience].filter(Boolean).join(" · "))
   } : {}, {
     i: $options.subjectList.length
   }, $options.subjectList.length ? common_vendor.e({
@@ -755,7 +760,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   } : {}, {
     S: $data.teacherInfo.school
   }, $data.teacherInfo.school ? {
-    T: common_vendor.t($data.teacherInfo.school),
+    T: common_vendor.t($options.formatSchoolLabel($data.teacherInfo.school)),
     U: !$data.teacherInfo.experience ? 1 : ""
   } : {}, {
     V: $data.teacherInfo.experience

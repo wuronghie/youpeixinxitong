@@ -18,11 +18,14 @@
         <text class="label center-label">{{ item.label }}</text>
       </view>
       <template v-else>
-        <image
-          :src="item.key === current ? item.activeIcon : item.icon"
-          class="icon"
-          mode="aspectFit"
-        ></image>
+        <view class="icon-wrap">
+          <image
+            :src="item.key === current ? item.activeIcon : item.icon"
+            class="icon"
+            mode="aspectFit"
+          ></image>
+          <view v-if="item.key === 'chat' && hasUnreadChat" class="red-dot"></view>
+        </view>
         <text class="label">{{ item.label }}</text>
       </template>
     </view>
@@ -79,10 +82,25 @@ export default {
 						activeIcon: getIconUrl('user-active.png'),
 						path: '/pages/user/index'
 					}
-				]
+				],
+				hasUnreadChat: false
 			}
 		},
+  mounted() {
+    this.loadUnreadChat()
+  },
   methods: {
+    async loadUnreadChat() {
+      try {
+        const chatSend = uniCloud.importObject('chat-send', { customUI: true })
+        const res = await chatSend.getUnreadSummary()
+        if (res.code === 0) {
+          this.hasUnreadChat = Number(res.data?.unreadMessages || 0) > 0
+        }
+      } catch (e) {
+        this.hasUnreadChat = false
+      }
+    },
     handleClick(item) {
       if (item.key === this.current) {
         return
@@ -155,6 +173,28 @@ export default {
   width: 32rpx;
   height: 32rpx;
   margin-bottom: 4rpx;
+}
+
+.icon-wrap {
+  position: relative;
+  width: 32rpx;
+  height: 38rpx;
+  margin-bottom: 4rpx;
+}
+
+.icon-wrap .icon {
+  margin-bottom: 0;
+}
+
+.red-dot {
+  position: absolute;
+  top: -4rpx;
+  right: -8rpx;
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #ff3b30;
+  border: 2rpx solid #ffffff;
 }
 
 .tabbar-item.active {

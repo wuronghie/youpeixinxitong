@@ -192,7 +192,10 @@ onLoad((options) => {
     setTimeout(() => uni.navigateBack(), 1500)
     return
   }
-  loadData()
+  // 延后拉数，先让页面完成路由挂载，降低 navigateTo timeout 概率
+  setTimeout(() => {
+    loadData()
+  }, 0)
 })
 
 onMounted(() => {})

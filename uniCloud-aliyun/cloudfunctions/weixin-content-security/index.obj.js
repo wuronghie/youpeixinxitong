@@ -55,15 +55,19 @@ module.exports = {
    * 通过微信 img_sec_check；图片须 ≤ 1MB
    */
   async checkImageBase64(params = {}) {
-    const { image_base64: imageBase64 } = params
+    const { image_base64: imageBase64, scene } = params
     const reqId = `img-${Date.now()}`
-    console.log('[weixin-content-security] checkImageBase64 开始', { reqId, base64Len: imageBase64 ? imageBase64.length : 0 })
+    console.log('[weixin-content-security] checkImageBase64 开始', {
+      reqId,
+      base64Len: imageBase64 ? imageBase64.length : 0,
+      scene: scene || ''
+    })
     const uid = await resolveUid(this)
-    if (!uid) {
-      console.warn('[weixin-content-security] 未登录', { reqId })
-      return error('请先登录')
+    if (uid) {
+      console.log('[weixin-content-security] uid 已解析', { reqId, uidTail: String(uid).slice(-8) })
+    } else {
+      console.warn('[weixin-content-security] 未登录，继续图片检测', { reqId })
     }
-    console.log('[weixin-content-security] uid 已解析', { reqId, uidTail: String(uid).slice(-8) })
     if (!imageBase64 || typeof imageBase64 !== 'string') {
       return error('缺少图片数据')
     }
@@ -85,8 +89,12 @@ module.exports = {
       console.log('[weixin-content-security] 调用微信 img_sec_check', { reqId, contentType, bufferLength: buffer.length, appId: clientInfo && clientInfo.appId })
       const result = await wxSec.imgSecCheck(buffer, contentType, clientInfo)
       if (!result.ok) {
-        console.warn('[weixin-content-security] 图片未通过安全检测', { reqId })
-        return error(wxSec.USER_FACING_HINT, -2)
+        console.warn('[weixin-content-security] 图片未通过安全检测', { reqId, scene: scene || '' })
+        const hint =
+          scene === 'avatar'
+            ? '头像未通过微信安全检测，请换一张清晰正面照片，或裁剪压缩后重试'
+            : wxSec.USER_FACING_HINT
+        return error(hint, -2)
       }
       console.log('[weixin-content-security] 图片检测通过', { reqId })
       return success({ safe: true })

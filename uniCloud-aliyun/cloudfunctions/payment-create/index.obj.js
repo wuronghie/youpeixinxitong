@@ -3,7 +3,7 @@
  * 功能：创建支付订单（试课费、正式课程费、信息费）
  * - course_fee：家长支付试课费/正式课程费
  * - deposit  ：旧字段名，语义已改为"教师信息费"（= hourly_rate × 2，一节试课费用，2 小时）
- *              试课成功 → 信息费归平台；试课失败 → 退回教师钱包
+ *              无论试课成功/失败，信息费均归平台收取，不退回
  * 使用 uni-id-common 进行 token 验证
  */
 
@@ -34,6 +34,76 @@ function generateOrderNo(prefix = 'ORD') {
   return `${prefix}${timestamp}${random}`
 }
 
+/**
+ * 支付成功后向聊天会话写入提醒
+ */
+async function appendPaymentChatNotice(db, {
+  appointment,
+  content,
+  unread_for = 'both'
+} = {}) {
+  if (!appointment || !content) return
+  const dbCmd = db.command
+  const now = Date.now()
+  let conversation = null
+
+  if (appointment.conversation_id) {
+    try {
+      const byId = await db.collection('chat-conversations').doc(appointment.conversation_id).get()
+      if (byId.data && byId.data.length) conversation = byId.data[0]
+    } catch (e) {}
+  }
+  if (!conversation && appointment._id) {
+    const byApt = await db.collection('chat-conversations')
+      .where({ appointment_id: appointment._id })
+      .limit(1)
+      .get()
+    if (byApt.data && byApt.data.length) conversation = byApt.data[0]
+  }
+  if (!conversation && appointment.teacher_id && appointment.parent_id) {
+    const byPair = await db.collection('chat-conversations')
+      .where({
+        teacher_id: appointment.teacher_id,
+        parent_id: appointment.parent_id
+      })
+      .orderBy('update_time', 'desc')
+      .limit(1)
+      .get()
+    if (byPair.data && byPair.data.length) conversation = byPair.data[0]
+  }
+  if (!conversation) {
+    console.warn('[payment-create] 未找到会话，跳过聊天提醒')
+    return
+  }
+
+  await db.collection('chat-messages').add({
+    conversation_id: conversation._id,
+    sender_id: appointment.parent_id,
+    sender_role: 'parent',
+    receiver_id: appointment.teacher_id,
+    receiver_role: 'teacher',
+    message_type: 'text',
+    content,
+    is_read: false,
+    send_time: now
+  })
+
+  const updateData = {
+    appointment_id: appointment._id,
+    last_message: content,
+    last_message_time: now,
+    chat_enabled: true,
+    update_time: now
+  }
+  if (unread_for === 'teacher' || unread_for === 'both') {
+    updateData.unread_count_teacher = dbCmd.inc(1)
+  }
+  if (unread_for === 'parent' || unread_for === 'both') {
+    updateData.unread_count_parent = dbCmd.inc(1)
+  }
+  await db.collection('chat-conversations').doc(conversation._id).update(updateData)
+}
+
 async function resolveUserId(context) {
   const token = context.getUniIdToken()
   if (!token) {
@@ -51,6 +121,87 @@ async function resolveUserId(context) {
     const decoded = Buffer.from(token, 'base64').toString('utf-8')
     const parts = decoded.split('_')
     return parts.length >= 1 ? parts[0] : null
+  }
+}
+
+function isCouponInDate(coupon, now) {
+  const validFrom = coupon.valid_from ? new Date(coupon.valid_from).getTime() : 0
+  const validTo = coupon.valid_to ? new Date(coupon.valid_to).getTime() : 0
+  return (!validFrom || now >= validFrom) && (!validTo || now <= validTo)
+}
+
+function calcCouponDiscount(coupon, originalAmount) {
+  let discountAmount = 0
+  if (coupon.type === 'amount') {
+    discountAmount = Number(coupon.amount || 0)
+  } else if (coupon.type === 'discount') {
+    const discountRate = Number(coupon.discount || 0)
+    if (discountRate <= 0 || discountRate >= 1) {
+      throw new Error('优惠券折扣配置错误')
+    }
+    discountAmount = originalAmount * (1 - discountRate)
+  } else {
+    throw new Error('不支持的优惠券类型')
+  }
+
+  if (!discountAmount || discountAmount <= 0) {
+    throw new Error('优惠金额无效')
+  }
+
+  return parseFloat(Math.min(discountAmount, originalAmount).toFixed(2))
+}
+
+async function validateCouponForPayment(db, {
+  userCouponId,
+  payerId,
+  role,
+  originalAmount
+}) {
+  const userCouponDoc = await db.collection('user-coupons')
+    .doc(userCouponId)
+    .get()
+
+  if (!userCouponDoc.data || userCouponDoc.data.length === 0) {
+    throw new Error('优惠券不存在或已失效')
+  }
+
+  const userCoupon = userCouponDoc.data[0]
+  if (userCoupon.user_id !== payerId || userCoupon.role !== role) {
+    throw new Error('无权使用该优惠券')
+  }
+  if (userCoupon.status !== 'unused') {
+    throw new Error('该优惠券已使用或已失效')
+  }
+
+  const couponDoc = await db.collection('coupons')
+    .doc(userCoupon.coupon_id)
+    .get()
+
+  if (!couponDoc.data || couponDoc.data.length === 0) {
+    throw new Error('优惠券模板不存在')
+  }
+
+  const coupon = couponDoc.data[0]
+  const nowTs = Date.now()
+
+  if (coupon.status !== 'active') {
+    throw new Error('该优惠券活动已结束')
+  }
+  if (coupon.target_role && ![role, 'all'].includes(coupon.target_role)) {
+    throw new Error('该优惠券仅限指定角色使用')
+  }
+  if (!isCouponInDate(coupon, nowTs)) {
+    throw new Error(nowTs < new Date(coupon.valid_from).getTime() ? '该优惠券尚未生效' : '该优惠券已过期')
+  }
+
+  const minSpend = Number(coupon.min_spend || 0)
+  if (minSpend > 0 && originalAmount < minSpend) {
+    throw new Error(`订单金额未达到使用门槛，需满¥${minSpend.toFixed(2)} 才可使用`)
+  }
+
+  return {
+    couponId: coupon._id,
+    discountAmount: calcCouponDiscount(coupon, originalAmount)
   }
 }
 
@@ -168,6 +319,23 @@ async function handlePaySuccess(db, order, options = {}) {
         appointment_id: order.appointment_id
       })
       // 不自动创建会话，因为根据新流程，会话应该在联系老师或试课邀请时创建
+    }
+
+    // 聊天提醒：试课费/课程费已支付
+    try {
+      const amountText = Number(order.amount || appointment.total_amount || 0).toFixed(2)
+      const notice = isTeacherInvitedTrial
+        ? `家长已支付试课费 ¥${amountText}，试课已确认，请按约定时间上课。`
+        : (appointment.course_type === 'trial'
+          ? `家长已支付试课费 ¥${amountText}，等待老师确认。`
+          : `家长已支付课程费 ¥${amountText}。`)
+      await appendPaymentChatNotice(db, {
+        appointment: { ...appointment, _id: order.appointment_id },
+        content: notice,
+        unread_for: 'both'
+      })
+    } catch (noticeErr) {
+      console.warn('[payment-create][handlePaySuccess] 写入支付聊天提醒失败:', noticeErr)
     }
     
     return { appointment_status: nextStatus }
@@ -293,7 +461,7 @@ module.exports = {
       const appointment = appointmentDoc.data[0]
       
       // 课程原价（未扣除优惠），用于校验与统计（单位：元，保留两位小数）
-      const originalAmount = parseFloat(Number(appointment.total_amount || appointment.amount || 0).toFixed(2))
+      let originalAmount = parseFloat(Number(appointment.total_amount || appointment.amount || 0).toFixed(2))
       // 优惠相关字段在整个函数作用域内声明，避免在非课程费场景下出现未定义错误
       let discountAmount = 0
       let couponId = null
@@ -323,83 +491,14 @@ module.exports = {
         
         // 处理优惠券：如果传入 user_coupon_id，则根据券规则计算应付金额
         if (user_coupon_id) {
-          // 查询用户优惠券记录
-          const userCouponDoc = await db.collection('user-coupons')
-            .doc(user_coupon_id)
-            .get()
-          
-          if (!userCouponDoc.data || userCouponDoc.data.length === 0) {
-            return error('优惠券不存在或已失效')
-          }
-          
-          const userCoupon = userCouponDoc.data[0]
-          
-          if (userCoupon.user_id !== payer_id || userCoupon.role !== 'parent') {
-            return error('无权使用该优惠券')
-          }
-          
-          if (userCoupon.status !== 'unused') {
-            return error('该优惠券已使用或已失效')
-          }
-          
-          // 查询券模板
-          const couponDoc = await db.collection('coupons')
-            .doc(userCoupon.coupon_id)
-            .get()
-          
-          if (!couponDoc.data || couponDoc.data.length === 0) {
-            return error('优惠券模板不存在')
-          }
-          
-          const coupon = couponDoc.data[0]
-          const nowTs = Date.now()
-          
-          if (coupon.status !== 'active') {
-            return error('该优惠券活动已结束')
-          }
-          
-          if (coupon.target_role && !['parent', 'all'].includes(coupon.target_role)) {
-            return error('该优惠券仅限指定角色使用')
-          }
-          
-          if (coupon.valid_from && nowTs < new Date(coupon.valid_from).getTime()) {
-            return error('该优惠券尚未生效')
-          }
-          
-          if (coupon.valid_to && nowTs > new Date(coupon.valid_to).getTime()) {
-            return error('该优惠券已过期')
-          }
-          
-          // 检查使用门槛
-          const minSpend = Number(coupon.min_spend || 0)
-          if (minSpend > 0 && originalAmount < minSpend) {
-            return error(`订单金额未达到使用门槛，需满¥${minSpend.toFixed(2)} 才可使用`)
-          }
-          
-          // 计算优惠金额
-          if (coupon.type === 'amount') {
-            discountAmount = Number(coupon.amount || 0)
-          } else if (coupon.type === 'discount') {
-            const discountRate = Number(coupon.discount || 0)
-            if (discountRate <= 0 || discountRate >= 1) {
-              return error('优惠券折扣配置错误')
-            }
-            discountAmount = originalAmount * (1 - discountRate)
-          } else {
-            return error('不支持的优惠券类型')
-          }
-          
-          if (!discountAmount || discountAmount <= 0) {
-            return error('优惠金额无效')
-          }
-          
-          if (discountAmount > originalAmount) {
-            discountAmount = originalAmount
-          }
-          
-          // 统一保留两位小数，避免浮点误差
-          discountAmount = parseFloat(discountAmount.toFixed(2))
-          couponId = coupon._id
+          const couponResult = await validateCouponForPayment(db, {
+            userCouponId: user_coupon_id,
+            payerId: payer_id,
+            role: 'parent',
+            originalAmount
+          })
+          discountAmount = couponResult.discountAmount
+          couponId = couponResult.couponId
           
           const expectedPayable = parseFloat((originalAmount - discountAmount).toFixed(2))
           
@@ -468,17 +567,33 @@ module.exports = {
           expectedInfoFee = Number(configDoc.data && configDoc.data[0] && configDoc.data[0].config_value) || 1
         }
         
+        originalAmount = parseFloat(expectedInfoFee.toFixed(2))
+
+        if (user_coupon_id) {
+          const couponResult = await validateCouponForPayment(db, {
+            userCouponId: user_coupon_id,
+            payerId: payer_id,
+            role: 'teacher',
+            originalAmount
+          })
+          discountAmount = couponResult.discountAmount
+          couponId = couponResult.couponId
+        }
+
+        const expectedPayable = parseFloat((originalAmount - discountAmount).toFixed(2))
         const payCents = Math.round(Number(amount) * 100)
-        const expectedCents = Math.round(expectedInfoFee * 100)
+        const expectedCents = Math.round(expectedPayable * 100)
         if (payCents !== expectedCents) {
           console.warn('[payment-create] 信息费金额校验失败:', {
             appointment_id,
             teacher_id: appointment.teacher_id,
             hourlyRate,
             expectedInfoFee,
+            discountAmount,
+            expectedPayable,
             amount_client: amount
           })
-          return error(`信息费金额应为${expectedInfoFee}元（老师一节课 2 小时费用）`)
+          return error(`信息费金额应为${expectedPayable}元（已按可用优惠券抵扣）`)
         }
         
         // 检查该老师是否已经为该家长支付过信息费（一个家长只需要支付一次）
@@ -538,9 +653,9 @@ module.exports = {
         amount,
         total_amount: originalAmount || amount,
         original_amount: originalAmount || amount,
-        discount_amount: payment_type === 'course_fee' ? (Number(discountAmount) || 0) : 0,
-        user_coupon_id: payment_type === 'course_fee' && user_coupon_id ? user_coupon_id : null,
-        coupon_id: payment_type === 'course_fee' && couponId ? couponId : null,
+        discount_amount: Number(discountAmount) || 0,
+        user_coupon_id: user_coupon_id ? user_coupon_id : null,
+        coupon_id: couponId ? couponId : null,
         // 业务用途标签：deposit 实际上是"信息费"，便于后续报表区分
         fee_kind: payment_type === 'deposit' ? 'info_fee' : payment_type,
         status: 'pending',

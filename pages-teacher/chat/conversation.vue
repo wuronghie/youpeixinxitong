@@ -42,15 +42,15 @@
 							<view class="trial-invite-content">
 								<text class="trial-invite-desc">老师邀请您预约试课，点击填写信息并支付费用</text>
 							</view>
-							<view 
-								v-if="item.data.sender_role !== currentUserRole" 
-								class="trial-invite-btn" 
+							<view
+								v-if="item.data.sender_role !== currentUserRole && getTrialInviteStatus(item.data) === 'trial_invited'"
+								class="trial-invite-btn"
 								@click="handleAcceptInvite(item.data)"
 							>
 								<text class="trial-invite-btn-text">填写信息并预约</text>
 							</view>
 							<view v-else class="trial-invite-status">
-								<text class="trial-invite-status-text">已发送邀请</text>
+								<text class="trial-invite-status-text">{{ getTrialInviteStatusText(item.data) }}</text>
 							</view>
 						</view>
 					</view>
@@ -95,9 +95,31 @@
 		<view class="input-bar">
 			<view v-if="needPayDeposit" class="deposit-tip">
 				<text class="deposit-tip-text">支付信息费后才能开始聊天</text>
-				<view class="deposit-btn" @click="handlePayDeposit" :class="{ 'deposit-btn-disabled': payingDeposit }">
-					<text class="deposit-btn-text">{{ payingDeposit ? '支付中...' : `支付信息费（¥${infoFeeAmount}）` }}</text>
+				<view class="deposit-fee-row">
+					<text class="deposit-fee-label">信息费</text>
+					<text class="deposit-fee-value">¥{{ infoFeeAmount }}</text>
 				</view>
+				<view class="deposit-coupon-row" @click="openCouponSelector">
+					<text class="deposit-fee-label">优惠券</text>
+					<view class="deposit-coupon-value">
+						<text :class="canUseCoupon ? 'deposit-coupon-active' : 'deposit-coupon-muted'">{{ couponDisplayText }}</text>
+						<text class="deposit-coupon-arrow">›</text>
+					</view>
+				</view>
+				<view v-if="couponDiscountAmount > 0" class="deposit-fee-row">
+					<text class="deposit-fee-label">已减优惠</text>
+					<text class="deposit-discount-value">-¥{{ Number(couponDiscountAmount || 0).toFixed(2) }}</text>
+				</view>
+				<view v-if="couponDiscountAmount > 0" class="deposit-fee-row">
+					<text class="deposit-fee-label">应付金额</text>
+					<text class="deposit-payable-value">¥{{ Number(payableInfoFeeAmount || 0).toFixed(2) }}</text>
+				</view>
+				<view class="deposit-btn" @click="handlePayDeposit" :class="{ 'deposit-btn-disabled': payingDeposit }">
+					<text class="deposit-btn-text">{{ payingDeposit ? '支付中...' : `支付信息费（¥${Number(payableInfoFeeAmount || 0).toFixed(2)}）` }}</text>
+				</view>
+			</view>
+			<view v-else-if="waitingParentPay" class="wait-pay-tip">
+				<text class="wait-pay-tip-text">家长已确认试课信息，等待支付试课费</text>
 			</view>
 			<view v-else>
 				<!-- 邀请试课按钮 -->
@@ -195,7 +217,10 @@ export default {
 			otherUserInfo: {},
 			conversationInfo: {},
 			inviteSource: '',
+			trialInviteStatusMap: {},
 			payingDeposit: false,
+			couponPreview: null,
+			couponLoading: false,
 			invitingTrial: false, // 是否正在发送试课邀请
 			hasTrialSuccess: false, // 与当前家长是否已有试课成功记录
 			hasActiveTrial: false, // 是否有进行中的试课
@@ -226,7 +251,29 @@ export default {
 			return (rate * 2).toFixed(2)
 		},
 		infoFeeAmountCents() {
-			return Math.round(this.infoFeeAmount * 100)
+			return Math.round(this.payableInfoFeeAmount * 100)
+		},
+		canUseCoupon() {
+			return this.infoFeeAmount > 0
+		},
+		payableInfoFeeAmount() {
+			if (!this.couponPreview) return this.infoFeeAmount
+			const payable = Number(this.couponPreview.payableAmount || 0)
+			return payable >= 0 ? payable : this.infoFeeAmount
+		},
+		couponDiscountAmount() {
+			if (!this.couponPreview) return 0
+			return Number(this.couponPreview.discountAmount || 0)
+		},
+		couponDisplayText() {
+			if (!this.canUseCoupon) return '暂无可用优惠券'
+			if (this.couponPreview && this.couponPreview.couponName) {
+				const discount = Number(this.couponDiscountAmount || 0)
+				return discount > 0
+					? `${this.couponPreview.couponName} 已减¥${discount.toFixed(2)}`
+					: this.couponPreview.couponName
+			}
+			return '请选择优惠券'
 		},
 		formattedMessages() {
 			const result = []
@@ -246,6 +293,10 @@ export default {
 				return false
 			}
 			return !this.conversationInfo.chat_enabled
+		},
+		waitingParentPay() {
+			if (this.currentUserRole !== 'teacher') return false
+			return Object.values(this.trialInviteStatusMap || {}).some(item => item && item.status === 'pending_payment')
 		},
 		canSend() {
 			if (!this.conversationInfo.chat_enabled) {
@@ -494,6 +545,7 @@ export default {
 					
 					// 标记已读
 					await chatSend.markRead({ conversation_id: this.conversationId })
+					this.loadTrialInviteStatuses()
 				}
 			} catch (error) {
 				console.error('加载新消息失败:', error)
@@ -565,6 +617,7 @@ export default {
 
 					if (!prepend) {
 						await chatSend.markRead({ conversation_id: this.conversationId })
+						this.loadTrialInviteStatuses()
 					}
 				} else {
 					uni.showToast({ title: res.message || '消息加载失败', icon: 'none' })
@@ -695,6 +748,61 @@ export default {
 				return ''
 			}
 		},
+		getTrialInviteStatus(msg) {
+			const inviteId = this.getInviteIdFromMessage(msg)
+			return this.trialInviteStatusMap[inviteId]?.status || ''
+		},
+		getTrialInviteStatusText(msg) {
+			const status = this.getTrialInviteStatus(msg)
+			const inviteId = this.getInviteIdFromMessage(msg)
+			const info = this.trialInviteStatusMap[inviteId] || {}
+			if (status === 'trial_invited') {
+				return msg.sender_role === this.currentUserRole ? '已发送邀请' : '待处理邀请'
+			}
+			if (status === 'rejected') return '家长未通过，可重新邀请'
+			if (status === 'pending_payment') return '家长已确认，待支付试课费'
+			if (status === 'pending_confirm') return '家长已支付，等待确认'
+			if (['confirmed', 'in_progress'].includes(status)) {
+				return info.parent_paid ? '家长已支付试课费，请按约定时间上课' : '家长已通过'
+			}
+			if (status === 'completed') return '试课已完成'
+			if (status) return '邀请已处理'
+			return '加载中...'
+		},
+		async loadTrialInviteStatuses() {
+			const inviteIds = Array.from(new Set((this.messages || [])
+				.map(msg => this.getInviteIdFromMessage(msg))
+				.filter(Boolean)))
+			if (!inviteIds.length || this.useMock) return
+			try {
+				const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
+				const entries = await Promise.all(inviteIds.map(async inviteId => {
+					try {
+						const res = await appointmentQuery.getAppointmentDetail({ appointment_id: inviteId })
+						if (res.code === 0 && res.data) {
+							return [inviteId, {
+								status: res.data.status,
+								parent_paid: !!res.data.parent_paid,
+								total_amount: Number(res.data.total_amount || 0)
+							}]
+						}
+					} catch (e) {
+						console.warn('[teacher-chat-conversation] 加载试课邀请状态失败:', inviteId, e)
+					}
+					return [inviteId, this.trialInviteStatusMap[inviteId] || { status: '' }]
+				}))
+				const nextMap = { ...this.trialInviteStatusMap }
+				entries.forEach(([inviteId, item]) => {
+					nextMap[inviteId] = item
+				})
+				this.trialInviteStatusMap = nextMap
+				if (entries.some(([, item]) => item.status === 'rejected')) {
+					this.checkTrialStatus()
+				}
+			} catch (e) {
+				console.warn('[teacher-chat-conversation] 批量加载试课邀请状态失败:', e)
+			}
+		},
 		/**
 		 * 处理邀请试课
 		 * 功能：调用云函数创建试课邀请，并发送邀请卡片消息
@@ -774,6 +882,10 @@ export default {
 			})
 			if (sendRes.code === 0) {
 				this.appointmentId = inviteId
+				this.trialInviteStatusMap = {
+					...this.trialInviteStatusMap,
+					[inviteId]: { status: 'trial_invited' }
+				}
 				uni.showToast({ title: '邀请已发送', icon: 'success' })
 				setTimeout(() => {
 					this.loadNewMessages()
@@ -805,6 +917,82 @@ export default {
 				url: `/pages/appointment/create?invite_id=${inviteId}`
 			})
 		},
+		async openCouponSelector() {
+			if (this.couponLoading) return
+			if (!this.canUseCoupon) {
+				uni.showToast({ title: '信息费金额异常，无法使用优惠券', icon: 'none' })
+				return
+			}
+
+			this.couponLoading = true
+			try {
+				const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
+				const res = await couponCenter.getAvailableCoupons({ role: 'teacher' })
+				if (res.code !== 0) {
+					uni.showToast({ title: res.message || '加载优惠券失败', icon: 'none' })
+					return
+				}
+
+				const list = (res.data && res.data.list) || []
+				if (!list.length) {
+					uni.showToast({ title: '暂无可用优惠券', icon: 'none' })
+					return
+				}
+
+				const usableCoupons = list.filter(c => {
+					const minSpend = Number(c.min_spend || 0)
+					return minSpend <= 0 || this.infoFeeAmount >= minSpend
+				})
+				if (!usableCoupons.length) {
+					uni.showToast({ title: '当前信息费未达到优惠券使用门槛', icon: 'none' })
+					return
+				}
+
+				const itemList = ['不使用优惠券', ...usableCoupons.map(c => {
+					const title = c.type === 'amount'
+						? `减¥${Number(c.amount || 0).toFixed(2)}`
+						: `${(Number(c.discount || 0) * 10).toFixed(1)}折`
+					const minText = Number(c.min_spend || 0) > 0 ? ` 满¥${Number(c.min_spend).toFixed(2)}可用` : ' 无门槛'
+					return `${c.name || '优惠券'} ${title}${minText}`
+				})]
+
+				uni.showActionSheet({
+					itemList,
+					success: async ({ tapIndex }) => {
+						if (tapIndex === 0) {
+							this.couponPreview = null
+							return
+						}
+
+						const couponRecord = usableCoupons[tapIndex - 1]
+						if (!couponRecord) return
+
+						try {
+							const previewRes = await couponCenter.previewForInfoFee({
+								amount: this.infoFeeAmount,
+								user_coupon_id: couponRecord._id
+							})
+							if (previewRes.code === 0 && previewRes.data) {
+								this.couponPreview = {
+									...previewRes.data,
+									couponName: couponRecord.name || previewRes.data.couponName
+								}
+							} else {
+								uni.showToast({ title: previewRes.message || '优惠券不可用', icon: 'none' })
+							}
+						} catch (e) {
+							console.error('试算教师优惠券失败:', e)
+							uni.showToast({ title: '优惠券试算失败，请稍后重试', icon: 'none' })
+						}
+					}
+				})
+			} catch (error) {
+				console.error('打开教师优惠券选择失败:', error)
+				uni.showToast({ title: '加载优惠券失败', icon: 'none' })
+			} finally {
+				this.couponLoading = false
+			}
+		},
 		async handlePayDeposit() {
 			if (this.payingDeposit) return
 
@@ -820,9 +1008,16 @@ export default {
 				return
 			}
 
+			const hasCouponPreview = !!this.couponPreview
+			const discount = Number(this.couponDiscountAmount || 0)
+			const payableAmount = Number(this.payableInfoFeeAmount || 0)
+			const confirmContent = hasCouponPreview
+				? `信息费：¥${Number(this.infoFeeAmount || 0).toFixed(2)}\n优惠券减免：-¥${discount.toFixed(2)}\n应付金额：¥${payableAmount.toFixed(2)}\n\n支付后可开启与家长的聊天。\n信息费由平台收取，试课成功或失败均不退回。`
+				: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节 2 小时）后可开启与家长的聊天。\n信息费由平台收取，试课成功或失败均不退回。`
+
 			uni.showModal({
 				title: '支付信息费',
-				content: `支付${this.infoFeeAmount}元信息费（= 课时费 × 2，一节 2 小时）后可开启与家长的聊天。\n试课成功：信息费由平台收取；试课失败：信息费全额退回您的钱包。`,
+				content: confirmContent,
 				success: async (res) => {
 					if (!res.confirm) return
 
@@ -856,7 +1051,7 @@ export default {
 								return
 							}
 
-							const pendingOrder = orderListRes.data.list.find(order =>
+							const pendingOrder = !hasCouponPreview && orderListRes.data.list.find(order =>
 								order.status === 'pending' || order.status === 'unpaid'
 							)
 							if (pendingOrder) {
@@ -874,12 +1069,19 @@ export default {
 						}
 
 						uni.hideLoading()
-						await createAndPayWithUniPay(payComponent, {
+						const payRes = await createAndPayWithUniPay(payComponent, {
 							appointment_id: appointmentId,
 							payment_type: 'deposit',
 							amount: this.infoFeeAmountCents,
-							description: '支付信息费'
+							description: '支付信息费',
+							user_coupon_id: this.couponPreview ? this.couponPreview.user_coupon_id : null
 						})
+						if (payRes && payRes.data && payRes.data.zero_pay) {
+							uni.showToast({ title: '优惠券已抵扣信息费', icon: 'success' })
+							this.couponPreview = null
+							await this.loadUserInfo()
+							await this.loadMessages()
+						}
 					} catch (error) {
 						uni.hideLoading()
 						console.error('支付失败:', error)
@@ -1192,12 +1394,83 @@ export default {
 	border-bottom: 1rpx solid #FFE7A6;
 }
 
+.wait-pay-tip {
+	background: #E8F3FF;
+	padding: 20rpx 30rpx;
+	border-bottom: 1rpx solid #B7D8FF;
+}
+
+.wait-pay-tip-text {
+	font-size: 24rpx;
+	color: #2979FF;
+}
+
 .deposit-tip-text {
 	font-size: 28rpx;
 	color: #FF9500;
 	display: block;
 	margin-bottom: 20rpx;
 	text-align: center;
+}
+
+.deposit-fee-row,
+.deposit-coupon-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: #FFFFFF;
+	border-radius: 10rpx;
+	padding: 18rpx 20rpx;
+	margin-bottom: 12rpx;
+}
+
+.deposit-coupon-row {
+	border: 1rpx solid #FFE7A6;
+}
+
+.deposit-fee-label {
+	font-size: 26rpx;
+	color: #666666;
+}
+
+.deposit-fee-value {
+	font-size: 26rpx;
+	color: #333333;
+	font-weight: 600;
+}
+
+.deposit-coupon-value {
+	display: flex;
+	align-items: center;
+	max-width: 460rpx;
+}
+
+.deposit-coupon-active {
+	font-size: 26rpx;
+	color: #FF9500;
+}
+
+.deposit-coupon-muted {
+	font-size: 26rpx;
+	color: #999999;
+}
+
+.deposit-coupon-arrow {
+	font-size: 32rpx;
+	color: #BBBBBB;
+	margin-left: 8rpx;
+}
+
+.deposit-discount-value {
+	font-size: 26rpx;
+	color: #FF6B01;
+	font-weight: 600;
+}
+
+.deposit-payable-value {
+	font-size: 30rpx;
+	color: #FF6B01;
+	font-weight: 700;
 }
 
 .deposit-btn {

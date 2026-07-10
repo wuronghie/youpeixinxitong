@@ -199,9 +199,13 @@ module.exports = {
         conditions.push({ grades: dbCmd.in(gradeValues) })
       }
       
-      // 院校筛选
+      // 院校筛选（专职老师兼容旧值）
       if (school) {
-        conditions.push({ school: school })
+        if (school === '专职老师' || school === '专职老师（已毕业）') {
+          conditions.push({ school: dbCmd.in(['专职老师', '专职老师（已毕业）']) })
+        } else {
+          conditions.push({ school: school })
+        }
       }
       
       // 资历筛选

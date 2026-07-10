@@ -48,10 +48,26 @@ const _sfc_main = {
           activeIcon: utils_imageConfig.getIconUrl("user-active.png"),
           path: "/pages/user/index"
         }
-      ]
+      ],
+      hasUnreadChat: false
     };
   },
+  mounted() {
+    this.loadUnreadChat();
+  },
   methods: {
+    async loadUnreadChat() {
+      var _a;
+      try {
+        const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
+        const res = await chatSend.getUnreadSummary();
+        if (res.code === 0) {
+          this.hasUnreadChat = Number(((_a = res.data) == null ? void 0 : _a.unreadMessages) || 0) > 0;
+        }
+      } catch (e) {
+        this.hasUnreadChat = false;
+      }
+    },
     handleClick(item) {
       if (item.key === this.current) {
         return;
@@ -66,11 +82,11 @@ const _sfc_main = {
         common_vendor.index.redirectTo({
           url: item.path,
           fail: (err) => {
-            common_vendor.index.__f__("warn", "at components/ParentTabBar.vue:107", "redirectTo 失败，尝试使用 navigateTo:", err);
+            common_vendor.index.__f__("warn", "at components/ParentTabBar.vue:125", "redirectTo 失败，尝试使用 navigateTo:", err);
             common_vendor.index.navigateTo({
               url: item.path,
               fail: (navErr) => {
-                common_vendor.index.__f__("error", "at components/ParentTabBar.vue:112", "页面导航失败:", navErr);
+                common_vendor.index.__f__("error", "at components/ParentTabBar.vue:130", "页面导航失败:", navErr);
               }
             });
           }
@@ -87,14 +103,16 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       }, item.center ? {
         b: item.key === $props.current ? item.activeIcon : item.icon,
         c: common_vendor.t(item.label)
-      } : {
+      } : common_vendor.e({
         d: item.key === $props.current ? item.activeIcon : item.icon,
-        e: common_vendor.t(item.label)
-      }, {
-        f: item.key,
-        g: item.key === $props.current ? 1 : "",
-        h: item.center ? 1 : "",
-        i: common_vendor.o(($event) => $options.handleClick(item), item.key)
+        e: item.key === "chat" && $data.hasUnreadChat
+      }, item.key === "chat" && $data.hasUnreadChat ? {} : {}, {
+        f: common_vendor.t(item.label)
+      }), {
+        g: item.key,
+        h: item.key === $props.current ? 1 : "",
+        i: item.center ? 1 : "",
+        j: common_vendor.o(($event) => $options.handleClick(item), item.key)
       });
     })
   };

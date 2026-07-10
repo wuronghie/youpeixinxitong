@@ -45,7 +45,7 @@
 							<text v-if="teacherInfo.is_verified" class="hero-verify">已认证</text>
 						</view>
 						<text v-if="teacherInfo.school || teacherInfo.experience" class="hero-subtitle">
-							{{ [teacherInfo.school, teacherInfo.experience].filter(Boolean).join(' · ') }}
+							{{ [formatSchoolLabel(teacherInfo.school), teacherInfo.experience].filter(Boolean).join(' · ') }}
 						</text>
 						<view class="hero-subject-line" v-if="subjectList.length">
 							<text class="hero-subject-text">{{ subjectList.slice(0, 3).join(' / ') }}</text>
@@ -253,7 +253,7 @@
 						</view>
 						<view v-if="teacherInfo.school" class="info-row" :class="{ 'no-border': !teacherInfo.experience }">
 							<text class="info-label">所在院校</text>
-							<text class="info-value">{{ teacherInfo.school }}</text>
+							<text class="info-value">{{ formatSchoolLabel(teacherInfo.school) }}</text>
 						</view>
 						<view v-if="teacherInfo.experience" class="info-row no-border">
 							<text class="info-label">教师资历</text>
@@ -1025,6 +1025,10 @@ export default {
 			if (gender === 'male' || gender === 1 || gender === '1') return '男'
 			if (gender === 'female' || gender === 2 || gender === '2') return '女'
 			return ''
+		},
+		formatSchoolLabel(school) {
+			if (!school) return ''
+			return school === '专职老师' ? '专职老师（已毕业）' : school
 		},
 		teacherGenderClass(gender) {
 			if (gender === 'male' || gender === 1 || gender === '1') return 'male'

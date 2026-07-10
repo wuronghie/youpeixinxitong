@@ -71,10 +71,10 @@
 				<!-- 到账说明 -->
 				<card headTitle="到账说明" class="mb-3">
 					<view class="d-flex flex-column">
-						<text class="font-xs text-light-muted mb-2">• 提现申请提交后 1-3 个工作日内到账</text>
-						<text class="font-xs text-light-muted mb-2">• 单次提现金额需 ≥ {{ formatCurrency(minAmount) }} 元</text>
-						<text class="font-xs text-light-muted mb-2">• 每日最多可提现 3 次，超出将自动顺延</text>
-						<text class="font-xs text-light-muted">• 提现期间金额将转入冻结账户，请耐心等待审核</text>
+						<text class="font-xs text-light-muted mb-2">• 课程完成后系统会优先自动转入微信零钱</text>
+						<text class="font-xs text-light-muted mb-2">• 此处余额为未自动到账的兜底金额，提交后即时发起转账</text>
+						<text class="font-xs text-light-muted mb-2">• 若微信要求确认收款，请在钱包页点击「确认收款」</text>
+						<text class="font-xs text-light-muted">• 单次提现金额需 ≥ {{ formatCurrency(minAmount) }} 元</text>
 					</view>
 				</card>
 			</view>
@@ -86,7 +86,7 @@
 				:disabled="submitDisabled || isSubmitting"
 				@click="submitWithdraw"
 			>
-				{{ isSubmitting ? '提交中...' : '提交提现申请' }}
+				{{ isSubmitting ? '处理中...' : '立即提现到微信零钱' }}
 			</button>
 		</view>
 	</view>
@@ -110,9 +110,9 @@ export default {
 				total_withdraw: 0
 			},
 			withdrawAmount: '',
-			quickAmounts: [100, 200, 500, 1000],
+			quickAmounts: [50, 100, 200, 500],
 			selectedMethod: 'wxpay',
-			minAmount: 100,
+			minAmount: 0.3,
 			isSubmitting: false,
 			useMock: false
 		}
@@ -136,6 +136,23 @@ export default {
 		this.loadWallet()
 	},
 	methods: {
+		requestMerchantTransfer(payload) {
+			return new Promise((resolve, reject) => {
+				// #ifdef MP-WEIXIN
+				if (typeof wx !== 'undefined' && wx.canIUse && wx.canIUse('requestMerchantTransfer')) {
+					wx.requestMerchantTransfer({
+						mchId: payload.mchId,
+						appId: payload.appId || (wx.getAccountInfoSync && wx.getAccountInfoSync().miniProgram.appId),
+						package: payload.package_info,
+						success: (res) => resolve(res),
+						fail: (err) => reject(err)
+					})
+					return
+				}
+				// #endif
+				reject(new Error('当前微信版本过低，请更新微信后重试'))
+			})
+		},
 		async loadWallet() {
 			try {
 				if (this.useMock) {
@@ -235,14 +252,27 @@ export default {
 					method: this.selectedMethod
 				})
 				if (res.code === 0) {
-					uni.showToast({ title: '提现申请已提交', icon: 'success' })
+					const data = res.data || {}
+					if (data.status === 'wait_confirm' && data.package_info) {
+						try {
+							await this.requestMerchantTransfer(data)
+							await walletObj.syncWithdrawStatus({ withdraw_id: data.withdraw_id || data.request_id })
+							uni.showToast({ title: '请完成确认后查看到账', icon: 'none' })
+						} catch (confirmErr) {
+							uni.showToast({ title: '请到钱包页完成确认收款', icon: 'none' })
+						}
+					} else if (data.status === 'completed') {
+						uni.showToast({ title: '已转入微信零钱', icon: 'success' })
+					} else {
+						uni.showToast({ title: res.message || '提现已提交', icon: 'success' })
+					}
 					this.withdrawAmount = ''
 					await this.loadWallet()
 					setTimeout(() => {
 						uni.navigateBack()
 					}, 800)
 				} else {
-					uni.showToast({ title: res.message || '提现申请失败', icon: 'none' })
+					uni.showToast({ title: res.message || '提现失败', icon: 'none' })
 				}
 			} catch (error) {
 				console.error('提现提交失败:', error)

@@ -516,17 +516,18 @@ export default {
 		async uploadAvatar(localPath) {
 			try {
 				this.avatarUploading = true
+				let uploadPath = localPath
 				try {
-					await wxCheckLocalImageBeforeUpload(localPath)
+					uploadPath = await wxCheckLocalImageBeforeUpload(localPath, { scene: 'avatar' })
 				} catch (secErr) {
 					uni.showToast({ title: (secErr && secErr.message) || '图片未通过安全检测', icon: 'none' })
 					return
 				}
-				const extIndex = localPath.lastIndexOf('.')
-				const ext = extIndex > -1 ? localPath.substring(extIndex) : ''
+				const extIndex = uploadPath.lastIndexOf('.')
+				const ext = extIndex > -1 ? uploadPath.substring(extIndex) : ''
 				const cloudPath = `parent-avatar/${Date.now()}-${Math.floor(Math.random() * 1e5)}${ext}`
 				const res = await uniCloud.uploadFile({
-					filePath: localPath,
+					filePath: uploadPath,
 					cloudPath
 				})
 				if (res?.fileID) {

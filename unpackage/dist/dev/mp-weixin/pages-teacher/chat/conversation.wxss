@@ -188,12 +188,71 @@
 	padding: 30rpx;
 	border-bottom: 1rpx solid #FFE7A6;
 }
+.wait-pay-tip.data-v-83c710d1 {
+	background: #E8F3FF;
+	padding: 20rpx 30rpx;
+	border-bottom: 1rpx solid #B7D8FF;
+}
+.wait-pay-tip-text.data-v-83c710d1 {
+	font-size: 24rpx;
+	color: #2979FF;
+}
 .deposit-tip-text.data-v-83c710d1 {
 	font-size: 28rpx;
 	color: #FF9500;
 	display: block;
 	margin-bottom: 20rpx;
 	text-align: center;
+}
+.deposit-fee-row.data-v-83c710d1,
+.deposit-coupon-row.data-v-83c710d1 {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	background: #FFFFFF;
+	border-radius: 10rpx;
+	padding: 18rpx 20rpx;
+	margin-bottom: 12rpx;
+}
+.deposit-coupon-row.data-v-83c710d1 {
+	border: 1rpx solid #FFE7A6;
+}
+.deposit-fee-label.data-v-83c710d1 {
+	font-size: 26rpx;
+	color: #666666;
+}
+.deposit-fee-value.data-v-83c710d1 {
+	font-size: 26rpx;
+	color: #333333;
+	font-weight: 600;
+}
+.deposit-coupon-value.data-v-83c710d1 {
+	display: flex;
+	align-items: center;
+	max-width: 460rpx;
+}
+.deposit-coupon-active.data-v-83c710d1 {
+	font-size: 26rpx;
+	color: #FF9500;
+}
+.deposit-coupon-muted.data-v-83c710d1 {
+	font-size: 26rpx;
+	color: #999999;
+}
+.deposit-coupon-arrow.data-v-83c710d1 {
+	font-size: 32rpx;
+	color: #BBBBBB;
+	margin-left: 8rpx;
+}
+.deposit-discount-value.data-v-83c710d1 {
+	font-size: 26rpx;
+	color: #FF6B01;
+	font-weight: 600;
+}
+.deposit-payable-value.data-v-83c710d1 {
+	font-size: 30rpx;
+	color: #FF6B01;
+	font-weight: 700;
 }
 .deposit-btn.data-v-83c710d1 {
 	background: #FF9500;

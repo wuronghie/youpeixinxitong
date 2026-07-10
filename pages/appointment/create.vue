@@ -68,13 +68,13 @@
 							<text class="font-sm" :class="formData.date ? '' : 'text-light-muted'">{{ formData.date || '请选择' }}</text>
 						</view>
 					</picker>
-					<picker mode="time" :value="formData.time" start="08:00" end="21:00" @change="onTimeChange">
+					<picker mode="time" :value="formData.time" :start="timePickerStart" :end="timePickerEnd" @change="onTimeChange">
 						<view class="d-flex a-center j-sb py-3">
 							<text class="font-sm">开始时间</text>
 							<text class="font-sm" :class="formData.time ? '' : 'text-light-muted'">{{ formData.time || '请选择' }}</text>
 						</view>
 					</picker>
-					<view class="text-light-muted font-sm mt-2">课程默认持续 2 小时，如需调整可与老师沟通修改。</view>
+					<view class="text-light-muted font-sm mt-2">最早可约一小时后开课；课程默认持续 2 小时，如需调整可与老师沟通修改。</view>
 				</card>
 
 				<!-- 学生信息 -->
@@ -267,6 +267,24 @@ export default {
 			const rate = Number(this.teacherInfo?.hourly_rate)
 			return Number.isFinite(rate) && rate > 0 ? rate : 100
 		},
+		/** 最早可约时刻（当前时间 + 1 小时） */
+		earliestBookableAt() {
+			return new Date(Date.now() + 60 * 60 * 1000)
+		},
+		timePickerStart() {
+			const earliest = this.earliestBookableAt
+			const earliestDate = this.formatDate(earliest)
+			if (this.formData.date === earliestDate) {
+				const hh = String(earliest.getHours()).padStart(2, '0')
+				const mm = String(earliest.getMinutes()).padStart(2, '0')
+				const minTime = `${hh}:${mm}`
+				return minTime > '08:00' ? minTime : '08:00'
+			}
+			return '08:00'
+		},
+		timePickerEnd() {
+			return '21:00'
+		},
 		trialPrice() {
 			if (this.formData.invite_id && this.inviteTotalAmount > 0) {
 				return this.inviteTotalAmount
@@ -344,10 +362,16 @@ export default {
 	},
 	methods: {
 		setupDateRange() {
-			const today = new Date()
-			const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
-			const oneMonthLater = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate())
-			this.dateOptions.start = this.formatDate(tomorrow)
+			const now = new Date()
+			const earliest = new Date(now.getTime() + 60 * 60 * 1000)
+			// 若一小时后已超过当日可约时段（21:00），则从次日开始
+			let startDate = earliest
+			const earliestHm = `${String(earliest.getHours()).padStart(2, '0')}:${String(earliest.getMinutes()).padStart(2, '0')}`
+			if (earliestHm > '21:00') {
+				startDate = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate() + 1)
+			}
+			const oneMonthLater = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
+			this.dateOptions.start = this.formatDate(startDate)
 			this.dateOptions.end = this.formatDate(oneMonthLater)
 			this.formData.date = this.dateOptions.start
 		},
@@ -493,9 +517,19 @@ export default {
 		},
 		onDateChange(e) {
 			this.formData.date = e.detail.value
+			// 切换日期后，若已选时间早于最早可约时刻则清空
+			if (this.formData.time && this.formData.time < this.timePickerStart) {
+				this.formData.time = ''
+			}
 		},
 		onTimeChange(e) {
-			this.formData.time = e.detail.value
+			const time = e.detail.value
+			if (time < this.timePickerStart) {
+				uni.showToast({ title: '请选择一小时后的时间', icon: 'none' })
+				this.formData.time = ''
+				return
+			}
+			this.formData.time = time
 		},
 		onGradeChange(e) {
 			const index = Number(e.detail.value)
@@ -600,6 +634,13 @@ export default {
 		validateForm() {
 			if (!this.formData.date || !this.formData.time) {
 				return '请选择上课日期与时间'
+			}
+			const scheduleTs = new Date(`${this.formData.date} ${this.formData.time}`.replace(/-/g, '/')).getTime()
+			if (!scheduleTs || Number.isNaN(scheduleTs)) {
+				return '上课时间格式不正确'
+			}
+			if (scheduleTs < Date.now() + 60 * 60 * 1000) {
+				return '上课时间须至少在一小时之后'
 			}
 			if (!this.formData.studentName) {
 				return '请输入学生姓名'

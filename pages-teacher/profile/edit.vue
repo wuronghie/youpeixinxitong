@@ -372,14 +372,16 @@ export default {
 				{ label: '四川农业大学', value: '四川农业大学' },
 				{ label: '西南财经大学', value: '西南财经大学' },
 				{ label: '其他985/211', value: '其他985/211' },
-				{ label: '专职老师', value: '专职老师' }
+				{ label: '专职老师（已毕业）', value: '专职老师（已毕业）' }
 			],
 			// 在校学生资历选项
 			studentExperienceOptions: [
 				{ label: '大一（高考刚结束）', value: '大一（高考刚结束）' },
 				{ label: '大二至大四（1年以内）', value: '大二至大四（1年以内）' },
 				{ label: '大二至大四（1-2年）', value: '大二至大四（1-2年）' },
-				{ label: '大二至大四（2年以上）', value: '大二至大四（2年以上）' }
+				{ label: '大二至大四（2年以上）', value: '大二至大四（2年以上）' },
+				{ label: '研究生在读', value: '研究生在读' },
+				{ label: '博士在读', value: '博士在读' }
 			],
 			// 专职教师资历选项
 			fullTimeExperienceOptions: [
@@ -410,7 +412,7 @@ export default {
 	},
 	computed: {
 		isFullTimeTeacher() {
-			return this.formData.school === '专职老师'
+			return this.isFullTimeTeacherSchool(this.formData.school)
 		},
 		filteredExperienceOptions() {
 			return this.isFullTimeTeacher ? this.fullTimeExperienceOptions : this.studentExperienceOptions
@@ -421,13 +423,20 @@ export default {
 		this.loadProfile()
 	},
 	methods: {
+		isFullTimeTeacherSchool(school) {
+			return school === '专职老师' || school === '专职老师（已毕业）'
+		},
+		normalizeSchoolValue(school) {
+			// 旧值「专职老师」统一展示/保存为「专职老师（已毕业）」
+			return school === '专职老师' ? '专职老师（已毕业）' : (school || '')
+		},
 		async loadProfile() {
 			try {
 				if (this.useMock) {
 					await new Promise(resolve => setTimeout(resolve, 200))
 					const teacher = mockTeachers[0]
 					// 兼容旧数据：如果 school 字段为空但 education.school 有值，则使用 education.school
-					const schoolValue = teacher.school || teacher.education?.school || ''
+					const schoolValue = this.normalizeSchoolValue(teacher.school || teacher.education?.school || '')
 					
 					const defaultAvatarData = this.resolveAvatarData(teacher.avatar || '', {})
 				this.formData = {
@@ -489,7 +498,7 @@ export default {
 						missingFields.push('subjects')
 						missingFieldsText.push('教学科目')
 					}
-					const isFullTime = (p.school || p.education?.school || '') === '专职老师'
+					const isFullTime = this.isFullTimeTeacherSchool(p.school || p.education?.school || '')
 					if (!isFullTime && (!p.grades || !Array.isArray(p.grades) || p.grades.length === 0)) {
 						missingFields.push('grades')
 						missingFieldsText.push('适合年级')
@@ -534,8 +543,8 @@ export default {
 					}
 					
 					// 兼容旧数据：如果 school 字段为空但 education.school 有值，则使用 education.school
-					const schoolValue = p.school || p.education?.school || ''
-					const isFullTimeProfile = schoolValue === '专职老师'
+					const schoolValue = this.normalizeSchoolValue(p.school || p.education?.school || '')
+					const isFullTimeProfile = this.isFullTimeTeacherSchool(schoolValue)
 					
 				this.formData = {
 					avatar: avatarUrl,
@@ -685,8 +694,8 @@ export default {
 			const idx = Number(event.detail.value)
 			const prevSchool = this.formData.school
 			const newSchool = this.schoolOptions[idx]?.value || ''
-			const prevFullTime = prevSchool === '专职老师'
-			const nowFullTime = newSchool === '专职老师'
+			const prevFullTime = this.isFullTimeTeacherSchool(prevSchool)
+			const nowFullTime = this.isFullTimeTeacherSchool(newSchool)
 			this.formData.school = newSchool
 			if (nowFullTime) {
 				this.formData.grades = []
@@ -713,8 +722,9 @@ export default {
 			}
 		},
 		getSchoolLabel(value) {
-			const option = this.schoolOptions.find(opt => opt.value === value)
-			return option ? option.label : ''
+			const normalized = this.normalizeSchoolValue(value)
+			const option = this.schoolOptions.find(opt => opt.value === normalized)
+			return option ? option.label : (normalized || '')
 		},
 		getExperienceLabel(value) {
 			const allOptions = [...this.studentExperienceOptions, ...this.fullTimeExperienceOptions]

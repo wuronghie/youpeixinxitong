@@ -5,13 +5,35 @@
 			<view class="d-flex flex-column mb-3">
 				<text class="font-sm d-block mb-2" style="opacity: 0.85;">可提现余额</text>
 				<text class="font-xl font-weight d-block mb-2">¥{{ formatCurrency(wallet.balance) }}</text>
-				<text class="font-xs d-block" style="opacity: 0.75;">提现申请将在2个工作日内完成</text>
+				<text class="font-xs d-block" style="opacity: 0.75;">课程完成后优先自动转入微信零钱；未到账金额可在此提现</text>
 			</view>
-			<button class="bg-white main-text-color rounded px-4 py-2 font-sm" @click="goToWithdraw">提现</button>
+			<button class="bg-white main-text-color rounded px-4 py-2 font-sm" @click="goToWithdraw">提现到微信零钱</button>
 		</view>
 
 		<scroll-view scroll-y class="scroll">
 			<view class="px-2 py-3">
+				<!-- 待确认收款 -->
+				<view v-if="pendingConfirms.length" class="bg-white rounded px-3 py-3 mb-3">
+					<text class="font-sm font-weight d-block mb-2">待确认收款（{{ pendingConfirms.length }}）</text>
+					<text class="font-xs text-light-muted d-block mb-3">微信要求确认后才能到账，请点击下方按钮完成收款</text>
+					<view
+						v-for="item in pendingConfirms"
+						:key="item._id"
+						class="d-flex a-center j-sb py-2 border-bottom"
+					>
+						<view class="flex-1">
+							<text class="font-sm font-weight d-block">¥{{ formatCurrency(item.amount) }}</text>
+							<text class="font-xs text-light-muted">{{ formatTime(item.create_time) }}</text>
+						</view>
+						<button
+							class="main-bg-color text-white rounded px-3 py-1 font-xs"
+							size="mini"
+							:loading="confirmingId === item._id"
+							@click="confirmReceive(item)"
+						>确认收款</button>
+					</view>
+				</view>
+
 				<!-- 统计卡片 -->
 				<view class="d-flex mb-3">
 					<view class="flex-1 bg-white rounded px-3 py-3 mr-2 border-left" style="border-left-width: 6rpx; border-left-color: #667eea;">
@@ -19,7 +41,7 @@
 						<text class="font-md font-weight">¥{{ formatCurrency(wallet.total_income) }}</text>
 					</view>
 					<view class="flex-1 bg-white rounded px-3 py-3 mr-2 border-left" style="border-left-width: 6rpx; border-left-color: #2ecc71;">
-						<text class="font-xs text-light-muted d-block mb-1">累计提现</text>
+						<text class="font-xs text-light-muted d-block mb-1">累计到账</text>
 						<text class="font-md font-weight">¥{{ formatCurrency(wallet.total_withdraw) }}</text>
 					</view>
 					<view class="flex-1 bg-white rounded px-3 py-3 border-left" style="border-left-width: 6rpx; border-left-color: #ffba5a;">
@@ -75,6 +97,8 @@ export default {
 				frozen_amount: 0
 			},
 			recentTransactions: [],
+			pendingConfirms: [],
+			confirmingId: '',
 			useMock: false,
 			loading: false
 		}
@@ -83,10 +107,68 @@ export default {
 		this.useMock = useMockData() === true
 		this.loadWallet()
 	},
+	onShow() {
+		if (!this.useMock) {
+			this.loadPendingConfirms()
+		}
+	},
 	methods: {
 		async refreshData() {
 			console.log('[teacher-wallet] 下拉刷新：重新加载钱包')
-			await this.loadWallet()
+			await Promise.all([this.loadWallet(), this.loadPendingConfirms()])
+		},
+		async loadPendingConfirms() {
+			try {
+				const walletObj = uniCloud.importObject('teacher-wallet', { customUI: true })
+				const res = await walletObj.getPendingConfirmWithdraws()
+				if (res.code === 0 && res.data) {
+					this.pendingConfirms = res.data.list || []
+				}
+			} catch (e) {
+				console.warn('[teacher-wallet] 加载待确认收款失败', e)
+			}
+		},
+		requestMerchantTransfer(item) {
+			return new Promise((resolve, reject) => {
+				// #ifdef MP-WEIXIN
+				if (typeof wx !== 'undefined' && wx.canIUse && wx.canIUse('requestMerchantTransfer')) {
+					wx.requestMerchantTransfer({
+						mchId: item.mchId,
+						appId: item.appId || (wx.getAccountInfoSync && wx.getAccountInfoSync().miniProgram.appId),
+						package: item.package_info,
+						success: (res) => resolve(res),
+						fail: (err) => reject(err)
+					})
+					return
+				}
+				// #endif
+				reject(new Error('当前微信版本过低，请更新微信后重试'))
+			})
+		},
+		async confirmReceive(item) {
+			if (!item || !item.package_info || this.confirmingId) return
+			this.confirmingId = item._id
+			try {
+				await this.requestMerchantTransfer(item)
+				const walletObj = uniCloud.importObject('teacher-wallet', { customUI: true })
+				const syncRes = await walletObj.syncWithdrawStatus({ withdraw_id: item._id })
+				if (syncRes.code === 0 && syncRes.data && syncRes.data.status === 'completed') {
+					uni.showToast({ title: '已到账', icon: 'success' })
+				} else {
+					uni.showToast({ title: (syncRes && syncRes.message) || '已提交确认，稍后刷新查看', icon: 'none' })
+				}
+				await Promise.all([this.loadWallet(), this.loadPendingConfirms()])
+			} catch (e) {
+				console.error('确认收款失败', e)
+				const msg = (e && (e.errMsg || e.message)) || '确认收款失败'
+				if (String(msg).includes('cancel')) {
+					uni.showToast({ title: '已取消确认', icon: 'none' })
+				} else {
+					uni.showToast({ title: msg, icon: 'none' })
+				}
+			} finally {
+				this.confirmingId = ''
+			}
 		},
 		async loadWallet() {
 			if (this.loading) return
