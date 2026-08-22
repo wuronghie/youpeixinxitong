@@ -1,1 +1,72 @@
-{"bsonType":"object","required":["teacher_id"],"permission":{"read":"doc.teacher_id == auth.uid","create":false,"update":false,"delete":false},"properties":{"_id":{"description":"钱包ID"},"teacher_id":{"bsonType":"string","description":"教师用户ID","foreignKey":"uni-id-users._id"},"balance":{"bsonType":"number","description":"可提现余额（元）","minimum":0,"defaultValue":0},"frozen_amount":{"bsonType":"number","description":"冻结金额（课程进行中）","minimum":0,"defaultValue":0},"total_income":{"bsonType":"number","description":"累计收入","minimum":0,"defaultValue":0},"total_withdraw":{"bsonType":"number","description":"累计提现","minimum":0,"defaultValue":0},"deposit_total":{"bsonType":"number","description":"累计支付信息费（旧字段，保留兼容）","minimum":0,"defaultValue":0},"deposit_refunded":{"bsonType":"number","description":"累计退还信息费（试课失败时退回的金额）","minimum":0,"defaultValue":0},"create_time":{"bsonType":"timestamp","description":"创建时间","forceDefaultValue":{"$env":"now"}},"update_time":{"bsonType":"timestamp","description":"更新时间","forceDefaultValue":{"$env":"now"}}}}
+{
+  "bsonType": "object",
+  "required": [
+    "teacher_id"
+  ],
+  "permission": {
+    "read": "(doc.teacher_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "description": "钱包ID"
+    },
+    "teacher_id": {
+      "bsonType": "string",
+      "description": "教师用户ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "balance": {
+      "bsonType": "number",
+      "description": "可提现余额（元）",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "frozen_amount": {
+      "bsonType": "number",
+      "description": "冻结金额（课程进行中）",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "total_income": {
+      "bsonType": "number",
+      "description": "累计收入",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "total_withdraw": {
+      "bsonType": "number",
+      "description": "累计提现",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "deposit_total": {
+      "bsonType": "number",
+      "description": "累计支付信息费（旧字段，保留兼容）",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "deposit_refunded": {
+      "bsonType": "number",
+      "description": "累计退还信息费（试课失败时退回的金额）",
+      "minimum": 0,
+      "defaultValue": 0
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    },
+    "update_time": {
+      "bsonType": "timestamp",
+      "description": "更新时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    }
+  }
+}

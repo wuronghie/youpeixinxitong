@@ -1,0 +1,16 @@
+{
+  "name": "wx-oa-notify",
+  "version": "1.0.0",
+  "description": "微信服务号模板消息通知",
+  "main": "index.obj.js",
+  "cloudfunction-config": {
+    "memorySize": 512,
+    "timeout": 20,
+    "concurrency": 5
+  },
+  "dependencies": {
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common",
+    "uni-config-center": "file:../../../uni_modules/uni-config-center/uniCloud/cloudfunctions/common/uni-config-center",
+    "wx-oa-client": "file:../common/wx-oa-client"
+  }
+}

@@ -237,7 +237,7 @@
 					</view>
 				</card>
 
-				<!-- 所在院校和资历 -->
+				<!-- 是否在读和资历 -->
 				<card v-if="teacherGenderText(teacherInfo.gender) || teacherInfo.school || teacherInfo.experience" class="mt-3 detail-card detail-card--slate">
 					<view slot="title" class="section-title">
 						<view class="section-title__mark section-title__mark--slate"></view>
@@ -252,7 +252,7 @@
 							<text class="info-value">{{ teacherGenderText(teacherInfo.gender) }}</text>
 						</view>
 						<view v-if="teacherInfo.school" class="info-row" :class="{ 'no-border': !teacherInfo.experience }">
-							<text class="info-label">所在院校</text>
+							<text class="info-label">是否在读</text>
 							<text class="info-value">{{ formatSchoolLabel(teacherInfo.school) }}</text>
 						</view>
 						<view v-if="teacherInfo.experience" class="info-row no-border">

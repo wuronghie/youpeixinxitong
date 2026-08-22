@@ -5,9 +5,10 @@
  */
 
 const uniID = require('uni-id-common')
+const { notifyAppointmentSuccessOa } = require('./helpers/notify-oa')
 
-/** 课时费下限（元/小时） */
-const MIN_HOURLY_RATE = 120
+/** 课时费下限（元/小时）；暂时取消 120 限制，恢复时改回 120 */
+const MIN_HOURLY_RATE = 0
 
 // 工具函数
 function success(data = null, message = 'success') {
@@ -29,7 +30,104 @@ function error(message = 'error', code = -1, data = null) {
 }
 
 /**
- * 向会话写入一条系统提醒（居中展示用文本消息），并更新会话摘要
+ * 累计学生 = 预约过试课的去重家长数（邀请发出即算，无需等确认/成功）
+ */
+async function countAcceptedTrialStudents(db, teacher_id) {
+  const dbCmd = db.command
+  const agg = await db.collection('appointments')
+    .aggregate()
+    .match({
+      teacher_id,
+      course_type: 'trial',
+      status: dbCmd.in([
+        'trial_invited',
+        'pending_payment',
+        'pending_confirm',
+        'confirmed',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'refunded'
+      ])
+    })
+    .group({
+      _id: '$parent_id'
+    })
+    .count('total')
+    .end()
+
+  return agg.data && agg.data.length > 0 ? Number(agg.data[0].total || 0) : 0
+}
+
+/** 同步教师资料上的学员数（列表/详情读 profile.total_students） */
+async function syncTeacherTotalStudents(db, teacher_id) {
+  if (!teacher_id) return
+  const totalStudents = await countAcceptedTrialStudents(db, teacher_id)
+  await db.collection('teacher-profiles')
+    .where({ teacher_id })
+    .update({
+      total_students: totalStudents,
+      update_time: Date.now()
+    })
+  console.log('[appointment-create] 同步学员数:', { teacher_id, totalStudents })
+  return totalStudents
+}
+
+const UNI_APP_ID = '__UNI__863DB44'
+
+async function notifyPeerAfterNotice({
+  conversationId,
+  receiverId,
+  receiverRole,
+  senderId,
+  senderRole,
+  content,
+  messageId
+} = {}) {
+  if (!conversationId || !receiverId) return
+
+  try {
+    const uniPush = uniCloud.getPushManager({ appId: UNI_APP_ID })
+    await uniPush.sendMessage({
+      user_id: receiverId,
+      check_token: false,
+      platform: ['mp-weixin'],
+      title: '新消息',
+      content: String(content || '您有一条新消息').substring(0, 50),
+      payload: {
+        type: 'chat_new',
+        conversation_id: conversationId,
+        send_time: Date.now()
+      }
+    })
+  } catch (e) {
+    console.warn('[appointment-create] notice push 失败:', e && (e.message || e))
+  }
+
+  try {
+    const { sendNewChat, formatNow } = require('wx-oa-client')
+    const timeText = formatNow()
+    const pagepath = receiverRole === 'teacher'
+      ? `pages-teacher/chat/conversation?conversationId=${encodeURIComponent(conversationId)}`
+      : `pages/chat/conversation?conversationId=${encodeURIComponent(conversationId)}`
+    const oaRes = await sendNewChat({
+      user_id: receiverId,
+      message_id: messageId,
+      visitor_name: senderRole === 'parent' ? '家长' : '老师',
+      reason: String(content || '您有一条新消息').replace(/\s+/g, ' ').trim().slice(0, 20),
+      visit_time: timeText,
+      send_time: timeText,
+      pagepath,
+      client_msg_id: 'notice_' + (messageId || conversationId)
+    })
+    console.log('[appointment-create] notice oa=', JSON.stringify(oaRes))
+  } catch (e) {
+    console.warn('[appointment-create] notice oa 失败:', e && (e.message || e))
+  }
+}
+
+/**
+ * 向会话写入一条系统提醒，并推送对方（push + 服务号），保证停留在聊天页也能实时刷新
  */
 async function appendConversationNotice(db, {
   teacher_id,
@@ -64,9 +162,10 @@ async function appendConversationNotice(db, {
 
   const receiver_id = sender_role === 'parent' ? teacher_id : parent_id
   const receiver_role = sender_role === 'parent' ? 'teacher' : 'parent'
+  const resolvedSenderId = sender_id || (sender_role === 'parent' ? parent_id : teacher_id)
   const messageResult = await db.collection('chat-messages').add({
     conversation_id: conversation._id,
-    sender_id: sender_id || (sender_role === 'parent' ? parent_id : teacher_id),
+    sender_id: resolvedSenderId,
     sender_role,
     receiver_id,
     receiver_role,
@@ -90,7 +189,19 @@ async function appendConversationNotice(db, {
   }
 
   await db.collection('chat-conversations').doc(conversation._id).update(conversationUpdate)
-  return messageResult.id || null
+
+  const messageId = messageResult.id || ''
+  await notifyPeerAfterNotice({
+    conversationId: conversation._id,
+    receiverId: receiver_id,
+    receiverRole: receiver_role,
+    senderId: resolvedSenderId,
+    senderRole: sender_role,
+    content,
+    messageId
+  })
+
+  return messageId || null
 }
 
 // 解析用户ID（从token中）
@@ -243,13 +354,13 @@ module.exports = {
         ? teacherProfileDoc.data[0] 
         : {}
       
-      const profileHourlyRate = Number(teacherProfile.hourly_rate || MIN_HOURLY_RATE)
+      const profileHourlyRate = Number(teacherProfile.hourly_rate || 0)
       let hourlyRate = profileHourlyRate
       if (trial_hourly_rate != null && trial_hourly_rate !== '') {
         hourlyRate = Number(trial_hourly_rate)
       }
-      if (!hourlyRate || hourlyRate < MIN_HOURLY_RATE) {
-        return error(`试课课时费不能低于${MIN_HOURLY_RATE}元/小时`)
+      if (!Number.isFinite(hourlyRate) || hourlyRate <= MIN_HOURLY_RATE) {
+        return error('请填写有效的试课课时费')
       }
       const trialAmount = Number((hourlyRate * 2).toFixed(2)) // 试课2小时
       
@@ -318,6 +429,12 @@ module.exports = {
         trial_invite_hourly_rate: hourlyRate, // 本次邀请专用单价，不影响教师档案
         total_amount: trialAmount,
         duration: 2,
+        // 新邀请必须是干净打卡状态，避免与历史预约混淆
+        class_started_at: null,
+        class_started_location: null,
+        class_ended_at: null,
+        class_ended_location: null,
+        parent_paid: false,
         create_time: now,
         update_time: now,
         invited_by: 'teacher', // 标记是教师发起的邀请
@@ -378,6 +495,13 @@ module.exports = {
       // 试课邀请会在预约列表中显示，家长可以主动查看
       
       console.log('试课邀请创建成功，appointment_id:', result.id)
+
+      // 邀请发出即计入学员数（去重家长）
+      try {
+        await syncTeacherTotalStudents(db, teacher_id)
+      } catch (studentErr) {
+        console.warn('[inviteTrial] 同步学员数失败:', studentErr)
+      }
       
       return success({
         appointment_id: result.id,
@@ -403,7 +527,6 @@ module.exports = {
 
     try {
       const db = uniCloud.database()
-      const dbCmd = db.command
       const parent_id = await resolveUserId(this)
       if (!parent_id) {
         return error('请先登录')
@@ -442,45 +565,21 @@ module.exports = {
         update_time: now
       })
 
-      const conversationDoc = await db.collection('chat-conversations')
-        .where({
-          teacher_id: invite.teacher_id,
-          parent_id: invite.parent_id
-        })
-        .orderBy('update_time', 'desc')
-        .limit(1)
-        .get()
+      const content = '家长暂不接受本次试课邀请，老师可重新发起邀请。'
+      const messageId = await appendConversationNotice(db, {
+        teacher_id: invite.teacher_id,
+        parent_id: invite.parent_id,
+        appointment_id: invite_id,
+        sender_id: parent_id,
+        sender_role: 'parent',
+        unread_for: 'teacher',
+        content
+      })
 
-      if (conversationDoc.data && conversationDoc.data.length > 0) {
-        const conversation = conversationDoc.data[0]
-        const content = '家长暂不接受本次试课邀请，老师可重新发起邀请。'
-        const messageResult = await db.collection('chat-messages').add({
-          conversation_id: conversation._id,
-          sender_id: parent_id,
-          sender_role: 'parent',
-          receiver_id: invite.teacher_id,
-          receiver_role: 'teacher',
-          message_type: 'text',
-          content,
-          is_read: false,
-          send_time: now
-        })
-
-        await db.collection('chat-conversations').doc(conversation._id).update({
-          appointment_id: invite_id,
-          last_message: content,
-          last_message_time: now,
-          unread_count_teacher: dbCmd.inc(1),
-          update_time: now
-        })
-
-        return success({
-          appointment_id: invite_id,
-          message_id: messageResult.id || ''
-        }, '已拒绝试课邀请')
-      }
-
-      return success({ appointment_id: invite_id }, '已拒绝试课邀请')
+      return success({
+        appointment_id: invite_id,
+        message_id: messageId || ''
+      }, '已拒绝试课邀请')
     } catch (e) {
       console.error('拒绝试课邀请失败:', e)
       return error(e.message || '操作失败')
@@ -626,7 +725,9 @@ module.exports = {
       if (!scheduleTs || Number.isNaN(scheduleTs)) {
         return error('上课时间格式不正确')
       }
-      if (scheduleTs < Date.now() + 60 * 60 * 1000) {
+      // 试课上课时间不限制；正式课仍须至少提前一小时
+      const isTrialBooking = course_type === 'trial' || !!invite_id
+      if (!isTrialBooking && scheduleTs < Date.now() + 60 * 60 * 1000) {
         return error('上课时间须至少在一小时之后')
       }
       
@@ -695,10 +796,22 @@ module.exports = {
           total_amount: totalAmount,
           parent_paid: false,
           status: 'pending_payment', // 家长填写信息后待支付试课费
+          // 接受邀请时清空打卡，确保本单从零开始
+          class_started_at: null,
+          class_started_location: null,
+          class_ended_at: null,
+          class_ended_location: null,
           update_time: now
           // invited_by: 'teacher' 字段会被保留，因为 update 不会删除未指定的字段
         })
         appointmentId = invite_id
+
+        // 家长接受试课（trial_invited → pending_payment）：立即刷新教师学员数
+        try {
+          await syncTeacherTotalStudents(db, inviteAppointment.teacher_id || finalTeacherId)
+        } catch (studentErr) {
+          console.warn('[appointment-create] 同步学员数失败:', studentErr)
+        }
 
         // 聊天提醒：家长已确认试课信息，待支付
         try {
@@ -745,6 +858,22 @@ module.exports = {
       }
       
       console.log('预约创建成功，appointment_id:', appointmentId)
+
+      try {
+        await notifyAppointmentSuccessOa({
+          appointmentId,
+          appointmentNo,
+          parentId: parent_id,
+          teacherId: finalTeacherId,
+          courseType: course_type || (inviteAppointment && inviteAppointment.course_type) || 'trial',
+          lessonMode: lesson_mode || 'offline',
+          date,
+          startTime: start_time,
+          subject
+        })
+      } catch (oaErr) {
+        console.warn('[appointment-create] 服务号预约通知失败:', oaErr && (oaErr.message || oaErr))
+      }
       
       return success({
         appointment_id: appointmentId,

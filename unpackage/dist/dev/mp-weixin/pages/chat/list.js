@@ -3,6 +3,8 @@ const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
+const utils_chatPoll = require("../../utils/chatPoll.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const ParentTabBar = () => "../../components/ParentTabBar.js";
 const _sfc_main = {
   name: "ChatList",
@@ -30,10 +32,10 @@ const _sfc_main = {
       useMock: false,
       scrollTop: 0,
       canRefresh: true,
-      // 会话列表轮询定时器
+      // 会话列表轮询定时器（push 为主，长间隔兜底）
       pollTimer: null,
-      pollInterval: 1e4
-      // 10秒轮询一次（列表更新频率可以稍低）
+      pollInterval: utils_chatPoll.CHAT_POLL_INTERVAL.list,
+      silentPolling: false
     };
   },
   watch: {
@@ -51,32 +53,52 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "家教帮 · 老师沟通",
+      title: "优培信息通 · 老师沟通",
       path: "/pages/chat/list"
     };
   },
   onShareTimeline() {
     return {
-      title: "家教帮 · 老师沟通"
+      title: "优培信息通 · 老师沟通"
     };
   },
   onShow() {
     if (!this.useMock) {
+      this.bindChatPush();
+      this.startPolling();
       this.$nextTick(() => {
-        setTimeout(() => {
-          this.resetAndLoad();
-          this.startPolling();
-        }, 50);
+        this.resetAndLoad();
       });
     }
   },
   onHide() {
     this.stopPolling();
+    this.unbindChatPush();
   },
   onUnload() {
     this.stopPolling();
+    this.unbindChatPush();
   },
   methods: {
+    bindChatPush() {
+      if (this._onChatPush) {
+        common_vendor.index.__f__("log", "at pages/chat/list.vue:173", "[parent-chat-list] push 已绑定，跳过");
+        return;
+      }
+      this._onChatPush = (payload) => {
+        common_vendor.index.__f__("log", "at pages/chat/list.vue:177", "[parent-chat-list] 收到 push，刷新列表", payload);
+        this.refreshConversationsSilently();
+      };
+      utils_chatPush.onChatPush(this._onChatPush);
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:181", "[parent-chat-list] 已订阅 chat:push");
+    },
+    unbindChatPush() {
+      if (!this._onChatPush)
+        return;
+      utils_chatPush.offChatPush(this._onChatPush);
+      this._onChatPush = null;
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:187", "[parent-chat-list] 已取消订阅 chat:push");
+    },
     /**
      * 启动会话列表轮询
      */
@@ -101,7 +123,7 @@ const _sfc_main = {
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:196", "[chat-list] 下拉刷新：重新加载会话列表");
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:218", "[chat-list] 下拉刷新：重新加载会话列表");
       await this.loadConversations(true);
     },
     handleScroll(e) {
@@ -133,54 +155,59 @@ const _sfc_main = {
      * 静默刷新会话列表（用于轮询）
      */
     async refreshConversationsSilently() {
-      var _a;
-      if (this.loading || this.useMock)
+      if (this.loading || this.silentPolling || this.useMock)
         return;
-      this.loading = true;
+      this.silentPolling = true;
       try {
         const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
-        const res = await chatSend.getConversationList();
-        if (res.code === 0) {
-          const fetched = (((_a = res.data) == null ? void 0 : _a.list) || []).map((item) => {
+        const res = await chatSend.pollUpdates({ mode: "list" });
+        if (res.code === 0 && res.data) {
+          const listMap = /* @__PURE__ */ new Map();
+          this.list.forEach((item) => {
+            listMap.set(item.conversation_id, item);
+          });
+          let hasUnknownConversation = false;
+          (res.data.list || []).forEach((item) => {
             let lastMessage = "";
             if (item.last_message) {
               if (typeof item.last_message === "object") {
-                lastMessage = item.last_message.content || item.last_message.text || JSON.stringify(item.last_message);
+                lastMessage = item.last_message.content || item.last_message.text || "";
               } else {
                 lastMessage = item.last_message;
               }
             }
             lastMessage = this.formatLastMessage(lastMessage);
-            return {
+            const prev = listMap.get(item._id);
+            if (!prev)
+              hasUnknownConversation = true;
+            listMap.set(item._id, {
+              ...prev || {},
               conversation_id: item._id,
               appointment_id: item.appointment_id,
-              name: this.resolveName(item, "老师"),
-              avatar: this.resolveAvatar(item),
+              name: prev && prev.name || "老师",
+              avatar: prev && prev.avatar || this.defaultAvatarUrl,
               last_message: lastMessage,
               last_message_time: item.last_message_time || item.update_time || Date.now(),
-              unread_count: Number(item.unread_count_parent ?? 0),
+              unread_count: Number(item.unread_count ?? item.unread_count_parent ?? 0),
               status: item.status,
               deposit_paid: item.deposit_paid,
-              tag: this.resolveTag(item)
-            };
-          });
-          const listMap = /* @__PURE__ */ new Map();
-          this.list.forEach((item) => {
-            listMap.set(item.conversation_id, item);
-          });
-          fetched.forEach((item) => {
-            listMap.set(item.conversation_id, item);
+              tag: prev && prev.tag || ""
+            });
           });
           this.list = Array.from(listMap.values()).sort(
             (a, b) => (b.last_message_time || 0) - (a.last_message_time || 0)
           );
           this.updateStats();
           this.filterList();
+          if (hasUnknownConversation) {
+            this.finished = false;
+            this.$nextTick(() => this.loadConversations());
+          }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/list.vue:272", "静默刷新会话列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/list.vue:299", "静默刷新会话列表失败:", error);
       } finally {
-        this.loading = false;
+        this.silentPolling = false;
       }
     },
     async loadConversations() {
@@ -255,7 +282,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "加载会话失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/list.vue:349", "加载会话列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/list.vue:375", "加载会话列表失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后重试", icon: "none" });
       } finally {
         this.loading = false;
@@ -279,7 +306,7 @@ const _sfc_main = {
         unreadConversations: unreadConversations || 0,
         unreadMessages: unreadMessages || 0
       };
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:373", "[chat-list] 统计数据更新:", this.stats);
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:399", "[chat-list] 统计数据更新:", this.stats);
     },
     filterList() {
       let filtered = [...this.list];
@@ -360,6 +387,11 @@ const _sfc_main = {
       const trimmed = message.trim();
       if (trimmed.includes("trial_invite") && (trimmed.startsWith("{") || trimmed.includes('"type"') || trimmed.includes("type"))) {
         return "邀请试课";
+      }
+      if (trimmed.includes("attendance_clock")) {
+        if (trimmed.includes("clock_out"))
+          return "老师已下课打卡";
+        return "老师已上课打卡";
       }
       return message;
     },

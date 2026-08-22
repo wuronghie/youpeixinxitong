@@ -85,6 +85,8 @@ import card from '@/components/common/card.vue'
 import { mockConversations, useMockData } from '@/utils/mockData.js'
 import TeacherTabBar from '@/components/TeacherTabBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
+import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
+import { onChatPush, offChatPush } from '@/utils/chatPush.js'
 
 export default {
 	name: 'TeacherChatList',
@@ -109,7 +111,10 @@ export default {
 			pageSize: 30,
 			finished: false,
 			loading: false,
-			useMock: false
+			useMock: false,
+			pollTimer: null,
+			pollInterval: CHAT_POLL_INTERVAL.list,
+			silentPolling: false
 		}
 	},
 	watch: {
@@ -123,21 +128,108 @@ export default {
 	},
 	onShow() {
 		if (!this.useMock) {
+			this.bindChatPush()
+			this.startPolling()
 			this.resetAndLoad()
 		}
 	},
+	onHide() {
+		this.stopPolling()
+		this.unbindChatPush()
+	},
+	onUnload() {
+		this.stopPolling()
+		this.unbindChatPush()
+	},
 	onShareAppMessage() {
 		return {
-			title: '家教帮 · 教师家长沟通',
+			title: '优培信息通 · 教师家长沟通',
 			path: '/pages-teacher/chat/list'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '家教帮 · 教师家长沟通'
+			title: '优培信息通 · 教师家长沟通'
 		}
 	},
 	methods: {
+		bindChatPush() {
+			if (this._onChatPush) return
+			this._onChatPush = (payload) => {
+				console.log('[teacher-chat-list] 收到 push，刷新列表', payload)
+				this.refreshConversationsSilently()
+			}
+			onChatPush(this._onChatPush)
+		},
+		unbindChatPush() {
+			if (!this._onChatPush) return
+			offChatPush(this._onChatPush)
+			this._onChatPush = null
+		},
+		startPolling() {
+			this.stopPolling()
+			if (!CHAT_POLL_ENABLED || this.useMock) return
+			this.pollTimer = setInterval(() => {
+				if (this.loading || this.silentPolling) return
+				this.refreshConversationsSilently()
+			}, this.pollInterval)
+		},
+		stopPolling() {
+			if (this.pollTimer) {
+				clearInterval(this.pollTimer)
+				this.pollTimer = null
+			}
+		},
+		async refreshConversationsSilently() {
+			if (this.loading || this.silentPolling || this.useMock) return
+			this.silentPolling = true
+			try {
+				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
+				const res = await chatSend.pollUpdates({ mode: 'list' })
+				if (res.code !== 0 || !res.data) return
+
+				const listMap = new Map()
+				this.list.forEach(item => listMap.set(item.conversation_id, item))
+				let hasUnknownConversation = false
+				;(res.data.list || []).forEach(item => {
+					let lastMessage = ''
+					if (item.last_message) {
+						if (typeof item.last_message === 'object') {
+							lastMessage = item.last_message.content || item.last_message.text || ''
+						} else {
+							lastMessage = item.last_message
+						}
+					}
+					lastMessage = this.formatLastMessage(lastMessage)
+					const prev = listMap.get(item._id)
+					if (!prev) hasUnknownConversation = true
+					listMap.set(item._id, {
+						...(prev || {}),
+						conversation_id: item._id,
+						appointment_id: item.appointment_id,
+						name: (prev && prev.name) || '家长',
+						avatar: (prev && prev.avatar) || this.defaultAvatarUrl,
+						last_message: lastMessage,
+						last_message_time: item.last_message_time || item.update_time || Date.now(),
+						unread_count: Number(item.unread_count ?? item.unread_count_teacher ?? 0),
+						status: item.status
+					})
+				})
+				this.list = Array.from(listMap.values()).sort((a, b) =>
+					(b.last_message_time || 0) - (a.last_message_time || 0)
+				)
+				this.updateStats()
+				this.filterList()
+				if (hasUnknownConversation) {
+					this.finished = false
+					this.$nextTick(() => this.loadConversations())
+				}
+			} catch (e) {
+				console.error('[teacher-chat-list] 静默刷新失败:', e)
+			} finally {
+				this.silentPolling = false
+			}
+		},
 		async refreshData() {
 			console.log('[teacher-chat-list] 下拉刷新：重新加载会话列表')
 			await this.loadConversations(true)
@@ -295,6 +387,10 @@ export default {
 			// 只要包含 trial_invite 且看起来像JSON格式，就识别为试课邀请
 			if (trimmed.includes('trial_invite') && (trimmed.startsWith('{') || trimmed.includes('"type"') || trimmed.includes('type'))) {
 				return '邀请试课'
+			}
+			if (trimmed.includes('attendance_clock')) {
+				if (trimmed.includes('clock_out')) return '已下课打卡'
+				return '已上课打卡'
 			}
 			
 			return message

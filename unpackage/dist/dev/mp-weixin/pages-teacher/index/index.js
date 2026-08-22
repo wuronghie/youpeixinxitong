@@ -104,7 +104,7 @@ const _sfc_main = {
           icon: utils_imageConfig.getIconUrl("clock.png")
         },
         {
-          label: "我的钱包",
+          label: "收款确认",
           path: "/pages-teacher/wallet/index",
           icon: utils_imageConfig.getIconUrl("wallet.png")
         },
@@ -155,13 +155,13 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "家教帮 · 教师工作台",
+      title: "优培信息通 · 教师工作台",
       path: "/pages-teacher/index/index"
     };
   },
   onShareTimeline() {
     return {
-      title: "家教帮 · 教师工作台"
+      title: "优培信息通 · 教师工作台"
     };
   },
   /**

@@ -19,12 +19,14 @@ const _sfc_main = {
       appointment: {},
       // 优惠券相关
       availableCoupons: [],
+      couponsLoaded: false,
       couponPreview: null,
       // 试算结果：originalAmount / discountAmount / payableAmount 等
       couponLoading: false,
       isLoading: false,
       isRefreshing: false,
       navigatingToReview: false,
+      repairingTeacherPay: false,
       scrollTop: 0,
       canRefresh: true,
       // 默认头像URL（从CDN）
@@ -99,24 +101,33 @@ const _sfc_main = {
       const apt = this.appointment || {};
       return apt.course_type === "trial" && apt.invited_by === "teacher";
     },
-    // 是否有可用优惠券（根据列表和金额动态判断）
-    canUseCoupon() {
-      if (!this.appointment)
-        return false;
-      const amount = Number(this.appointment.amount || 0);
-      if (!amount)
-        return false;
-      if (!this.availableCoupons || this.availableCoupons.length === 0)
-        return false;
-      return this.availableCoupons.some((c) => {
+    courseAmount() {
+      const apt = this.appointment || {};
+      const direct = Number(apt.amount || apt.total_amount || 0);
+      if (Number.isFinite(direct) && direct > 0)
+        return direct;
+      const rate = Number(apt.hourly_rate || apt.houry_rate || 0);
+      const duration = Number(apt.duration || 2);
+      if (Number.isFinite(rate) && rate > 0)
+        return Number((rate * duration).toFixed(2));
+      return 0;
+    },
+    // 当前金额下真正可用的券
+    usableCoupons() {
+      const amount = this.courseAmount;
+      if (!amount || !this.availableCoupons.length)
+        return [];
+      return this.availableCoupons.filter((c) => {
         const min = Number(c.min_spend || 0);
         return !min || amount >= min;
       });
     },
+    canUseCoupon() {
+      return this.usableCoupons.length > 0;
+    },
     // 实际应付金额（考虑优惠券）
     payableAmount() {
-      var _a;
-      const base = Number(((_a = this.appointment) == null ? void 0 : _a.amount) || 0);
+      const base = this.courseAmount;
       if (!this.couponPreview)
         return base;
       const pRaw = this.couponPreview.payableAmount;
@@ -127,8 +138,7 @@ const _sfc_main = {
     },
     // 优惠金额
     couponDiscountAmount() {
-      var _a;
-      const base = Number(((_a = this.appointment) == null ? void 0 : _a.amount) || 0);
+      const base = this.courseAmount;
       const pay = Number(this.payableAmount);
       if (!base || Number.isNaN(pay) || pay < 0)
         return 0;
@@ -137,9 +147,8 @@ const _sfc_main = {
     },
     // 费用区块里优惠券行的展示文案
     couponDisplayText() {
-      if (!this.canUseCoupon) {
-        return "暂无可用优惠券";
-      }
+      if (this.couponLoading && !this.couponsLoaded)
+        return "加载中...";
       if (this.couponPreview && this.couponPreview.couponName) {
         const discount = Number(this.couponDiscountAmount || 0);
         if (discount > 0) {
@@ -147,7 +156,13 @@ const _sfc_main = {
         }
         return this.couponPreview.couponName;
       }
-      return "请选择优惠券";
+      if (!this.couponsLoaded)
+        return "请选择优惠券";
+      if (!this.availableCoupons.length)
+        return "暂无可用优惠券";
+      if (!this.canUseCoupon)
+        return "未满使用门槛";
+      return `请选择优惠券（${this.usableCoupons.length}张可用）`;
     },
     canRefund() {
       if (!this.appointment || !this.isParentPaid) {
@@ -159,6 +174,17 @@ const _sfc_main = {
       const allowStatuses = ["pending_confirm", "confirmed", "in_progress"];
       const disallowStatuses = ["refunding", "refunded", "cancelled", "rejected", "completed"];
       return allowStatuses.includes(this.appointment.status) && !disallowStatuses.includes(this.appointment.status);
+    },
+    /** 家长已退款成功，但教师微信课酬尚未打出时，允许补打款 */
+    canRepairTeacherPay() {
+      if (!this.appointment || this.appointment.course_type !== "trial")
+        return false;
+      if (!this.isParentPaid)
+        return false;
+      if (this.appointment.teacher_paid_wechat)
+        return false;
+      const refundedLike = ["cancelled", "refunded"].includes(this.appointment.status) || this.appointment.refund_status === "success" || this.appointment.refund_status === "partial_auto";
+      return refundedLike;
     },
     payButtonText() {
       return "支付课程费";
@@ -177,7 +203,7 @@ const _sfc_main = {
       return allowStatuses.includes(this.appointment.status);
     },
     hasActionButtons() {
-      return this.canPayCourse || this.canShowWaitingClockOut || this.canShowConfirmButton || this.appointment.status === "completed" && !this.appointment.has_review || this.canRefund || this.appointment.status === "pending_confirm" && !this.isParentPaid && !this.canPayCourse;
+      return this.canPayCourse || this.canShowWaitingClockOut || this.canShowConfirmButton || this.appointment.status === "completed" && !this.appointment.has_review || this.canRefund || this.canRepairTeacherPay || this.appointment.status === "pending_confirm" && !this.isParentPaid && !this.canPayCourse;
     },
     canShowConfirmButton() {
       return !this.canPayCourse && this.canConfirmCompletion && !!this.appointment.class_ended_at;
@@ -237,7 +263,7 @@ const _sfc_main = {
         const res = await appointmentQuery.getAppointmentDetail({ appointment_id: this.appointmentId });
         if (res.code === 0 && res.data) {
           const data = res.data;
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:456", "[appointment/detail] getAppointmentDetail 返回:", {
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:487", "[appointment/detail] getAppointmentDetail 返回:", {
             requestAppointmentId: this.appointmentId,
             returnedAppointmentId: data._id,
             status: data.status,
@@ -258,7 +284,16 @@ const _sfc_main = {
             date: data.date || data.appointment_date,
             time: data.start_time || data.appointment_time,
             duration: data.duration,
-            amount: data.total_amount || data.total_fee,
+            amount: (() => {
+              var _a2;
+              const total = Number(data.total_amount || data.total_fee || 0);
+              if (total > 0)
+                return total;
+              const rate = Number(data.trial_invite_hourly_rate || data.hourly_rate || ((_a2 = data.teacher_info) == null ? void 0 : _a2.hourly_rate) || 0);
+              const duration = Number(data.duration || 2);
+              return rate > 0 ? Number((rate * duration).toFixed(2)) : 0;
+            })(),
+            total_amount: Number(data.total_amount || data.total_fee || 0),
             houry_rate: data.trial_invite_hourly_rate || data.hourly_rate || ((_h = data.teacher_info) == null ? void 0 : _h.hourly_rate),
             hourly_rate: data.trial_invite_hourly_rate || data.hourly_rate || ((_i = data.teacher_info) == null ? void 0 : _i.hourly_rate),
             address: this.formatAddress(data.lesson_mode, data.address),
@@ -285,7 +320,7 @@ const _sfc_main = {
             conversation_id: data.conversation_id
           };
           this.confirmAppointmentId = data.confirm_appointment_id || data._id || this.appointmentId;
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:504", "[appointment/detail] 映射到页面 appointment:", {
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:542", "[appointment/detail] 映射到页面 appointment:", {
             pageAppointmentId: this.appointmentId,
             localAppointmentId: this.appointment._id,
             status: this.appointment.status,
@@ -303,11 +338,18 @@ const _sfc_main = {
             this.appointment.parent_paid = true;
           }
           await this.syncAttendanceStatus();
+          if (this.canPayCourse) {
+            this.loadAvailableCoupons(false);
+          } else {
+            this.availableCoupons = [];
+            this.couponsLoaded = false;
+            this.couponPreview = null;
+          }
         } else {
           throw new Error(res.message || "获取预约详情失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:528", "获取预约详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:574", "获取预约详情失败:", error);
         if (currentParentPaid && this.appointment && this.appointment._id === this.appointmentId) {
           this.appointment.parent_paid = currentParentPaid;
           if (currentStatus) {
@@ -324,14 +366,14 @@ const _sfc_main = {
     },
     async syncAttendanceStatus() {
       if (!this.appointmentId || !this.appointment || !this.appointment._id) {
-        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:547", "[appointment/detail] 跳过同步打卡状态：缺少 appointmentId 或本地预约", {
+        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:593", "[appointment/detail] 跳过同步打卡状态：缺少 appointmentId 或本地预约", {
           appointmentId: this.appointmentId,
           localAppointmentId: this.appointment && this.appointment._id
         });
         return;
       }
       try {
-        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:554", "[appointment/detail] 开始同步打卡状态:", {
+        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:600", "[appointment/detail] 开始同步打卡状态:", {
           requestAppointmentId: this.appointmentId,
           localAppointmentId: this.appointment._id,
           beforeStatus: this.appointment.status,
@@ -340,7 +382,7 @@ const _sfc_main = {
         });
         const appointmentQuery = common_vendor.tr.importObject("appointment-query", { customUI: true });
         const res = await appointmentQuery.getAttendanceStatus({ appointment_id: this.appointmentId });
-        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:563", "[appointment/detail] appointment-query.getAttendanceStatus 返回:", {
+        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:609", "[appointment/detail] appointment-query.getAttendanceStatus 返回:", {
           requestAppointmentId: this.appointmentId,
           code: res && res.code,
           message: res && res.message,
@@ -373,7 +415,7 @@ const _sfc_main = {
           if (data.status) {
             this.appointment.status = data.status;
           }
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:596", "[appointment/detail] 同步打卡状态后:", {
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:642", "[appointment/detail] 同步打卡状态后:", {
             localAppointmentId: this.appointment._id,
             status: this.appointment.status,
             parent_paid: this.appointment.parent_paid,
@@ -385,10 +427,10 @@ const _sfc_main = {
             shouldShowWaitingClockOut: !this.canPayCourse && this.canConfirmCompletion && !this.appointment.class_ended_at
           });
         } else {
-          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:608", "[appointment/detail] 同步打卡状态失败:", res && res.message);
+          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:654", "[appointment/detail] 同步打卡状态失败:", res && res.message);
         }
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:611", "[appointment/detail] 同步打卡状态异常:", e);
+        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:657", "[appointment/detail] 同步打卡状态异常:", e);
       }
     },
     handleScroll(e) {
@@ -532,6 +574,29 @@ const _sfc_main = {
       return `${month}-${day} ${hour}:${minute}`;
     },
     // 打开优惠券选择
+    async loadAvailableCoupons(force = false) {
+      if (this.couponLoading)
+        return;
+      if (this.couponsLoaded && !force)
+        return;
+      this.couponLoading = true;
+      try {
+        const couponCenter = common_vendor.tr.importObject("coupon-center", { customUI: true });
+        const res = await couponCenter.getAvailableCoupons({ role: "parent" });
+        if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
+          this.availableCoupons = res.data.list;
+        } else {
+          this.availableCoupons = [];
+        }
+        this.couponsLoaded = true;
+      } catch (e) {
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:839", "[appointment/detail] 加载优惠券失败:", e);
+        this.availableCoupons = [];
+        this.couponsLoaded = true;
+      } finally {
+        this.couponLoading = false;
+      }
+    },
     async openCouponSelector() {
       if (!this.canPayCourse)
         return;
@@ -541,37 +606,30 @@ const _sfc_main = {
       }
       if (this.couponLoading)
         return;
-      const amount = Number(this.appointment.amount || 0);
+      const amount = this.courseAmount;
       if (!amount) {
         common_vendor.index.showToast({ title: "课程金额异常，无法使用优惠券", icon: "none" });
         return;
       }
       try {
-        this.couponLoading = true;
-        if (!this.availableCoupons || this.availableCoupons.length === 0) {
-          const couponCenter = common_vendor.tr.importObject("coupon-center", { customUI: true });
-          const res = await couponCenter.getAvailableCoupons();
-          if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
-            this.availableCoupons = res.data.list;
-          } else {
-            this.availableCoupons = [];
-          }
-        }
-        if (!this.canUseCoupon) {
+        await this.loadAvailableCoupons(true);
+        if (!this.availableCoupons.length) {
           common_vendor.index.showToast({ title: "暂无可用优惠券", icon: "none" });
           return;
         }
-        const usableCoupons = this.availableCoupons.filter((c) => {
-          const min = Number(c.min_spend || 0);
-          return !min || amount >= min;
-        });
+        const usableCoupons = this.usableCoupons;
         if (!usableCoupons.length) {
-          common_vendor.index.showToast({ title: "当前金额未达到优惠券使用门槛", icon: "none" });
+          const mins = this.availableCoupons.map((c) => Number(c.min_spend || 0)).filter((n) => n > 0);
+          const minNeed = mins.length ? Math.min(...mins) : 0;
+          common_vendor.index.showToast({
+            title: minNeed > 0 ? `当前金额¥${amount.toFixed(2)}，需满¥${minNeed.toFixed(2)}可用` : "当前金额未达到优惠券使用门槛",
+            icon: "none"
+          });
           return;
         }
         const itemList = ["不使用优惠券", ...usableCoupons.map((c) => {
           const min = Number(c.min_spend || 0);
-          const title = c.type === "amount" ? `减¥${Number(c.amount || 0).toFixed(2)}` : `${Number(c.discount * 10 || 0).toFixed(1)}折`;
+          const title = c.type === "amount" ? `减¥${Number(c.amount || 0).toFixed(2)}` : `${(Number(c.discount || 0) * 10).toFixed(1)}折`;
           const minText = min > 0 ? `（满¥${min.toFixed(2)}可用）` : "";
           return `${c.name || "优惠券"} ${title}${minText}`;
         })];
@@ -601,22 +659,20 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: previewRes.message || "优惠券不可用", icon: "none" });
               }
             } catch (e) {
-              common_vendor.index.__f__("error", "at pages/appointment/detail.vue:858", "试算优惠券失败:", e);
+              common_vendor.index.__f__("error", "at pages/appointment/detail.vue:918", "试算优惠券失败:", e);
               common_vendor.index.showToast({ title: "优惠券试算失败，请稍后重试", icon: "none" });
             }
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:864", "打开优惠券选择失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:924", "打开优惠券选择失败:", error);
         common_vendor.index.showToast({ title: "加载优惠券失败", icon: "none" });
-      } finally {
-        this.couponLoading = false;
       }
     },
     async handlePay() {
       if (!this.appointmentId)
         return;
-      const baseAmount = Number(this.appointment.amount || 0);
+      const baseAmount = this.courseAmount;
       const hasCouponPreview = !!this.couponPreview;
       const rawPayable = hasCouponPreview ? this.payableAmount : baseAmount;
       const amount = Number(rawPayable);
@@ -693,7 +749,7 @@ const _sfc_main = {
                 });
                 return;
               } catch (error) {
-                common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:967", "uni-pay 组件调用失败:", error);
+                common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1025", "uni-pay 组件调用失败:", error);
               }
             }
             common_vendor.index.hideLoading();
@@ -727,7 +783,7 @@ const _sfc_main = {
             }
           } catch (error) {
             common_vendor.index.hideLoading();
-            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1011", "支付课程费失败:", error);
+            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1069", "支付课程费失败:", error);
             common_vendor.index.showToast({
               title: error.message || "支付失败，请稍后重试",
               icon: "none",
@@ -739,22 +795,22 @@ const _sfc_main = {
     },
     // uni-pay 组件事件：订单创建成功
     onPayCreate(res) {
-      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1023", "支付订单创建成功:", res);
+      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1081", "支付订单创建成功:", res);
     },
     // uni-pay 组件事件：支付成功
     async onPaySuccess(res) {
       var _a, _b, _c;
-      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1027", "[支付成功] uni-pay 回调:", res);
+      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1085", "[支付成功] uni-pay 回调:", res);
       const isPaid = res.has_paid || res.status === 1 || res.user_order_success;
       if (!isPaid) {
-        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1032", "[支付成功] 支付成功事件但状态异常:", res);
+        common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1090", "[支付成功] 支付成功事件但状态异常:", res);
         return;
       }
       const order_no = res.order_no || ((_a = res.pay_order) == null ? void 0 : _a.order_no);
       const out_trade_no = res.out_trade_no;
       const custom = res.custom || {};
       const order_id = custom.order_id;
-      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1042", "[支付成功] 订单信息:", {
+      common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1100", "[支付成功] 订单信息:", {
         order_no,
         out_trade_no,
         order_id,
@@ -764,7 +820,7 @@ const _sfc_main = {
         const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
         let finalOrderNo = order_no;
         if (!finalOrderNo) {
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1057", "[支付成功] 未找到 order_no，通过 appointment_id 查找订单...");
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1115", "[支付成功] 未找到 order_no，通过 appointment_id 查找订单...");
           const orderListRes = await paymentCreate.getOrderList({
             appointment_id: this.appointmentId || custom.appointment_id,
             payment_type: "course_fee",
@@ -774,13 +830,13 @@ const _sfc_main = {
           });
           if (orderListRes.code === 0 && orderListRes.data && orderListRes.data.list && orderListRes.data.list.length > 0) {
             finalOrderNo = orderListRes.data.list[0].order_no;
-            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1068", "[支付成功] 找到订单:", finalOrderNo);
+            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1126", "[支付成功] 找到订单:", finalOrderNo);
           }
         }
         if (!finalOrderNo) {
           throw new Error("无法获取订单号，请稍后刷新页面查看支付状态");
         }
-        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1077", "[支付成功] 更新订单状态，order_no:", finalOrderNo);
+        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1135", "[支付成功] 更新订单状态，order_no:", finalOrderNo);
         const payRes = await paymentCreate.mockPaySuccess({
           order_no: finalOrderNo,
           out_trade_no,
@@ -788,12 +844,12 @@ const _sfc_main = {
           uni_pay_order_no: order_no
         });
         if (payRes.code === 0) {
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1085", "[支付成功] 数据库更新成功:", {
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1143", "[支付成功] 数据库更新成功:", {
             appointment_status: (_b = payRes.data) == null ? void 0 : _b.appointment_status,
             order_no: finalOrderNo
           });
           if (out_trade_no) {
-            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1092", "[支付成功] out_trade_no 已通过 mockPaySuccess 保存:", out_trade_no);
+            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1150", "[支付成功] out_trade_no 已通过 mockPaySuccess 保存:", out_trade_no);
           }
           if (this.appointment) {
             this.appointment.parent_paid = true;
@@ -811,7 +867,7 @@ const _sfc_main = {
           throw new Error(payRes.message || "更新预约状态失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1116", "[支付成功] 更新数据库失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1174", "[支付成功] 更新数据库失败:", error);
         if (this.appointment) {
           this.appointment.parent_paid = true;
           this.appointment.status = this.appointment.status === "pending_payment" ? "pending_confirm" : this.appointment.status;
@@ -828,7 +884,7 @@ const _sfc_main = {
     },
     // uni-pay 组件事件：支付失败（包含用户取消）
     onPayFail(err) {
-      common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1138", "支付失败:", err);
+      common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1196", "支付失败:", err);
       const msg = err && err.errMsg ? err.errMsg : "";
       if (msg.includes("cancel")) {
         common_vendor.index.redirectTo({
@@ -874,7 +930,7 @@ const _sfc_main = {
         }
       } catch (error) {
         common_vendor.index.hideLoading();
-        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1191", "获取会话失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1249", "获取会话失败:", error);
         common_vendor.index.showToast({
           title: "无法加载聊天会话，请稍后重试",
           icon: "none"
@@ -904,7 +960,7 @@ const _sfc_main = {
           url,
           success: resetFlag,
           fail: (err) => {
-            common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1221", `[appointment/detail] ${method} 评价页失败:`, err);
+            common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1279", `[appointment/detail] ${method} 评价页失败:`, err);
             if (method === "navigateTo") {
               common_vendor.index.redirectTo({
                 url,
@@ -912,7 +968,7 @@ const _sfc_main = {
                 fail: (redirectErr) => {
                   resetFlag();
                   common_vendor.index.showToast({ title: "打开评价页失败，请稍后重试", icon: "none" });
-                  common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1229", "[appointment/detail] redirectTo 评价页失败:", redirectErr);
+                  common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1287", "[appointment/detail] redirectTo 评价页失败:", redirectErr);
                 }
               });
               return;
@@ -941,6 +997,44 @@ const _sfc_main = {
       }
       this.openReviewPage(actionId);
     },
+    async handleRepairTeacherPay() {
+      if (!this.appointmentId || this.repairingTeacherPay)
+        return;
+      if (!this.canRepairTeacherPay) {
+        common_vendor.index.showToast({ title: "当前无需补打款", icon: "none" });
+        return;
+      }
+      this.repairingTeacherPay = true;
+      common_vendor.index.showLoading({ title: "补打款中...", mask: true });
+      try {
+        const refundObj = common_vendor.tr.importObject("payment-refund", { customUI: true });
+        const res = await refundObj.repairTeacherPay({ appointment_id: this.appointmentId });
+        common_vendor.index.hideLoading();
+        if (res.code === 0) {
+          common_vendor.index.showModal({
+            title: "补打款结果",
+            content: res.message || "已处理",
+            showCancel: false,
+            success: () => this.loadDetail()
+          });
+        } else {
+          common_vendor.index.showModal({
+            title: "补打款失败",
+            content: res.message || "请稍后重试或联系客服",
+            showCancel: false
+          });
+        }
+      } catch (e) {
+        common_vendor.index.hideLoading();
+        common_vendor.index.showModal({
+          title: "补打款失败",
+          content: e.message || "网络异常",
+          showCancel: false
+        });
+      } finally {
+        this.repairingTeacherPay = false;
+      }
+    },
     async handleRefund() {
       var _a, _b, _c, _d, _e, _f, _g, _h;
       if (!this.appointmentId)
@@ -955,7 +1049,7 @@ const _sfc_main = {
       }
       try {
         common_vendor.index.showLoading({ title: "查找订单中...", mask: true });
-        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1277", "[申请退款] 开始查找订单, appointment_id:", this.appointmentId);
+        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1372", "[申请退款] 开始查找订单, appointment_id:", this.appointmentId);
         const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
         const orderRes = await paymentCreate.getOrderList({
           appointment_id: this.appointmentId,
@@ -965,7 +1059,7 @@ const _sfc_main = {
           page: 1,
           pageSize: 10
         });
-        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1289", "[申请退款] 方法1-云对象查询结果:", {
+        common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1384", "[申请退款] 方法1-云对象查询结果:", {
           code: orderRes.code,
           message: orderRes.message,
           hasData: ((_b = (_a = orderRes.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length) > 0,
@@ -974,7 +1068,7 @@ const _sfc_main = {
         });
         common_vendor.index.hideLoading();
         if (orderRes.code !== 0) {
-          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1300", "[申请退款] 方法1查询失败，尝试方法2");
+          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1395", "[申请退款] 方法1查询失败，尝试方法2");
           throw new Error(orderRes.message || "查询订单失败");
         }
         let paidOrder = null;
@@ -987,7 +1081,7 @@ const _sfc_main = {
               (order) => order.status !== "pending" && order.status !== "unpaid" && order.status !== "cancelled"
             );
           }
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1321", "[申请退款] 方法1-找到的订单:", paidOrder ? {
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1416", "[申请退款] 方法1-找到的订单:", paidOrder ? {
             order_id: paidOrder._id,
             order_no: paidOrder.order_no,
             status: paidOrder.status,
@@ -1000,7 +1094,7 @@ const _sfc_main = {
             const refundRes = await refundObj.getDetail({ order_id: paidOrder._id });
             if (refundRes.code === 0 && refundRes.data) {
               const refund = refundRes.data;
-              common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1337", "[申请退款] 已存在退款申请:", {
+              common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1432", "[申请退款] 已存在退款申请:", {
                 refund_id: refund._id,
                 status: refund.status
               });
@@ -1012,6 +1106,18 @@ const _sfc_main = {
                 });
                 return;
               } else if (refund.status === "approved" || refund.status === "completed" || refund.status === "success") {
+                if (this.canRepairTeacherPay) {
+                  common_vendor.index.showModal({
+                    title: "家长退款已完成",
+                    content: "教师课酬尚未到账，是否立即补打 70% 到教师微信零钱？",
+                    confirmText: "补打款",
+                    success: (modalRes) => {
+                      if (modalRes.confirm)
+                        this.handleRepairTeacherPay();
+                    }
+                  });
+                  return;
+                }
                 common_vendor.index.showModal({
                   title: "提示",
                   content: "退款已完成，无法再次申请",
@@ -1021,14 +1127,14 @@ const _sfc_main = {
               }
             }
           } catch (error) {
-            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1360", "[申请退款] 查询退款记录（无记录）:", error.message);
+            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1466", "[申请退款] 查询退款记录（无记录）:", error.message);
           }
-          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1364", "[申请退款] 跳转到退款页面, order_id:", paidOrder._id);
+          common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1470", "[申请退款] 跳转到退款页面, order_id:", paidOrder._id);
           common_vendor.index.navigateTo({
             url: `/pages/order/refund?id=${paidOrder._id}`
           });
         } else {
-          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1370", "[申请退款] 方法1未找到订单，尝试方法2-直接查询数据库", {
+          common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1476", "[申请退款] 方法1未找到订单，尝试方法2-直接查询数据库", {
             appointment_id: this.appointmentId,
             parent_paid: this.appointment.parent_paid,
             orders: (_f = orderRes.data) == null ? void 0 : _f.list
@@ -1039,7 +1145,7 @@ const _sfc_main = {
               appointment_id: this.appointmentId,
               order_type: "course_fee"
             }).orderBy("create_time", "desc").limit(5).get();
-            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1387", "[申请退款] 方法2-直接查询结果:", {
+            common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1493", "[申请退款] 方法2-直接查询结果:", {
               count: ((_g = directOrderRes.data) == null ? void 0 : _g.length) || 0,
               orders: (_h = directOrderRes.data) == null ? void 0 : _h.map((o) => ({
                 _id: o._id,
@@ -1061,7 +1167,7 @@ const _sfc_main = {
               if (!foundOrder) {
                 foundOrder = directOrderRes.data[0];
               }
-              common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1412", "[申请退款] 方法2-找到订单:", {
+              common_vendor.index.__f__("log", "at pages/appointment/detail.vue:1518", "[申请退款] 方法2-找到订单:", {
                 order_id: foundOrder._id,
                 order_no: foundOrder.order_no,
                 status: foundOrder.status,
@@ -1072,10 +1178,10 @@ const _sfc_main = {
               });
               return;
             } else {
-              common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1425", "[申请退款] 方法2也未找到订单");
+              common_vendor.index.__f__("warn", "at pages/appointment/detail.vue:1531", "[申请退款] 方法2也未找到订单");
             }
           } catch (dbError) {
-            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1428", "[申请退款] 方法2-直接查询失败:", {
+            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1534", "[申请退款] 方法2-直接查询失败:", {
               error: dbError,
               message: dbError.message
             });
@@ -1099,7 +1205,7 @@ const _sfc_main = {
         }
       } catch (error) {
         common_vendor.index.hideLoading();
-        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1443", "[申请退款] 查找订单失败:", {
+        common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1549", "[申请退款] 查找订单失败:", {
           error,
           message: error.message,
           appointment_id: this.appointmentId
@@ -1145,7 +1251,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "操作失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1490", "试课不满意确认失败:", error);
+            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1596", "试课不满意确认失败:", error);
             common_vendor.index.showToast({ title: "操作失败，请稍后重试", icon: "none" });
           }
         }
@@ -1182,7 +1288,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "确认失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1529", "确认课程完成失败:", error);
+            common_vendor.index.__f__("error", "at pages/appointment/detail.vue:1635", "确认课程完成失败:", error);
             common_vendor.index.showToast({ title: "确认失败，请稍后重试", icon: "none" });
           }
         }
@@ -1232,7 +1338,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       headTitle: "学生信息",
       bodyPadding: true
     }),
-    v: common_vendor.t(Number($data.appointment.amount || 0).toFixed(2)),
+    v: common_vendor.t(Number($options.courseAmount || 0).toFixed(2)),
     w: $options.canPayCourse
   }, $options.canPayCourse ? {
     x: common_vendor.t($options.couponDisplayText),
@@ -1282,19 +1388,25 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   }, $options.canRefund ? {
     S: common_vendor.o((...args) => $options.handleRefund && $options.handleRefund(...args))
   } : {}, {
-    T: $data.appointment.status === "completed" && !$data.appointment.has_review
-  }, $data.appointment.status === "completed" && !$data.appointment.has_review ? {
-    U: common_vendor.o((...args) => $options.createReview && $options.createReview(...args))
+    T: $options.canRepairTeacherPay
+  }, $options.canRepairTeacherPay ? {
+    U: common_vendor.t($data.repairingTeacherPay ? "补打款处理中..." : "补打教师课酬（70%转微信）"),
+    V: $data.repairingTeacherPay,
+    W: common_vendor.o((...args) => $options.handleRepairTeacherPay && $options.handleRepairTeacherPay(...args))
   } : {}, {
-    V: $data.appointment.status === "pending_confirm" && !$options.canPayCourse && !$options.isParentPaid
+    X: $data.appointment.status === "completed" && !$data.appointment.has_review
+  }, $data.appointment.status === "completed" && !$data.appointment.has_review ? {
+    Y: common_vendor.o((...args) => $options.createReview && $options.createReview(...args))
+  } : {}, {
+    Z: $data.appointment.status === "pending_confirm" && !$options.canPayCourse && !$options.isParentPaid
   }, $data.appointment.status === "pending_confirm" && !$options.canPayCourse && !$options.isParentPaid ? {
-    W: common_vendor.o((...args) => $options.contactTeacher && $options.contactTeacher(...args))
+    aa: common_vendor.o((...args) => $options.contactTeacher && $options.contactTeacher(...args))
   } : {}) : {}, {
-    X: common_vendor.sr("pay", "1578feaf-8"),
-    Y: common_vendor.o($options.onPaySuccess),
-    Z: common_vendor.o($options.onPayCreate),
-    aa: common_vendor.o($options.onPayFail),
-    ab: common_vendor.p({
+    ab: common_vendor.sr("pay", "1578feaf-8"),
+    ac: common_vendor.o($options.onPaySuccess),
+    ad: common_vendor.o($options.onPayCreate),
+    ae: common_vendor.o($options.onPayFail),
+    af: common_vendor.p({
       height: "70vh",
       ["to-success-page"]: false,
       ["return-url"]: "/pages/appointment/detail",

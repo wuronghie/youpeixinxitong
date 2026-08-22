@@ -125,7 +125,7 @@ function buildSettlementResult(appointment, paymentOrder) {
 }
 
 /**
- * 课程/试课收入：优先自动转到微信零钱，失败则入钱包兜底
+ * 课程/试课收入：统一打到微信零钱（钱包已暂时停用，失败不再入余额）
  */
 async function settleTeacherIncome(teacherId, income = 0, meta = {}) {
   const incomeNum = roundCurrency(income)
@@ -173,27 +173,38 @@ async function settleTeacherIncome(teacherId, income = 0, meta = {}) {
       remark,
       income_title: isInfoFeeRefund ? '信息费退还' : (meta.course_type === 'trial' ? '试课收入' : '课程收入'),
       income_type: isInfoFeeRefund ? 'refund' : 'income',
-      income_source: meta.source || 'appointment_complete'
+      income_source: meta.source || 'appointment_complete',
+      disable_wallet_fallback: true
     })
     if (res && res.code === 0) {
+      const data = res.data || {}
+      const ok = !!(data.settled || data.auto_transferred || data.need_confirm || data.skipped)
       return {
-        settled: true,
+        settled: ok,
         duplicate: false,
-        auto_transferred: !!(res.data && res.data.auto_transferred),
-        need_confirm: !!(res.data && res.data.need_confirm),
-        transfer: res.data || null
+        auto_transferred: !!data.auto_transferred,
+        need_confirm: !!data.need_confirm,
+        teacher_paid_wechat: !!(data.auto_transferred || data.need_confirm || data.status === 'pending'),
+        fail_reason: data.fail_reason || '',
+        transfer: data
       }
     }
-    console.warn('[结算] settleToWechat 返回失败，回退钱包入账:', res && res.message)
+    console.warn('[结算] 微信打款失败（不再入钱包）:', res && res.message)
+    return {
+      settled: false,
+      duplicate: false,
+      auto_transferred: false,
+      fail_reason: (res && res.message) || '微信打款失败'
+    }
   } catch (e) {
-    console.error('[结算] settleToWechat 调用失败，回退钱包入账:', e)
+    console.error('[结算] 微信打款异常（不再入钱包）:', e)
+    return {
+      settled: false,
+      duplicate: false,
+      auto_transferred: false,
+      fail_reason: e.message || '微信打款异常'
+    }
   }
-
-  // 回退：仅入钱包
-  if (isInfoFeeRefund) {
-    return await updateTeacherWallet(teacherId, 0, incomeNum, meta)
-  }
-  return await updateTeacherWallet(teacherId, incomeNum, 0, meta)
 }
 
 /**
@@ -373,30 +384,30 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
   }
 }
 
-/** 累计学生 = 试课成功后的去重家长数 */
-async function countSuccessfulTrialStudents(db, teacher_id) {
-  const $ = db.command.aggregate
+/**
+ * 累计学生 = 预约过试课的去重家长数（邀请发出即算）
+ */
+async function countAcceptedTrialStudents(db, teacher_id) {
+  const dbCmd = db.command
   const agg = await db.collection('appointments')
     .aggregate()
     .match({
       teacher_id,
       course_type: 'trial',
-      status: 'completed'
+      status: dbCmd.in([
+        'trial_invited',
+        'pending_payment',
+        'pending_confirm',
+        'confirmed',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'refunded'
+      ])
     })
     .group({
-      _id: '$parent_id',
-      hasSuccess: $.max(
-        $.cond({
-          if: $.or([
-            $.eq(['$trial_result', 'success']),
-            $.eq([$.ifNull(['$trial_result', '']), ''])
-          ]),
-          then: 1,
-          else: 0
-        })
-      )
+      _id: '$parent_id'
     })
-    .match({ hasSuccess: 1 })
     .count('total')
     .end()
 
@@ -597,8 +608,14 @@ module.exports = {
         course_type: appointment.course_type,
         source: 'trial_complete'
       })
+      const paidWechat = !!(walletResult.teacher_paid_wechat || walletResult.auto_transferred || walletResult.need_confirm)
       await db.collection('appointments').doc(appointment_id).update({
-        wallet_settled: !!(walletResult.settled || walletResult.duplicate),
+        wallet_settled: false,
+        teacher_paid_wechat: paidWechat || !!walletResult.duplicate,
+        teacher_pay_status: walletResult.need_confirm
+          ? 'wait_confirm'
+          : (walletResult.auto_transferred ? 'ok' : (walletResult.fail_reason ? 'failed' : '')),
+        teacher_pay_fail_reason: walletResult.fail_reason || '',
         wallet_settlement_time: Date.now(),
         wallet_settlement_amount: settlement.teacherIncome,
         update_time: Date.now()
@@ -625,7 +642,7 @@ module.exports = {
           }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
-      const totalStudents = await countSuccessfulTrialStudents(db, appointment.teacher_id)
+      const totalStudents = await countAcceptedTrialStudents(db, appointment.teacher_id)
       
       await db.collection('teacher-profiles')
         .where({ teacher_id: appointment.teacher_id })
@@ -638,7 +655,12 @@ module.exports = {
           update_time: Date.now()
         })
       
-      console.log('试课成功确认，教师收益已结算')
+      console.log('试课成功确认，教师收益已结算', {
+        trialCount,
+        trialSuccessCount,
+        totalStudents,
+        paidWechat
+      })
       
       return success({
         appointment_id,
@@ -755,8 +777,14 @@ module.exports = {
           source: 'trial_fail_complete'
         }
       )
+      const paidWechat = !!(walletResult.teacher_paid_wechat || walletResult.auto_transferred || walletResult.need_confirm)
       await db.collection('appointments').doc(appointment_id).update({
-        wallet_settled: !!(walletResult.settled || walletResult.duplicate),
+        wallet_settled: false,
+        teacher_paid_wechat: paidWechat || !!walletResult.duplicate,
+        teacher_pay_status: walletResult.need_confirm
+          ? 'wait_confirm'
+          : (walletResult.auto_transferred ? 'ok' : (walletResult.fail_reason ? 'failed' : '')),
+        teacher_pay_fail_reason: walletResult.fail_reason || '',
         wallet_settlement_time: Date.now(),
         wallet_settlement_amount: settlement.teacherIncome,
         update_time: Date.now()
@@ -785,7 +813,7 @@ module.exports = {
       // 8. 信息费归平台，试课失败也不退回
       console.log('[confirmTrialFail] 信息费不退回，归平台收取:', { appointment_id })
 
-      // 9. 更新教师试课统计
+      // 9. 更新教师试课统计 + 学员数
       const dbCmd = db.command
       const trialAppointments = await db.collection('appointments')
         .where({
@@ -803,9 +831,11 @@ module.exports = {
           }).length
         : 0
       const trialSuccessRate = trialCount > 0 ? (trialSuccessCount / trialCount) : 0
+      const totalStudents = await countAcceptedTrialStudents(db, appointment.teacher_id)
       await db.collection('teacher-profiles')
         .where({ teacher_id: appointment.teacher_id })
         .update({
+          total_students: totalStudents,
           trial_count: trialCount,
           trial_success_count: trialSuccessCount,
           trial_success_rate: Number(trialSuccessRate.toFixed(2)),
@@ -953,8 +983,14 @@ module.exports = {
           course_type: appointment.course_type,
           source: 'regular_complete'
         })
+        const paidWechat = !!(walletResult.teacher_paid_wechat || walletResult.auto_transferred || walletResult.need_confirm)
         await db.collection('appointments').doc(appointment_id).update({
-          wallet_settled: !!(walletResult.settled || walletResult.duplicate),
+          wallet_settled: false,
+          teacher_paid_wechat: paidWechat || !!walletResult.duplicate,
+          teacher_pay_status: walletResult.need_confirm
+            ? 'wait_confirm'
+            : (walletResult.auto_transferred ? 'ok' : (walletResult.fail_reason ? 'failed' : '')),
+          teacher_pay_fail_reason: walletResult.fail_reason || '',
           wallet_settlement_time: Date.now(),
           wallet_settlement_amount: settlement.teacherIncome,
           update_time: Date.now()
@@ -963,6 +999,7 @@ module.exports = {
           teacher_id: appointment.teacher_id,
           teacherIncome: settlement.teacherIncome,
           auto_transferred: walletResult.auto_transferred,
+          paidWechat,
           appointment_id
         })
       } else {

@@ -9,7 +9,10 @@
     "concurrency": 10
   },
   "dependencies": {
-    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
+    "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common",
+    "wx-oa-client": "file:../common/wx-oa-client"
   },
-  "extensions": {}
+  "extensions": {
+    "uni-cloud-push": {}
+  }
 }

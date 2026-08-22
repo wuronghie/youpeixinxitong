@@ -102,6 +102,27 @@ async function appendPaymentChatNotice(db, {
     updateData.unread_count_parent = dbCmd.inc(1)
   }
   await db.collection('chat-conversations').doc(conversation._id).update(updateData)
+
+  // 老师停在聊天页时，靠 push 立刻刷新（轮询作兜底）
+  if (appointment.teacher_id) {
+    try {
+      const uniPush = uniCloud.getPushManager({ appId: '__UNI__863DB44' })
+      await uniPush.sendMessage({
+        user_id: appointment.teacher_id,
+        check_token: false,
+        platform: ['mp-weixin'],
+        title: '新消息',
+        content: String(content).substring(0, 50),
+        payload: {
+          type: 'chat_new',
+          conversation_id: conversation._id,
+          send_time: now
+        }
+      })
+    } catch (e) {
+      console.warn('[payment-create] 支付提醒 push 失败:', e && (e.message || e))
+    }
+  }
 }
 
 async function resolveUserId(context) {
@@ -124,9 +145,22 @@ async function resolveUserId(context) {
   }
 }
 
+function toCouponTs(value) {
+  if (value == null || value === '') return 0
+  const ts = new Date(value).getTime()
+  return Number.isFinite(ts) ? ts : 0
+}
+
 function isCouponInDate(coupon, now) {
-  const validFrom = coupon.valid_from ? new Date(coupon.valid_from).getTime() : 0
-  const validTo = coupon.valid_to ? new Date(coupon.valid_to).getTime() : 0
+  const validFrom = toCouponTs(coupon && coupon.valid_from)
+  let validTo = toCouponTs(coupon && coupon.valid_to)
+  // 结束日若为 00:00:00，按当天最后一毫秒计
+  if (validTo) {
+    const end = new Date(validTo)
+    if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0) {
+      validTo = end.getTime() + 24 * 60 * 60 * 1000 - 1
+    }
+  }
   return (!validFrom || now >= validFrom) && (!validTo || now <= validTo)
 }
 
@@ -166,8 +200,16 @@ async function validateCouponForPayment(db, {
   }
 
   const userCoupon = userCouponDoc.data[0]
-  if (userCoupon.user_id !== payerId || userCoupon.role !== role) {
+  if (userCoupon.user_id !== payerId) {
     throw new Error('无权使用该优惠券')
+  }
+  // 兼容历史发券 role 写错/缺失：只要模板角色匹配即可
+  if (userCoupon.role && userCoupon.role !== role) {
+    console.warn('[payment-create] user-coupon.role 与支付角色不一致，将按模板角色继续校验:', {
+      user_coupon_id: userCouponId,
+      userCouponRole: userCoupon.role,
+      payRole: role
+    })
   }
   if (userCoupon.status !== 'unused') {
     throw new Error('该优惠券已使用或已失效')

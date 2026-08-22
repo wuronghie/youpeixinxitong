@@ -9,12 +9,13 @@
     "postcss": true,
     "minified": true,
     "newFeature": true,
-    "bigPackageSizeSupport": true
+    "bigPackageSizeSupport": true,
+    "condition": true
   },
   "compileType": "miniprogram",
   "libVersion": "",
   "appid": "wx920e8bcaa338caf6",
-  "projectname": "家教帮",
+  "projectname": "优培信息通",
   "condition": {
     "search": {
       "current": -1,
@@ -32,5 +33,9 @@
       "current": -1,
       "list": []
     }
+  },
+  "projectArchitecture": "multiPlatform",
+  "simulatorPluginLibVersion": {
+    "wxext14566970e7e9f62": "2.27.3"
   }
 }

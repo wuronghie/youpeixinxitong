@@ -21,7 +21,7 @@
 			<image class="logo-image" :src="logoUrl" mode="aspectFit"></image>
 		</view>
 		<!-- 应用名称 -->
-		<view class="font-big mb-2">家教帮</view>
+		<view class="font-big mb-2">优培信息通</view>
 		<!-- 加载提示文字 -->
 		<view class="text-light-muted font mb-5">{{ loadingText }}</view>
 	</view>
@@ -47,13 +47,13 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: '优培信息通 · 家教帮',
+			title: '优培信息通',
 			path: '/pages/index/index'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '优培信息通 · 家教帮'
+			title: '优培信息通'
 		}
 	},
 	/**

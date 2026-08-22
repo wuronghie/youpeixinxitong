@@ -16,6 +16,12 @@
 			</view>
 		</view>
 
+		<!-- 会话信息未就绪时先占位，避免闪现「支付信息费」 -->
+		<view v-if="!isInitialized" class="conversation-loading">
+			<text class="conversation-loading-text">加载中...</text>
+		</view>
+
+		<template v-else>
 		<!-- 消息列表 -->
 		<scroll-view
 			scroll-y
@@ -52,6 +58,23 @@
 							<view v-else class="trial-invite-status">
 								<text class="trial-invite-status-text">{{ getTrialInviteStatusText(item.data) }}</text>
 							</view>
+						</view>
+					</view>
+					<view v-else-if="isAttendanceClockMessage(item.data)" class="message-item message-center">
+						<view class="attendance-clock-card" @click="goAttendanceAppointment(item.data)">
+							<view class="attendance-clock-header">
+								<text class="attendance-clock-icon">{{ getAttendanceClockIcon(item.data) }}</text>
+								<text class="attendance-clock-title">{{ getAttendanceClockTitle(item.data) }}</text>
+							</view>
+							<view class="attendance-clock-row">
+								<text class="attendance-clock-label">时间</text>
+								<text class="attendance-clock-value">{{ getAttendanceClockTime(item.data) }}</text>
+							</view>
+							<view v-if="getAttendanceClockAddress(item.data)" class="attendance-clock-row">
+								<text class="attendance-clock-label">地点</text>
+								<text class="attendance-clock-value">{{ getAttendanceClockAddress(item.data) }}</text>
+							</view>
+							<text class="attendance-clock-tip">{{ getAttendanceClockTip(item.data) }}</text>
 						</view>
 					</view>
 					<view v-else class="message-item" :class="{ 'message-right': item.data.sender_role === currentUserRole }">
@@ -152,6 +175,7 @@
 				</view>
 			</view>
 		</view>
+		</template>
 		
 		<!-- uni-pay 支付组件 -->
 		<uni-pay
@@ -175,7 +199,7 @@
 						class="trial-fee-input"
 						type="digit"
 						v-model="trialInviteHourlyRateInput"
-						placeholder="不低于120"
+						placeholder="请输入课时费"
 					/>
 				</view>
 				<text class="trial-fee-total">试课总价（2小时）：¥{{ trialInviteTotalAmount }}</text>
@@ -195,6 +219,8 @@ import { mockMessages, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
 import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '@/utils/payment.js'
+import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
+import { onChatPush, offChatPush, refreshChatBadge } from '@/utils/chatPush.js'
 
 export default {
 	name: 'TeacherChatConversation',
@@ -233,6 +259,8 @@ export default {
 				hasMore: true
 			},
 			isInitialized: false, // 标记是否已初始化完成
+			pollTimer: null,
+			pollInterval: CHAT_POLL_INTERVAL.conversation,
 			initPromise: null, // 保存初始化 Promise
 			// 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2
 			teacherHourlyRate: 0
@@ -289,16 +317,18 @@ export default {
 			return result
 		},
 		needPayDeposit() {
-			if (this.currentUserRole !== 'teacher') {
-				return false
-			}
-			return !this.conversationInfo.chat_enabled
+			// 会话未加载完成前不展示，避免 chat_enabled 默认为空时闪现支付页
+			if (!this.isInitialized) return false
+			if (this.currentUserRole !== 'teacher') return false
+			return this.conversationInfo.chat_enabled !== true
 		},
 		waitingParentPay() {
+			if (!this.isInitialized) return false
 			if (this.currentUserRole !== 'teacher') return false
 			return Object.values(this.trialInviteStatusMap || {}).some(item => item && item.status === 'pending_payment')
 		},
 		canSend() {
+			if (!this.isInitialized) return false
 			if (!this.conversationInfo.chat_enabled) {
 				return false
 			}
@@ -325,8 +355,8 @@ export default {
 		}
 	},
 	onLoad(options) {
-		this.conversationId = options.conversationId || ''
-		this.appointmentId = options.appointmentId || ''
+		this.conversationId = options.conversationId || options.conversation_id || options.id || ''
+		this.appointmentId = options.appointmentId || options.appointment_id || ''
 		this.inviteSource = options.inviteSource || ''
 		this.useMock = useMockData() === true
 
@@ -343,17 +373,70 @@ export default {
 		this.loadTeacherHourlyRate()
 	},
 	async onShow() {
-		// 等待初始化完成
+		if (!this.isInitialized && !this.initPromise) {
+			this.initConversation()
+		}
 		if (this.initPromise) {
 			await this.initPromise
 		}
-		// 如果已初始化且有会话ID，加载新消息
 		if (this.isInitialized && this.conversationId && !this.useMock) {
-			// 只加载新消息，不清空已有消息
+			console.log('[teacher-chat] onShow 就绪，绑定 push，conversationId=', this.conversationId)
 			this.loadNewMessages()
+			this.startPolling()
+			this.bindChatPush()
+		} else {
+			console.warn('[teacher-chat] onShow 未绑定 push', {
+				isInitialized: this.isInitialized,
+				conversationId: this.conversationId,
+				useMock: this.useMock
+			})
 		}
 	},
+	onHide() {
+		this.stopPolling()
+		this.unbindChatPush()
+	},
+	onUnload() {
+		this.stopPolling()
+		this.unbindChatPush()
+	},
 	methods: {
+		bindChatPush() {
+			if (this._onChatPush) return
+			this._onChatPush = (payload) => {
+				console.log('[teacher-chat] 收到 push，准备拉增量', payload, '当前会话=', this.conversationId)
+				if (!this.conversationId) return
+				if (payload && payload.conversation_id && payload.conversation_id !== this.conversationId) {
+					console.log('[teacher-chat] 非本会话 push，忽略')
+					return
+				}
+				this.loadNewMessages()
+			}
+			onChatPush(this._onChatPush)
+		},
+		unbindChatPush() {
+			if (!this._onChatPush) return
+			offChatPush(this._onChatPush)
+			this._onChatPush = null
+		},
+		startPolling() {
+			this.stopPolling()
+			if (!CHAT_POLL_ENABLED) return
+			if (!this.useMock && this.conversationId) {
+				this.pollTimer = setInterval(() => {
+					if (this.loading || this.sending) return
+					this.loadNewMessages()
+					// 试课邀请状态可能已变但无新消息（或 push 未到），定时刷新卡片
+					this.loadTrialInviteStatuses()
+				}, this.pollInterval)
+			}
+		},
+		stopPolling() {
+			if (this.pollTimer) {
+				clearInterval(this.pollTimer)
+				this.pollTimer = null
+			}
+		},
 		async refreshData() {
 			console.log('[teacher-chat-conversation] 下拉刷新：重新加载消息')
 			await this.refreshMessages()
@@ -371,7 +454,7 @@ export default {
 			}
 		},
 		async initConversation() {
-			// 保存初始化 Promise
+			if (this.initPromise) return this.initPromise
 			this.initPromise = (async () => {
 				try {
 					if (this.appointmentId && !this.conversationId && !this.useMock) {
@@ -398,10 +481,14 @@ export default {
 					}
 				} finally {
 					this.isInitialized = true
-					this.initPromise = null
 				}
 			})()
-			await this.initPromise
+			try {
+				await this.initPromise
+			} finally {
+				this.initPromise = null
+			}
+			return true
 		},
 		async loadUserInfo() {
 			try {
@@ -479,77 +566,63 @@ export default {
 			await this.fetchMessages({ page: 1, reset: true })
 		},
 		async loadNewMessages() {
-			// 加载新消息，保留已有消息
+			// 增量拉取新消息（pollUpdates）
 			if (!this.conversationId || this.useMock) {
 				return
 			}
-			// 如果正在加载，等待加载完成
-			if (this.loading) {
+			if (this.loading || this.sending) {
 				return
 			}
-			
+
 			try {
 				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
-				const res = await chatSend.getMessages({
+				const sinceTime = this.messages.length
+					? Number(this.messages[this.messages.length - 1].send_time || 0)
+					: 0
+				const res = await chatSend.pollUpdates({
+					mode: 'conversation',
 					conversation_id: this.conversationId,
-					page: 1,
-					pageSize: this.pagination.pageSize
+					since_time: sinceTime
 				})
-				
-				if (res.code === 0 && res.data && res.data.messages) {
-					const fetchedMessages = (res.data.messages || []).map(msg => ({
-						message_id: msg.message_id,
-						conversation_id: msg.conversation_id,
-						sender_id: msg.sender_id,
-						sender_role: msg.sender_role,
-						content: msg.content,
-						send_time: msg.send_time,
-						is_read: msg.is_read
-					}))
-					
-					// 如果有已有消息，合并去重
+
+				if (res.code !== 0 || !res.data) return
+
+				const fetchedMessages = (res.data.messages || []).map(msg => ({
+					message_id: msg.message_id,
+					conversation_id: msg.conversation_id,
+					sender_id: msg.sender_id,
+					sender_role: msg.sender_role,
+					content: msg.content,
+					send_time: msg.send_time,
+					is_read: msg.is_read
+				}))
+
+				if (!fetchedMessages.length) return
+
+				const messageMap = new Map()
+				this.messages.forEach(msg => messageMap.set(msg.message_id, msg))
+				let hasBrandNew = false
+				fetchedMessages.forEach(msg => {
+					if (!messageMap.has(msg.message_id)) hasBrandNew = true
+					messageMap.set(msg.message_id, msg)
+				})
+				if (!hasBrandNew && this.messages.length > 0) return
+
+				this.messages = Array.from(messageMap.values()).sort((a, b) => a.send_time - b.send_time)
+				this.$nextTick(() => {
 					if (this.messages.length > 0) {
-						// 合并消息：使用 Map 去重，以 message_id 为 key
-						const messageMap = new Map()
-						// 先添加已有消息
-						this.messages.forEach(msg => {
-							messageMap.set(msg.message_id, msg)
-						})
-						// 再添加新获取的消息（会覆盖重复的）
-						fetchedMessages.forEach(msg => {
-							messageMap.set(msg.message_id, msg)
-						})
-						// 转换为数组并按时间排序
-						const mergedMessages = Array.from(messageMap.values())
-							.sort((a, b) => a.send_time - b.send_time)
-						
-						// 只有当有新消息时才更新
-						if (mergedMessages.length !== this.messages.length || 
-							mergedMessages[mergedMessages.length - 1]?.message_id !== this.messages[this.messages.length - 1]?.message_id) {
-							this.messages = mergedMessages
-							this.$nextTick(() => {
-								if (this.messages.length > 0) {
-									this.scrollIntoView = `msg-${this.messages.length - 1}`
-								}
-							})
-						}
-					} else {
-						// 如果没有消息，直接使用获取的消息
-						this.messages = fetchedMessages.sort((a, b) => a.send_time - b.send_time)
-						this.$nextTick(() => {
-							if (this.messages.length > 0) {
-								this.scrollIntoView = `msg-${this.messages.length - 1}`
-							}
-						})
+						this.scrollIntoView = `msg-${this.messages.length - 1}`
 					}
-					
-					// 标记已读
+				})
+
+				const hasIncoming = fetchedMessages.some(msg => msg.sender_role !== 'teacher')
+				if (hasIncoming || sinceTime === 0) {
 					await chatSend.markRead({ conversation_id: this.conversationId })
-					this.loadTrialInviteStatuses()
+					refreshChatBadge('teacher-conversation-poll')
 				}
+				this.loadTrialInviteStatuses()
 			} catch (error) {
 				console.error('加载新消息失败:', error)
-				// 如果加载失败且没有消息，尝试重新加载
 				if (this.messages.length === 0) {
 					await this.refreshMessages()
 				}
@@ -617,6 +690,7 @@ export default {
 
 					if (!prepend) {
 						await chatSend.markRead({ conversation_id: this.conversationId })
+						refreshChatBadge('teacher-conversation-open')
 						this.loadTrialInviteStatuses()
 					}
 				} else {
@@ -659,7 +733,22 @@ export default {
 					message_type: 'text',
 					content
 				})
+				console.log('[teacher-chat] send 返回=', res)
+				console.log('[teacher-chat] push 调试=', res.data && res.data.push)
+				console.log('[teacher-chat] oa 调试=', res.data && res.data.oa)
 				if (res.code === 0) {
+					const pushInfo = (res.data && res.data.push) || {}
+					const oaInfo = (res.data && res.data.oa) || {}
+					if (pushInfo.error || !(pushInfo.cids && pushInfo.cids.length)) {
+						console.warn('[teacher-chat] 推送可能未成功送达对方:', pushInfo)
+					} else {
+						console.log('[teacher-chat] 已触发推送 → receiver=', res.data.receiver_id, 'cids=', pushInfo.cids)
+					}
+					if (oaInfo.skipped || oaInfo.ok === false) {
+						console.warn('[teacher-chat] 服务号通知未送达家长:', oaInfo)
+					} else if (oaInfo.ok) {
+						console.log('[teacher-chat] 服务号通知已发送')
+					}
 					const index = this.messages.findIndex(msg => msg.message_id === tempMsg.message_id)
 					if (index !== -1) {
 						this.messages.splice(index, 1, {
@@ -733,6 +822,52 @@ export default {
 			} catch (e) {
 				return false
 			}
+		},
+		parseAttendanceClockPayload(msg) {
+			if (!msg || !msg.content) return null
+			try {
+				const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content
+				if (parsed && parsed.type === 'attendance_clock') return parsed
+			} catch (e) {
+				return null
+			}
+			return null
+		},
+		isAttendanceClockMessage(msg) {
+			return !!this.parseAttendanceClockPayload(msg)
+		},
+		getAttendanceClockIcon(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return p && p.action === 'clock_out' ? '🏁' : '📍'
+		},
+		getAttendanceClockTitle(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.title) || '打卡提醒'
+		},
+		getAttendanceClockTime(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			const ts = Number(p && p.clock_time)
+			if (!ts) return '-'
+			const d = new Date(ts)
+			const pad = (n) => String(n).padStart(2, '0')
+			return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+		},
+		getAttendanceClockAddress(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.address) || ''
+		},
+		getAttendanceClockTip(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.tip) || '点击查看预约详情'
+		},
+		goAttendanceAppointment(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			const id = (p && p.appointment_id) || this.appointmentId
+			if (!id) {
+				uni.showToast({ title: '未关联预约', icon: 'none' })
+				return
+			}
+			uni.navigateTo({ url: `/pages-teacher/appointment/detail?id=${id}` })
 		},
 		/**
 		 * 从邀请消息中提取邀请ID
@@ -822,8 +957,9 @@ export default {
 				return
 			}
 
-			const defaultRate = Number(this.teacherHourlyRate) || 120
-			this.trialInviteHourlyRateInput = String(defaultRate >= 120 ? defaultRate : 120)
+			// 暂时取消不低于120的限制；默认仍带出档案课时费（有则用）
+			const defaultRate = Number(this.teacherHourlyRate) || ''
+			this.trialInviteHourlyRateInput = defaultRate ? String(defaultRate) : ''
 			this.pendingInviteParentId = parentId
 			this.showTrialFeeModal = true
 		},
@@ -833,8 +969,8 @@ export default {
 		},
 		async confirmInviteTrial() {
 			const rate = Number(this.trialInviteHourlyRateInput)
-			if (!rate || rate < 120) {
-				uni.showToast({ title: '试课课时费不能低于120元/小时', icon: 'none' })
+			if (!rate || rate <= 0) {
+				uni.showToast({ title: '请填写有效的试课课时费', icon: 'none' })
 				return
 			}
 			const parentId = this.pendingInviteParentId
@@ -1180,6 +1316,19 @@ export default {
 	display: flex;
 	flex-direction: column;
 	height: 100vh;
+}
+
+.conversation-loading {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #EDEDED;
+}
+
+.conversation-loading-text {
+	font-size: 28rpx;
+	color: #999999;
 }
 
 /* 导航栏 */
@@ -1717,6 +1866,58 @@ export default {
 .trial-invite-status-text {
 	color: #999999;
 	font-size: 26rpx;
+}
+
+.attendance-clock-card {
+	width: 560rpx;
+	background-color: #FFFFFF;
+	border-radius: 24rpx;
+	padding: 28rpx 32rpx;
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+}
+
+.attendance-clock-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 16rpx;
+}
+
+.attendance-clock-icon {
+	font-size: 40rpx;
+	margin-right: 12rpx;
+}
+
+.attendance-clock-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #333333;
+}
+
+.attendance-clock-row {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 8rpx;
+}
+
+.attendance-clock-label {
+	width: 72rpx;
+	font-size: 24rpx;
+	color: #999999;
+	flex-shrink: 0;
+}
+
+.attendance-clock-value {
+	flex: 1;
+	font-size: 24rpx;
+	color: #555555;
+	line-height: 1.5;
+}
+
+.attendance-clock-tip {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 22rpx;
+	color: #4A90E2;
 }
 
 .icon-chat {

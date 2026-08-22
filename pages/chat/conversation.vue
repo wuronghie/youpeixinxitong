@@ -56,6 +56,23 @@
 							</view>
 						</view>
 					</view>
+					<view v-else-if="isAttendanceClockMessage(item.data)" class="message-item message-center">
+						<view class="attendance-clock-card" @click="goAttendanceAppointment(item.data)">
+							<view class="attendance-clock-header">
+								<text class="attendance-clock-icon">{{ getAttendanceClockIcon(item.data) }}</text>
+								<text class="attendance-clock-title">{{ getAttendanceClockTitle(item.data) }}</text>
+							</view>
+							<view class="attendance-clock-row">
+								<text class="attendance-clock-label">时间</text>
+								<text class="attendance-clock-value">{{ getAttendanceClockTime(item.data) }}</text>
+							</view>
+							<view v-if="getAttendanceClockAddress(item.data)" class="attendance-clock-row">
+								<text class="attendance-clock-label">地点</text>
+								<text class="attendance-clock-value">{{ getAttendanceClockAddress(item.data) }}</text>
+							</view>
+							<text class="attendance-clock-tip">{{ getAttendanceClockTip(item.data) }}</text>
+						</view>
+					</view>
 					<view v-else class="message-item" :class="{ 'message-right': item.data.sender_role === currentUserRole }">
 						<!-- 对方消息：头像在左，消息在右 -->
 						<template v-if="item.data.sender_role !== currentUserRole">
@@ -135,6 +152,8 @@ import { mockMessages, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
+import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
+import { onChatPush, offChatPush, refreshChatBadge } from '@/utils/chatPush.js'
 
 export default {
 	name: 'ChatConversation',
@@ -157,9 +176,9 @@ export default {
 			scrollTop: 0,
 			canRefresh: true,
 			currentUserRole: 'parent',
-			// 消息轮询定时器
+			// 消息轮询定时器（push 为主，长间隔兜底）
 			pollTimer: null,
-			pollInterval: 5000, // 5秒轮询一次
+			pollInterval: CHAT_POLL_INTERVAL.conversation,
 			currentUserInfo: {},
 			otherUserInfo: {
 				nickname: '',
@@ -240,8 +259,8 @@ export default {
 		}
 	},
 	onLoad(options) {
-		this.conversationId = options.conversationId || ''
-		this.appointmentId = options.appointmentId || ''
+		this.conversationId = options.conversationId || options.conversation_id || options.id || ''
+		this.appointmentId = options.appointmentId || options.appointment_id || ''
 		this.useMock = useMockData() === true
 
 		const userInfo = uni.getStorageSync('userInfo')
@@ -253,45 +272,74 @@ export default {
 			}
 		}
 
-		// 延迟初始化，避免阻塞页面渲染和显示加载框
-		this.$nextTick(() => {
-			setTimeout(() => {
-				this.initConversation()
-			}, 100)
-		})
+		// 立刻启动初始化，保证 onShow 能 await 到 initPromise（否则会永远不绑定 push）
+		this.initConversation()
 	},
 	async onShow() {
-		// 等待初始化完成
+		if (!this.isInitialized && !this.initPromise) {
+			this.initConversation()
+		}
 		if (this.initPromise) {
 			await this.initPromise
 		}
-		// 如果已初始化且有会话ID，加载新消息
 		if (this.isInitialized && this.conversationId && !this.useMock) {
-			// 只加载新消息，不清空已有消息
+			console.log('[parent-chat] onShow 就绪，绑定 push，conversationId=', this.conversationId)
 			this.loadNewMessages()
-			// 启动消息轮询
 			this.startPolling()
+			this.bindChatPush()
+		} else {
+			console.warn('[parent-chat] onShow 未绑定 push', {
+				isInitialized: this.isInitialized,
+				conversationId: this.conversationId,
+				useMock: this.useMock
+			})
 		}
 	},
 	onHide() {
 		// 页面隐藏时停止轮询
 		this.stopPolling()
+		this.unbindChatPush()
 	},
 	onUnload() {
 		// 页面卸载时清理定时器
 		this.stopPolling()
+		this.unbindChatPush()
 		if (this.refreshTipTimer) {
 			clearTimeout(this.refreshTipTimer)
 			this.refreshTipTimer = null
 		}
 	},
 		methods: {
+		bindChatPush() {
+			if (this._onChatPush) {
+				console.log('[parent-chat] push 已绑定，跳过')
+				return
+			}
+			this._onChatPush = (payload) => {
+				console.log('[parent-chat] 收到 push，准备拉增量', payload, '当前会话=', this.conversationId)
+				if (!this.conversationId) return
+				if (payload && payload.conversation_id && payload.conversation_id !== this.conversationId) {
+					console.log('[parent-chat] 非本会话 push，忽略')
+					return
+				}
+				this.loadNewMessages()
+			}
+			onChatPush(this._onChatPush)
+			console.log('[parent-chat] 已订阅 chat:push')
+		},
+		unbindChatPush() {
+			if (!this._onChatPush) return
+			offChatPush(this._onChatPush)
+			this._onChatPush = null
+			console.log('[parent-chat] 已取消订阅 chat:push')
+		},
 		/**
 		 * 启动消息轮询
 		 */
 		startPolling() {
 			// 如果已有定时器，先清除
 			this.stopPolling()
+			if (!CHAT_POLL_ENABLED) return
 			// 只在非mock模式且有会话ID时轮询
 			if (!this.useMock && this.conversationId) {
 				this.pollTimer = setInterval(() => {
@@ -300,6 +348,7 @@ export default {
 						return
 					}
 					this.loadNewMessages()
+					this.loadTrialInviteStatuses()
 				}, this.pollInterval)
 			}
 		},
@@ -317,7 +366,7 @@ export default {
 			await this.refreshMessages()
 		},
 		async initConversation() {
-			// 保存初始化 Promise
+			if (this.initPromise) return this.initPromise
 			this.initPromise = (async () => {
 				try {
 					if (this.appointmentId && !this.conversationId && !this.useMock) {
@@ -342,10 +391,14 @@ export default {
 					}
 				} finally {
 					this.isInitialized = true
-					this.initPromise = null
 				}
 			})()
-			await this.initPromise
+			try {
+				await this.initPromise
+			} finally {
+				this.initPromise = null
+			}
+			return true
 		},
 		async loadUserInfo() {
 			try {
@@ -409,77 +462,74 @@ export default {
 			}
 		},
 		async loadNewMessages() {
-			// 加载新消息，保留已有消息
+			// 增量拉取新消息（pollUpdates），避免每 5 秒全量 getMessages + markRead
 			if (!this.conversationId || this.useMock) {
 				return
 			}
-			// 如果正在加载，等待加载完成
-			if (this.loading) {
+			if (this.loading || this.sending) {
+				console.log('[parent-chat] loadNewMessages 跳过：loading/sending', this.loading, this.sending)
 				return
 			}
-			
+
 			try {
 				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
-				const res = await chatSend.getMessages({
+				const sinceTime = this.messages.length
+					? Number(this.messages[this.messages.length - 1].send_time || 0)
+					: 0
+				console.log('[parent-chat] loadNewMessages since=', sinceTime)
+				const res = await chatSend.pollUpdates({
+					mode: 'conversation',
 					conversation_id: this.conversationId,
-					page: 1,
-					pageSize: this.pagination.pageSize
+					since_time: sinceTime
 				})
-				
-				if (res.code === 0 && res.data && res.data.messages) {
-					const fetchedMessages = (res.data.messages || []).map(msg => ({
-						message_id: msg.message_id,
-						conversation_id: msg.conversation_id,
-						sender_id: msg.sender_id,
-						sender_role: msg.sender_role,
-						content: msg.content,
-						send_time: msg.send_time,
-						is_read: msg.is_read
-					}))
-					
-					// 如果有已有消息，合并去重
-					if (this.messages.length > 0) {
-						// 合并消息：使用 Map 去重，以 message_id 为 key
-						const messageMap = new Map()
-						// 先添加已有消息
-						this.messages.forEach(msg => {
-							messageMap.set(msg.message_id, msg)
-						})
-						// 再添加新获取的消息（会覆盖重复的）
-						fetchedMessages.forEach(msg => {
-							messageMap.set(msg.message_id, msg)
-						})
-						// 转换为数组并按时间排序
-						const mergedMessages = Array.from(messageMap.values())
-							.sort((a, b) => a.send_time - b.send_time)
-						
-						// 只有当有新消息时才更新
-						if (mergedMessages.length !== this.messages.length || 
-							mergedMessages[mergedMessages.length - 1]?.message_id !== this.messages[this.messages.length - 1]?.message_id) {
-							this.messages = mergedMessages
-							this.$nextTick(() => {
-								if (this.messages.length > 0) {
-									this.scrollIntoView = `msg-${this.messages.length - 1}`
-								}
-							})
-						}
-					} else {
-						// 如果没有消息，直接使用获取的消息
-						this.messages = fetchedMessages.sort((a, b) => a.send_time - b.send_time)
-						this.$nextTick(() => {
-							if (this.messages.length > 0) {
-								this.scrollIntoView = `msg-${this.messages.length - 1}`
-							}
-						})
-					}
-					
-					// 标记已读
-					await chatSend.markRead({ conversation_id: this.conversationId })
-					this.loadTrialInviteStatuses()
+				console.log('[parent-chat] loadNewMessages 结果=', res && res.code, '条数=', res && res.data && (res.data.messages || []).length)
+
+				if (res.code !== 0 || !res.data) {
+					return
 				}
+
+				const fetchedMessages = (res.data.messages || []).map(msg => ({
+					message_id: msg.message_id,
+					conversation_id: msg.conversation_id,
+					sender_id: msg.sender_id,
+					sender_role: msg.sender_role,
+					content: msg.content,
+					send_time: msg.send_time,
+					is_read: msg.is_read
+				}))
+
+				if (!fetchedMessages.length) {
+					return
+				}
+
+				const messageMap = new Map()
+				this.messages.forEach(msg => messageMap.set(msg.message_id, msg))
+				let hasBrandNew = false
+				fetchedMessages.forEach(msg => {
+					if (!messageMap.has(msg.message_id)) hasBrandNew = true
+					messageMap.set(msg.message_id, msg)
+				})
+
+				if (!hasBrandNew && this.messages.length > 0) {
+					return
+				}
+
+				this.messages = Array.from(messageMap.values()).sort((a, b) => a.send_time - b.send_time)
+				this.$nextTick(() => {
+					if (this.messages.length > 0) {
+						this.scrollIntoView = `msg-${this.messages.length - 1}`
+					}
+				})
+
+				// 仅在确有对方新消息时标记已读，避免轮询空转写库
+				const hasIncoming = fetchedMessages.some(msg => msg.sender_id && msg.sender_role !== 'parent')
+				if (hasIncoming || sinceTime === 0) {
+					await chatSend.markRead({ conversation_id: this.conversationId })
+					refreshChatBadge('parent-conversation-poll')
+				}
+				this.loadTrialInviteStatuses()
 			} catch (error) {
 				console.error('加载新消息失败:', error)
-				// 如果加载失败且没有消息，尝试重新加载
 				if (this.messages.length === 0) {
 					await this.refreshMessages()
 				}
@@ -617,6 +667,7 @@ export default {
 
 					if (!prepend) {
 						await chatSend.markRead({ conversation_id: this.conversationId })
+						refreshChatBadge('parent-conversation-open')
 						this.loadTrialInviteStatuses()
 					}
 				} else {
@@ -673,7 +724,15 @@ export default {
 					message_type: 'text',
 					content
 				})
+				console.log('[parent-chat] send 返回=', res)
+				console.log('[parent-chat] push 调试=', res.data && res.data.push)
 				if (res.code === 0) {
+					const pushInfo = (res.data && res.data.push) || {}
+					if (pushInfo.error || !(pushInfo.cids && pushInfo.cids.length)) {
+						console.warn('[parent-chat] 推送可能未成功送达对方:', pushInfo)
+					} else {
+						console.log('[parent-chat] 已触发推送 → receiver=', res.data.receiver_id, 'cids=', pushInfo.cids)
+					}
 					const index = this.messages.findIndex(msg => msg.message_id === tempMsg.message_id)
 					if (index !== -1) {
 						this.messages.splice(index, 1, {
@@ -682,12 +741,6 @@ export default {
 							send_time: res.data.send_time
 						})
 					}
-					// 发送成功后，等待1秒后检查新消息（避免立即轮询导致的重复请求）
-					setTimeout(() => {
-						if (!this.loading && !this.sending) {
-							this.loadNewMessages()
-						}
-					}, 1000)
 				} else {
 					this.rollbackTempMessage(tempMsg.message_id, res.message)
 				}
@@ -753,6 +806,52 @@ export default {
 			} catch (e) {
 				return false
 			}
+		},
+		parseAttendanceClockPayload(msg) {
+			if (!msg || !msg.content) return null
+			try {
+				const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content
+				if (parsed && parsed.type === 'attendance_clock') return parsed
+			} catch (e) {
+				return null
+			}
+			return null
+		},
+		isAttendanceClockMessage(msg) {
+			return !!this.parseAttendanceClockPayload(msg)
+		},
+		getAttendanceClockIcon(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return p && p.action === 'clock_out' ? '🏁' : '📍'
+		},
+		getAttendanceClockTitle(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.title) || '打卡提醒'
+		},
+		getAttendanceClockTime(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			const ts = Number(p && p.clock_time)
+			if (!ts) return '-'
+			const d = new Date(ts)
+			const pad = (n) => String(n).padStart(2, '0')
+			return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+		},
+		getAttendanceClockAddress(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.address) || ''
+		},
+		getAttendanceClockTip(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			return (p && p.tip) || '点击查看预约详情'
+		},
+		goAttendanceAppointment(msg) {
+			const p = this.parseAttendanceClockPayload(msg)
+			const id = (p && p.appointment_id) || this.appointmentId
+			if (!id) {
+				uni.showToast({ title: '未关联预约', icon: 'none' })
+				return
+			}
+			uni.navigateTo({ url: `/pages/appointment/detail?id=${id}` })
 		},
 		/**
 		 * 从邀请消息中提取邀请ID
@@ -1325,5 +1424,57 @@ export default {
 .trial-invite-status-text {
 	color: #999999;
 	font-size: 26rpx;
+}
+
+.attendance-clock-card {
+	width: 560rpx;
+	background-color: #FFFFFF;
+	border-radius: 24rpx;
+	padding: 28rpx 32rpx;
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+}
+
+.attendance-clock-header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 16rpx;
+}
+
+.attendance-clock-icon {
+	font-size: 40rpx;
+	margin-right: 12rpx;
+}
+
+.attendance-clock-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #333333;
+}
+
+.attendance-clock-row {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 8rpx;
+}
+
+.attendance-clock-label {
+	width: 72rpx;
+	font-size: 24rpx;
+	color: #999999;
+	flex-shrink: 0;
+}
+
+.attendance-clock-value {
+	flex: 1;
+	font-size: 24rpx;
+	color: #555555;
+	line-height: 1.5;
+}
+
+.attendance-clock-tip {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 22rpx;
+	color: #4A90E2;
 }
 </style>

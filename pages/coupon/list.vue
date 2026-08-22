@@ -76,7 +76,7 @@ export default {
 			this.loading = true
 			try {
 				const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
-				const res = await couponCenter.getAvailableCoupons()
+				const res = await couponCenter.getAvailableCoupons({ role: 'parent' })
 				console.log('[coupon-list] getAvailableCoupons 返回:', res)
 				if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
 					this.coupons = res.data.list

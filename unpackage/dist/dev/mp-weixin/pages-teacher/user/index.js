@@ -70,8 +70,8 @@ const _sfc_main = {
           url: "/pages-teacher/profile/index"
         },
         {
-          title: "我的钱包",
-          desc: "查看余额与交易明细",
+          title: "收款确认",
+          desc: "微信转账待确认时在此处理",
           icon: utils_imageConfig.getIconUrl("wallet.png"),
           url: "/pages-teacher/wallet/index"
         },
@@ -86,6 +86,12 @@ const _sfc_main = {
           desc: "查看并回复家长评价",
           icon: utils_imageConfig.getIconUrl("star.png"),
           url: "/pages-teacher/review/list"
+        },
+        {
+          title: "关注服务号",
+          desc: "一键关注，接收预约与消息通知",
+          icon: utils_imageConfig.getIconUrl("bell.png"),
+          url: "/pages/common/follow-oa"
         },
         {
           title: "系统消息",
@@ -152,7 +158,7 @@ const _sfc_main = {
       });
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:295", "[teacher-user-center] 下拉刷新：重新加载个人中心");
+      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:301", "[teacher-user-center] 下拉刷新：重新加载个人中心");
       await this.loadUserInfo();
     },
     async loadData() {
@@ -187,7 +193,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取用户信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:330", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:336", "加载用户信息失败:", error);
         common_vendor.index.showToast({ title: "获取用户信息失败", icon: "none" });
       }
     },
@@ -249,7 +255,7 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:404", "加载教师统计失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:410", "加载教师统计失败:", error);
       }
     },
     goToPage(url) {
@@ -297,7 +303,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:454", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:460", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"

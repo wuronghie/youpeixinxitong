@@ -1,0 +1,22 @@
+[
+  {
+    "permission_id": "READ_UNI_ID_USERS",
+    "permission_name": "读取用户",
+    "comment": "普通管理员：查看用户列表敏感字段。勿赋予 DELETE_*"
+  },
+  {
+    "permission_id": "AUDIT_TEACHER",
+    "permission_name": "教师资料审核",
+    "comment": "普通管理员：审核教师资料"
+  },
+  {
+    "permission_id": "AUDIT_REFUND",
+    "permission_name": "退款审核",
+    "comment": "普通管理员：审核退款并补打教师课酬"
+  },
+  {
+    "permission_id": "AUDIT_RECRUITMENT",
+    "permission_name": "家长招募审核",
+    "comment": "普通管理员：审核家长招募"
+  }
+]

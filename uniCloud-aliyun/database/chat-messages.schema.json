@@ -1,1 +1,127 @@
-{"bsonType":"object","required":["conversation_id","sender_id","message_type"],"permission":{"read":"doc.sender_id == auth.uid || doc.receiver_id == auth.uid","create":"auth.uid != null","update":"doc.sender_id == auth.uid || doc.receiver_id == auth.uid","delete":false},"properties":{"_id":{"description":"消息ID"},"conversation_id":{"bsonType":"string","description":"会话ID","foreignKey":"chat-conversations._id"},"sender_id":{"bsonType":"string","description":"发送者ID","foreignKey":"uni-id-users._id"},"sender_role":{"bsonType":"string","enum":["parent","teacher"],"description":"发送者角色"},"receiver_id":{"bsonType":"string","description":"接收者ID","foreignKey":"uni-id-users._id"},"message_type":{"bsonType":"string","enum":["text","image","voice","location","card"],"description":"消息类型"},"content":{"bsonType":"object","description":"消息内容","properties":{"text":{"bsonType":"string","description":"文字消息内容"},"image_url":{"bsonType":"string","description":"图片URL"},"voice_url":{"bsonType":"string","description":"语音URL"},"voice_duration":{"bsonType":"number","description":"语音时长（秒）"},"location":{"bsonType":"object","description":"位置信息","properties":{"latitude":{"bsonType":"number"},"longitude":{"bsonType":"number"},"address":{"bsonType":"string"}}},"card_data":{"bsonType":"object","description":"卡片信息","properties":{"type":{"bsonType":"string","enum":["appointment"]},"id":{"bsonType":"string"}}}}},"is_read":{"bsonType":"bool","description":"是否已读","defaultValue":false},"send_status":{"bsonType":"string","enum":["sending","sent","failed"],"description":"发送状态","defaultValue":"sent"},"create_time":{"bsonType":"timestamp","description":"创建时间","forceDefaultValue":{"$env":"now"}}}}
+{
+  "bsonType": "object",
+  "required": [
+    "conversation_id",
+    "sender_id",
+    "message_type"
+  ],
+  "permission": {
+    "read": "(doc.sender_id == auth.uid || doc.receiver_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
+    "create": "auth.uid != null",
+    "update": "doc.sender_id == auth.uid || doc.receiver_id == auth.uid",
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "description": "消息ID"
+    },
+    "conversation_id": {
+      "bsonType": "string",
+      "description": "会话ID",
+      "foreignKey": "chat-conversations._id"
+    },
+    "sender_id": {
+      "bsonType": "string",
+      "description": "发送者ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "sender_role": {
+      "bsonType": "string",
+      "enum": [
+        "parent",
+        "teacher"
+      ],
+      "description": "发送者角色"
+    },
+    "receiver_id": {
+      "bsonType": "string",
+      "description": "接收者ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "message_type": {
+      "bsonType": "string",
+      "enum": [
+        "text",
+        "image",
+        "voice",
+        "location",
+        "card"
+      ],
+      "description": "消息类型"
+    },
+    "content": {
+      "bsonType": "object",
+      "description": "消息内容",
+      "properties": {
+        "text": {
+          "bsonType": "string",
+          "description": "文字消息内容"
+        },
+        "image_url": {
+          "bsonType": "string",
+          "description": "图片URL"
+        },
+        "voice_url": {
+          "bsonType": "string",
+          "description": "语音URL"
+        },
+        "voice_duration": {
+          "bsonType": "number",
+          "description": "语音时长（秒）"
+        },
+        "location": {
+          "bsonType": "object",
+          "description": "位置信息",
+          "properties": {
+            "latitude": {
+              "bsonType": "number"
+            },
+            "longitude": {
+              "bsonType": "number"
+            },
+            "address": {
+              "bsonType": "string"
+            }
+          }
+        },
+        "card_data": {
+          "bsonType": "object",
+          "description": "卡片信息",
+          "properties": {
+            "type": {
+              "bsonType": "string",
+              "enum": [
+                "appointment"
+              ]
+            },
+            "id": {
+              "bsonType": "string"
+            }
+          }
+        }
+      }
+    },
+    "is_read": {
+      "bsonType": "bool",
+      "description": "是否已读",
+      "defaultValue": false
+    },
+    "send_status": {
+      "bsonType": "string",
+      "enum": [
+        "sending",
+        "sent",
+        "failed"
+      ],
+      "description": "发送状态",
+      "defaultValue": "sent"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    }
+  }
+}

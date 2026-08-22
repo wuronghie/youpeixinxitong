@@ -1,12 +1,28 @@
 <script>
 import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
+import { bindPushClientId, setupChatPushListener } from '@/utils/chatPush.js'
+import { syncOaBind } from '@/utils/oaBind.js'
+import { promptFollowOfficialAccount } from '@/utils/oaFollow.js'
 
 export default {
 	onLaunch: function () {
-		console.log('App Launch')
+		console.log('[App] Launch → 初始化 push 监听与 cid 绑定')
+		setupChatPushListener()
+		bindPushClientId().then((ok) => {
+			console.log('[App] 启动绑定 cid 结果=', ok)
+		})
+		syncOaBind({ force: true })
 	},
 	onShow: function () {
-		console.log('App Show')
+		console.log('[App] Show → 重新绑定 cid')
+		bindPushClientId().then((ok) => {
+			console.log('[App] Show 绑定 cid 结果=', ok)
+		})
+		// 关注服务号后回到小程序时补绑 openid，否则新关注用户收不到模板通知
+		syncOaBind().then(() => {
+			// 未绑定时提示关注，并可一键跳转公众号
+			promptFollowOfficialAccount({ delayMs: 1500 })
+		})
 		setTimeout(() => {
 			checkPendingTrialConfirmReminder()
 		}, 600)

@@ -9,6 +9,7 @@
     "concurrency": 1
   },
   "dependencies": {
+    "admin-auth": "file:../common/admin-auth",
     "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
   },
   "extensions": {}

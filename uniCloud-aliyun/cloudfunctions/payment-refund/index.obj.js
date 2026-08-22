@@ -1,4 +1,10 @@
 const uniID = require('uni-id-common')
+const { assertStaffAccess, PERMISSION } = require('admin-auth')
+
+/** 后台退款权限：超管或持有 AUDIT_REFUND（不再信任客户端 isAdmin 入参） */
+async function requireRefundStaff(ctx) {
+  return assertStaffAccess(ctx, [PERMISSION.AUDIT_REFUND])
+}
 
 function success(data = null, message = 'success') {
   return {
@@ -24,24 +30,28 @@ async function resolveUserId(context) {
     throw new Error('未获取到token，请先登录')
   }
 
+  // 1) 标准 uni-id token
   try {
     const payload = await context.uniID.checkToken(token)
-    if (payload.code) {
-      throw new Error(payload.message || 'token校验失败')
+    if (payload && !payload.code && !payload.errCode && payload.uid) {
+      return payload.uid
     }
-    return payload.uid
   } catch (err) {
-    try {
-      const decoded = Buffer.from(token, 'base64').toString('utf-8')
-      const parts = decoded.split('_')
-      if (parts.length >= 1) {
-        return parts[0]
-      }
-    } catch (decodeError) {
-      // ignore
-    }
-    throw new Error('token验证失败，请重新登录')
+    // 继续简易 token 兜底
   }
+
+  // 2) 小程序登录简易 token：base64(uid_timestamp_random)
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8')
+    const parts = decoded.split('_')
+    if (parts.length >= 1 && parts[0]) {
+      return parts[0]
+    }
+  } catch (decodeError) {
+    // ignore
+  }
+
+  throw new Error('token验证失败，请重新登录')
 }
 
 /**
@@ -111,6 +121,191 @@ async function resolveConversationForAdmin(db, options = {}) {
   return null
 }
 
+function roundCurrency(n) {
+  return Math.round((Number(n) || 0) * 100) / 100
+}
+
+async function resolveOutTradeNo(db, order) {
+  if (order && order.out_trade_no) return order.out_trade_no
+
+  if (order && order.order_no) {
+    try {
+      const byOrderNo = await db.collection('uni-pay-orders')
+        .where({ order_no: order.order_no, status: 1 })
+        .orderBy('pay_date', 'desc')
+        .limit(1)
+        .get()
+      if (byOrderNo.data && byOrderNo.data[0] && byOrderNo.data[0].out_trade_no) {
+        return byOrderNo.data[0].out_trade_no
+      }
+    } catch (e) {
+      console.warn('[payment-refund] resolveOutTradeNo order_no 失败:', e.message)
+    }
+  }
+
+  if (order && order.appointment_id) {
+    try {
+      const byApt = await db.collection('uni-pay-orders')
+        .where({ 'custom.appointment_id': order.appointment_id, status: 1 })
+        .orderBy('pay_date', 'desc')
+        .limit(1)
+        .get()
+      if (byApt.data && byApt.data[0] && byApt.data[0].out_trade_no) {
+        return byApt.data[0].out_trade_no
+      }
+    } catch (e) {
+      console.warn('[payment-refund] resolveOutTradeNo appointment_id 失败:', e.message)
+    }
+  }
+  return null
+}
+
+/** 微信原路退款给家长 */
+async function executeWechatRefund(db, order, refundAmount, reason = '试课退款') {
+  const amount = roundCurrency(refundAmount)
+  if (!order || amount <= 0) {
+    return { success: true, skipped: true, refundAmount: 0 }
+  }
+  if (order.auto_partial_refunded || order.status === 'refunded') {
+    return {
+      success: true,
+      skipped: true,
+      refundAmount: order.auto_partial_refund_amount || order.refund_amount || amount
+    }
+  }
+
+  const out_trade_no = await resolveOutTradeNo(db, order)
+  if (!out_trade_no) {
+    return { success: false, refundAmount: amount, message: '未找到支付单号，无法退款' }
+  }
+
+  const out_refund_no = `RF30_${String(order._id).slice(-8)}_${Date.now()}`
+  try {
+    const uniPayCo = uniCloud.importObject('uni-pay-co', { customUI: true })
+    const refundRes = await uniPayCo.refund({
+      out_trade_no,
+      out_refund_no,
+      refund_fee: Math.round(amount * 100),
+      refund_desc: reason || '试课退款30%'
+    })
+
+    if (!refundRes || refundRes.errCode !== 0) {
+      const msg = (refundRes && (refundRes.errMsg || refundRes.message)) || '微信退款失败'
+      return { success: false, refundAmount: amount, message: msg }
+    }
+
+    return {
+      success: true,
+      refundAmount: amount,
+      out_trade_no,
+      out_refund_no,
+      refundResult: refundRes
+    }
+  } catch (e) {
+    const msg = e.message || e.errMsg || String(e)
+    console.error('[payment-refund] uni-pay-co.refund 异常:', e)
+    return {
+      success: false,
+      refundAmount: amount,
+      message: msg.includes('token') ? '支付退款鉴权失败，请重新上传 uni-pay-co 后重试' : msg
+    }
+  }
+}
+
+/**
+ * 试课退款：教师 70% 直接商家转账到微信零钱（不入钱包余额）
+ */
+async function settleTeacherTrialShare(appointment, teacherIncome, source = 'trial_refund_apply') {
+  const income = roundCurrency(teacherIncome)
+  const teacherId = appointment && appointment.teacher_id
+  const appointmentId = appointment && appointment._id
+  const logPrefix = '[payment-refund][教师打款]'
+
+  if (!teacherId || income <= 0) {
+    console.warn(logPrefix, '跳过：缺少教师或金额', { teacherId, income, appointmentId })
+    return { settled: false, skipped: true, message: '缺少教师或金额', fail_reason: '缺少教师或金额' }
+  }
+  // 仅当微信打款已成功/已发起时跳过；旧版 wallet_settled 不阻止补打款
+  if (appointment.teacher_paid_wechat) {
+    console.log(logPrefix, '跳过：该预约已微信打款', { appointmentId })
+    return { settled: true, duplicate: true, fail_reason: '' }
+  }
+
+  console.log(logPrefix, '开始直接转账到教师微信', {
+    teacherId,
+    appointmentId,
+    amount: income,
+    source
+  })
+
+  try {
+    const teacherWallet = uniCloud.importObject('teacher-wallet', { customUI: true })
+    const res = await teacherWallet.directPayTeacher({
+      teacher_id: teacherId,
+      amount: income,
+      appointment_id: appointmentId || '',
+      remark: '试课退款课酬70%'
+    })
+
+    const data = (res && res.data) || {}
+    const transferOk = !!(res && res.code === 0 && data.transfer_ok)
+    const status = data.status || ''
+    const failReason = data.fail_reason || (res && res.message) || ''
+
+    console.log(logPrefix, '转账结果', {
+      ok: transferOk,
+      code: res && res.code,
+      message: res && res.message,
+      status,
+      need_confirm: !!data.need_confirm,
+      auto_transferred: !!data.auto_transferred,
+      withdraw_id: data.withdraw_id || '',
+      payment_no: data.payment_no || '',
+      fail_reason: failReason || '(无)',
+      amount: data.amount || income,
+      teacherId,
+      appointmentId
+    })
+
+    if (transferOk) {
+      return {
+        settled: true,
+        auto_transferred: !!data.auto_transferred,
+        need_confirm: !!data.need_confirm,
+        status,
+        withdraw_id: data.withdraw_id || '',
+        payment_no: data.payment_no || '',
+        fail_reason: data.need_confirm ? '需教师微信确认收款' : '',
+        message: res.message || '打款成功'
+      }
+    }
+
+    console.error(logPrefix, '转账失败原因:', failReason || '未知错误')
+    return {
+      settled: false,
+      auto_transferred: false,
+      need_confirm: false,
+      status: status || 'failed',
+      fail_reason: failReason || '转账失败',
+      message: failReason || '转账失败'
+    }
+  } catch (e) {
+    console.error(logPrefix, '调用异常', {
+      teacherId,
+      appointmentId,
+      amount: income,
+      message: e.message,
+      errMsg: e.errMsg,
+      stack: e.stack
+    })
+    return {
+      settled: false,
+      fail_reason: e.message || e.errMsg || '打款调用异常',
+      message: e.message || e.errMsg || '打款调用异常'
+    }
+  }
+}
+
 module.exports = {
   _before() {
     const clientInfo = this.getClientInfo()
@@ -118,7 +313,7 @@ module.exports = {
   },
 
   /**
-   * 家长申请退款
+   * 家长申请退款（提交后进入平台审核；通过后才退家长款并结算教师课酬）
    * @param {Object} params
    * @param {String} params.order_id 支付订单ID
    * @param {String} params.reason 退款原因
@@ -129,89 +324,113 @@ module.exports = {
   async apply(params = {}) {
     const db = uniCloud.database()
     const dbCmd = db.command
-    const { order_id, reason = '', refund_type = 'only_refund', description = '', images = [] } = params
+    let { order_id, reason = '', refund_type = 'refund_cancel', description = '', images = [] } = params
 
-    console.log('[payment-refund] ========== 开始申请退款 ==========')
+    console.log('[payment-refund] ========== 开始申请退款（待平台审核） ==========')
     console.log('[payment-refund] 请求参数:', JSON.stringify(params, null, 2))
 
     try {
       const user_id = await resolveUserId(this)
-      console.log('[payment-refund] 用户ID:', user_id)
-      
       if (!order_id) {
-        console.error('[payment-refund] ❌ 缺少订单ID')
         return error('缺少订单ID')
       }
 
-      console.log('[payment-refund] 查询订单, order_id:', order_id)
       const orderDoc = await db.collection('payment-orders').doc(order_id).get()
       if (!orderDoc.data || orderDoc.data.length === 0) {
-        console.error('[payment-refund] ❌ 订单不存在, order_id:', order_id)
         return error('订单不存在')
       }
       const order = orderDoc.data[0]
-      console.log('[payment-refund] 订单信息:', {
-        order_id: order._id,
-        order_no: order.order_no,
-        status: order.status,
-        payer_id: order.payer_id,
-        appointment_id: order.appointment_id
-      })
-      
+
       if (order.payer_id !== user_id) {
-        console.error('[payment-refund] ❌ 无法操作他人的订单, order.payer_id:', order.payer_id, 'user_id:', user_id)
         return error('无法操作他人的订单')
       }
-      if (!['paid', 'success'].includes(order.status)) {
-        console.error('[payment-refund] ❌ 订单状态不支持退款, status:', order.status)
-        return error('当前订单状态不支持退款')
+
+      let appointment = null
+      if (order.appointment_id) {
+        const appointmentDoc = await db.collection('appointments').doc(order.appointment_id).get()
+        appointment = appointmentDoc.data && appointmentDoc.data.length > 0 ? appointmentDoc.data[0] : null
       }
 
-      console.log('[payment-refund] 检查是否存在待处理的退款申请')
-      const pendingRefund = await db.collection('payment-refunds')
-        .where({ order_id, payer_id: user_id, status: dbCmd.in(['pending', 'processing']) })
-        .count()
-      console.log('[payment-refund] 待处理退款数量:', pendingRefund.total)
-      if (pendingRefund.total > 0) {
-        console.warn('[payment-refund] ⚠️ 已存在待处理的退款申请')
-        return error('已提交退款申请，请等待处理')
-      }
-
-      console.log('[payment-refund] 查询预约信息, appointment_id:', order.appointment_id)
-      const appointmentDoc = await db.collection('appointments').doc(order.appointment_id).get()
-      const appointment = appointmentDoc.data && appointmentDoc.data.length > 0 ? appointmentDoc.data[0] : null
-      console.log('[payment-refund] 预约信息:', appointment ? {
-        appointment_id: appointment._id,
-        course_type: appointment.course_type,
-        teacher_id: appointment.teacher_id,
-        status: appointment.status,
-        has_review: appointment.has_review
-      } : '无')
-
-      // 家长一旦在合并的「评价 + 确认结果」页提交，预约会切到 completed 并写入 has_review，
-      // 视为认可本次结算，不再允许申请退款（前端已拦截，这里做服务端二次校验）
       if (appointment && (appointment.status === 'completed' || appointment.has_review === true)) {
-        console.warn('[payment-refund] ❌ 订单已确认完成，不允许再申请退款', {
-          status: appointment.status,
-          has_review: appointment.has_review
-        })
         return error('订单已确认，不可再申请退款')
       }
 
-      let refundAmount = Number(order.amount || order.total_amount || 0)
-      if (appointment && appointment.course_type === 'trial') {
-        refundAmount = Math.round(refundAmount * 0.5 * 100) / 100
-        console.log('[payment-refund] 试课订单，退款金额为50%:', refundAmount)
+      if (!['paid', 'success'].includes(order.status)) {
+        return error('当前订单状态不支持退款')
+      }
+
+      const isTrial = !!(appointment && appointment.course_type === 'trial')
+      const orderAmount = roundCurrency(order.amount || order.total_amount || 0)
+      let refundAmount = orderAmount
+      let teacherIncome = 0
+      if (isTrial) {
+        refundAmount = roundCurrency(orderAmount * 0.3)
+        teacherIncome = roundCurrency(orderAmount * 0.7)
+        refund_type = 'refund_cancel'
       }
       if (refundAmount <= 0) {
-        console.error('[payment-refund] ❌ 订单金额异常, refundAmount:', refundAmount)
         return error('订单金额异常，无法申请退款')
       }
 
-      const refundRecord = {
+      // 已有成功退款：仅允许补打教师课酬（不重复退家长）
+      const successRefund = await db.collection('payment-refunds')
+        .where({ order_id, status: dbCmd.in(['success', 'completed']) })
+        .limit(1)
+        .get()
+      if (successRefund.data && successRefund.data.length > 0) {
+        if (
+          isTrial &&
+          appointment &&
+          !appointment.teacher_paid_wechat &&
+          teacherIncome > 0
+        ) {
+          const settleRes = await settleTeacherTrialShare(appointment, teacherIncome, 'trial_refund_repair')
+          if (settleRes.settled) {
+            await db.collection('appointments').doc(appointment._id).update({
+              teacher_income: teacherIncome,
+              teacher_paid_wechat: true,
+              teacher_pay_status: settleRes.status || 'ok',
+              teacher_pay_fail_reason: settleRes.fail_reason || '',
+              teacher_pay_withdraw_id: settleRes.withdraw_id || '',
+              teacher_pay_payment_no: settleRes.payment_no || '',
+              teacher_pay_time: Date.now(),
+              update_time: Date.now()
+            })
+            return success({
+              refund_id: successRefund.data[0]._id,
+              refund_amount: refundAmount,
+              teacher_income: teacherIncome,
+              repaired: true
+            }, settleRes.need_confirm
+              ? '退款已到账；教师 70% 已发起转账，需微信确认收款'
+              : '退款已到账；已为教师补打款 70% 至微信零钱')
+          }
+          return error(`教师打款失败：${settleRes.fail_reason || settleRes.message || '未知原因'}`)
+        }
+        return error('该订单已退款完成')
+      }
+
+      const pendingRefundDoc = await db.collection('payment-refunds')
+        .where({ order_id, payer_id: user_id, status: dbCmd.in(['pending', 'processing']) })
+        .orderBy('create_time', 'desc')
+        .limit(1)
+        .get()
+      if (pendingRefundDoc.data && pendingRefundDoc.data.length > 0) {
+        const existed = pendingRefundDoc.data[0]
+        return success({
+          refund_id: existed._id,
+          refund_amount: roundCurrency(existed.amount || refundAmount),
+          status: existed.status,
+          pending_review: true
+        }, '您已提交退款申请，请等待平台审核')
+      }
+
+      const now = Date.now()
+      // 直进平台待审（跳过教师侧审核）
+      const refundRes = await db.collection('payment-refunds').add({
         order_id,
         order_no: order.order_no,
-        appointment_id: order.appointment_id,
+        appointment_id: order.appointment_id || '',
         payer_id: user_id,
         amount: refundAmount,
         reason,
@@ -219,48 +438,191 @@ module.exports = {
         description,
         images: images.slice(0, 6),
         status: 'pending',
-        teacher_review_status: appointment ? 'pending' : 'approved',
+        teacher_review_status: 'approved',
         teacher_id: appointment ? appointment.teacher_id : null,
-        create_time: Date.now(),
-        update_time: Date.now()
-      }
-
-      console.log('[payment-refund] 准备创建退款记录:', JSON.stringify(refundRecord, null, 2))
-      const refundRes = await db.collection('payment-refunds').add(refundRecord)
+        teacher_income: teacherIncome,
+        course_type: appointment ? (appointment.course_type || '') : '',
+        create_time: now,
+        update_time: now
+      })
       if (!refundRes.id) {
-        console.error('[payment-refund] ❌ 创建退款记录失败, refundRes:', refundRes)
-        return error('提交退款申请失败')
+        return error('提交退款失败')
       }
-      console.log('[payment-refund] ✅ 退款记录创建成功, refund_id:', refundRes.id)
 
-      console.log('[payment-refund] 更新订单状态为退款中')
       await db.collection('payment-orders').doc(order_id).update({
         status: 'refunding',
         refund_amount: refundAmount,
         refund_reason: reason,
         refund_request_id: refundRes.id,
-        update_time: Date.now()
+        update_time: now
       })
-      console.log('[payment-refund] ✅ 订单状态更新成功')
 
       if (appointment) {
-        console.log('[payment-refund] 更新预约退款状态')
         await db.collection('appointments').doc(appointment._id).update({
           refund_status: 'pending',
-          update_time: Date.now()
+          update_time: now
         })
-        console.log('[payment-refund] ✅ 预约状态更新成功')
       }
 
-      console.log('[payment-refund] ========== 退款申请成功 ==========')
-      return success({ refund_id: refundRes.id, refund_amount: refundAmount }, '退款申请已提交，等待审核')
-    } catch (e) {
-      console.error('[payment-refund] ❌ 申请退款异常:', {
-        error: e,
-        message: e.message,
-        stack: e.stack
+      console.log('[payment-refund] ========== 退款申请已提交待审 ==========', {
+        refund_id: refundRes.id,
+        refundAmount,
+        teacherIncome,
+        isTrial
       })
+
+      return success({
+        refund_id: refundRes.id,
+        refund_amount: refundAmount,
+        teacher_income: teacherIncome,
+        status: 'pending',
+        pending_review: true,
+        auto: false
+      }, isTrial
+        ? '退款申请已提交，预计退回 30%，请等待平台审核'
+        : '退款申请已提交，请等待平台审核')
+    } catch (e) {
+      console.error('[payment-refund] ❌ 申请退款异常:', e)
       return error(e.message || '申请退款失败')
+    }
+  },
+
+  /**
+   * 补打教师课酬（家长退款已成功但教师未到账时调用）
+   * @param {{ order_id?: string, appointment_id?: string, isAdmin?: boolean }} params
+   */
+  async repairTeacherPay(params = {}) {
+    const db = uniCloud.database()
+    const dbCmd = db.command
+    const { order_id = '', appointment_id = '', isAdmin = false } = params
+    const logPrefix = '[payment-refund.repairTeacherPay]'
+
+    try {
+      let user_id = null
+      if (isAdmin) {
+        await requireRefundStaff(this)
+      } else {
+        user_id = await resolveUserId(this)
+      }
+
+      let order = null
+      if (order_id) {
+        const orderDoc = await db.collection('payment-orders').doc(order_id).get()
+        order = orderDoc.data && orderDoc.data[0]
+      } else if (appointment_id) {
+        const orderDoc = await db.collection('payment-orders')
+          .where({
+            appointment_id,
+            order_type: 'course_fee',
+            status: dbCmd.in(['refunded', 'refunding', 'paid', 'success'])
+          })
+          .orderBy('update_time', 'desc')
+          .limit(1)
+          .get()
+        order = orderDoc.data && orderDoc.data[0]
+      }
+
+      if (!order) {
+        return error('未找到相关支付订单')
+      }
+      if (!isAdmin && order.payer_id !== user_id) {
+        return error('无法操作他人的订单')
+      }
+
+      const aptId = order.appointment_id || appointment_id
+      if (!aptId) {
+        return error('订单缺少预约信息')
+      }
+
+      const aptDoc = await db.collection('appointments').doc(aptId).get()
+      const appointment = aptDoc.data && aptDoc.data[0]
+      if (!appointment) {
+        return error('预约不存在')
+      }
+      if (appointment.course_type !== 'trial') {
+        return error('仅试课订单支持补打教师课酬')
+      }
+      if (appointment.teacher_paid_wechat) {
+        return success({
+          already: true,
+          teacher_pay_status: appointment.teacher_pay_status || 'ok'
+        }, '教师课酬已打款，无需重复操作')
+      }
+
+      const orderAmount = roundCurrency(order.amount || order.total_amount || appointment.total_amount || 0)
+      const teacherIncome = roundCurrency(orderAmount * 0.7)
+      if (teacherIncome <= 0) {
+        return error('课酬金额异常')
+      }
+
+      console.log(logPrefix, '开始补打款', {
+        order_id: order._id,
+        appointment_id: aptId,
+        teacher_id: appointment.teacher_id,
+        teacherIncome,
+        isAdmin: !!isAdmin
+      })
+
+      const settleRes = await settleTeacherTrialShare(appointment, teacherIncome, 'trial_refund_repair')
+      console.log(logPrefix, '补打款结果', {
+        settled: !!settleRes.settled,
+        status: settleRes.status || '',
+        fail_reason: settleRes.fail_reason || '',
+        need_confirm: !!settleRes.need_confirm,
+        withdraw_id: settleRes.withdraw_id || '',
+        payment_no: settleRes.payment_no || ''
+      })
+
+      const now = Date.now()
+      if (settleRes.settled) {
+        await db.collection('appointments').doc(aptId).update({
+          teacher_income: teacherIncome,
+          teacher_paid_wechat: true,
+          teacher_pay_status: settleRes.status || 'ok',
+          teacher_pay_fail_reason: settleRes.fail_reason || '',
+          teacher_pay_withdraw_id: settleRes.withdraw_id || '',
+          teacher_pay_payment_no: settleRes.payment_no || '',
+          teacher_pay_time: now,
+          update_time: now
+        })
+        try {
+          await db.collection('payment-refunds')
+            .where({ order_id: order._id, status: dbCmd.in(['success', 'completed']) })
+            .update({
+              teacher_settled: true,
+              teacher_income: teacherIncome,
+              teacher_pay_status: settleRes.status || '',
+              teacher_pay_fail_reason: settleRes.fail_reason || '',
+              teacher_pay_withdraw_id: settleRes.withdraw_id || '',
+              teacher_pay_payment_no: settleRes.payment_no || '',
+              update_time: now
+            })
+        } catch (e) {
+          console.warn(logPrefix, '更新退款单标记失败（忽略）', e.message)
+        }
+
+        const msg = settleRes.need_confirm
+          ? '已发起教师打款，需教师在微信确认收款'
+          : (settleRes.auto_transferred ? '教师 70% 课酬已转入微信零钱' : '教师打款已受理')
+        return success({
+          repaired: true,
+          teacher_income: teacherIncome,
+          teacher_pay_status: settleRes.status || '',
+          teacher_pay_fail_reason: settleRes.fail_reason || '',
+          withdraw_id: settleRes.withdraw_id || '',
+          payment_no: settleRes.payment_no || ''
+        }, msg)
+      }
+
+      await db.collection('appointments').doc(aptId).update({
+        teacher_pay_status: 'failed',
+        teacher_pay_fail_reason: settleRes.fail_reason || settleRes.message || '打款失败',
+        update_time: now
+      })
+      return error(`教师打款失败：${settleRes.fail_reason || settleRes.message || '未知原因'}`)
+    } catch (e) {
+      console.error(logPrefix, '异常', e)
+      return error(e.message || '补打款失败')
     }
   },
 
@@ -275,6 +637,9 @@ module.exports = {
     const { order_id, refund_id = null, appointment_id = null, isAdmin = false } = params
 
     try {
+      if (isAdmin) {
+        await requireRefundStaff(this)
+      }
       const user_id = isAdmin ? null : await resolveUserId(this)
       
       if (!order_id && !refund_id && !appointment_id) {
@@ -412,15 +777,12 @@ module.exports = {
     const { refund_id, action = 'approve', opinion = '', refund_channel_payload = null, isAdmin = false } = params
 
     try {
-      // 如果是管理员模式，不需要验证 token
       let reviewer_id = null
-      if (!isAdmin) {
-        try {
-          reviewer_id = await resolveUserId(this)
-        } catch (tokenError) {
-          console.warn('[payment-refund] token 验证失败，尝试管理员模式:', tokenError.message)
-          // 如果 token 验证失败，可能是后台管理系统调用，允许继续（但记录警告）
-        }
+      if (isAdmin) {
+        const staff = await requireRefundStaff(this)
+        reviewer_id = staff.uid
+      } else {
+        reviewer_id = await resolveUserId(this)
       }
       
       if (!refund_id) {
@@ -435,8 +797,9 @@ module.exports = {
       if (refund.status !== 'pending' && refund.status !== 'processing') {
         return error('当前退款状态无需审核')
       }
-      if (refund.teacher_review_status === 'pending') {
-        return error('教师尚未处理退款申请')
+      // 平台可直接审核；若仍标记待教师处理，审核时自动视为已跳过
+      if (refund.teacher_review_status === 'pending' && action === 'approve') {
+        console.warn('[payment-refund] 教师未处理，平台直接审核通过')
       }
 
       const orderDoc = await db.collection('payment-orders').doc(refund.order_id).get()
@@ -610,35 +973,98 @@ module.exports = {
           update_time: now
         })
 
+        // 试课：审核通过后补结算教师 70%
+        let teacherSettle = { settled: false }
+        let teacherIncome = 0
+        let appointmentForSettle = null
+        if (refund.appointment_id && refundResult) {
+          try {
+            const aptDoc = await db.collection('appointments').doc(refund.appointment_id).get()
+            appointmentForSettle = aptDoc.data && aptDoc.data[0] ? aptDoc.data[0] : null
+            if (appointmentForSettle && appointmentForSettle.course_type === 'trial') {
+              const orderAmount = roundCurrency(order.amount || order.total_amount || 0)
+              teacherIncome = roundCurrency(orderAmount * 0.7)
+              teacherSettle = await settleTeacherTrialShare(
+                appointmentForSettle,
+                teacherIncome,
+                'trial_refund_review'
+              )
+            }
+          } catch (settleErr) {
+            console.warn('[payment-refund] 审核通过后教师结算失败:', settleErr)
+          }
+        }
+
         // 更新预约状态
         if (refund.appointment_id) {
-          await db.collection('appointments').doc(refund.appointment_id).update({
-            refund_status: refundResult ? 'success' : 'processing', // 如果退款成功则为 success，否则为 processing
-            status: refund.refund_type === 'refund_cancel' ? 'cancelled' : order.status,
+          const aptUpdate = {
+            refund_status: refundResult ? 'success' : 'processing',
+            status: refund.refund_type === 'refund_cancel' ? 'cancelled' : (appointmentForSettle && appointmentForSettle.status) || 'cancelled',
             update_time: now
-          })
+          }
+          if (teacherIncome > 0) {
+            aptUpdate.teacher_income = teacherIncome
+            aptUpdate.parent_refund_amount = roundCurrency(refund.amount)
+            aptUpdate.wallet_settled = false
+            aptUpdate.teacher_paid_wechat = !!teacherSettle.settled
+            aptUpdate.teacher_pay_status = teacherSettle.need_confirm
+              ? 'wait_confirm'
+              : (teacherSettle.settled ? (teacherSettle.status || 'ok') : 'failed')
+            aptUpdate.teacher_pay_fail_reason = teacherSettle.fail_reason || ''
+            aptUpdate.teacher_pay_withdraw_id = teacherSettle.withdraw_id || ''
+            aptUpdate.teacher_pay_payment_no = teacherSettle.payment_no || ''
+            aptUpdate.teacher_pay_time = teacherSettle.settled ? now : null
+            aptUpdate.wallet_settlement_amount = teacherIncome
+            aptUpdate.wallet_settlement_time = teacherSettle.settled ? now : null
+            aptUpdate.trial_result = 'fail'
+            aptUpdate.trial_fail_reason = refund.reason || refund.description || '家长申请退款'
+          }
+          await db.collection('appointments').doc(refund.appointment_id).update(aptUpdate)
         }
 
         // 更新退款记录
         await db.collection('payment-refunds').doc(refund_id).update({
-          status: refundResult ? 'success' : 'processing', // 如果退款成功则为 success，否则为 processing
+          status: refundResult ? 'success' : 'processing',
+          teacher_review_status: 'approved',
+          teacher_income: teacherIncome || refund.teacher_income || 0,
+          teacher_settled: !!teacherSettle.settled,
+          teacher_pay_status: teacherSettle.status || '',
+          teacher_pay_fail_reason: teacherSettle.fail_reason || '',
+          teacher_pay_withdraw_id: teacherSettle.withdraw_id || '',
+          teacher_pay_payment_no: teacherSettle.payment_no || '',
           reviewer_id,
           review_opinion: opinion,
           review_time: now,
-          finish_time: refundResult ? now : null, // 如果退款成功则设置完成时间
+          finish_time: refundResult ? now : null,
           refund_result_payload: refundResult ? JSON.stringify(refundResult) : null,
-          out_trade_no: out_trade_no, // 保存 uni-pay 订单号
+          out_trade_no: out_trade_no,
           update_time: now
         })
 
-        const message = refundResult 
-          ? '退款审核通过，退款已成功处理' 
+        const needTeacherRepair = !!(
+          refundResult &&
+          teacherIncome > 0 &&
+          !teacherSettle.settled
+        )
+        const message = refundResult
+          ? (teacherIncome > 0
+            ? (teacherSettle.settled
+              ? (teacherSettle.need_confirm
+                ? '退款已成功；教师70%已发起转账，需微信确认收款'
+                : '退款已成功，教师70%已打入微信零钱')
+              : `家长退款已成功，但教师打款失败：${teacherSettle.fail_reason || teacherSettle.message || '未知原因'}。请使用「补打教师课酬」重试`)
+            : '退款审核通过，退款已成功处理')
           : '退款审核通过，但退款处理失败，请手动处理'
         
         return success({ 
           refund_id, 
           status: refundResult ? 'success' : 'processing',
-          refund_result: refundResult
+          refund_result: refundResult,
+          teacher_income: teacherIncome,
+          teacher_settled: !!teacherSettle.settled,
+          teacher_pay_status: teacherSettle.status || (needTeacherRepair ? 'failed' : ''),
+          teacher_pay_fail_reason: teacherSettle.fail_reason || teacherSettle.message || '',
+          need_teacher_repair: needTeacherRepair
         }, message)
       }
 
@@ -678,6 +1104,11 @@ module.exports = {
     if (!isAdmin) {
       return error('无权访问')
     }
+    try {
+      await requireRefundStaff(this)
+    } catch (e) {
+      return error(e.message || '无权访问')
+    }
 
     const db = uniCloud.database()
     const dbCmd = db.command
@@ -691,7 +1122,8 @@ module.exports = {
         successRes,
         rejectedRes,
         waitingTeacherRes,
-        actionableRes
+        actionableRes,
+        teacherPayPendingRes
       ] = await Promise.all([
         collection.count(),
         collection.where({ status: 'pending' }).count(),
@@ -705,6 +1137,18 @@ module.exports = {
         collection.where(dbCmd.and([
           { status: dbCmd.in(['pending', 'processing']) },
           { teacher_review_status: dbCmd.neq('pending') }
+        ])).count(),
+        // 家长已退成功，但教师课酬未成功结算
+        collection.where(dbCmd.and([
+          { status: dbCmd.in(['success', 'completed']) },
+          { teacher_income: dbCmd.gt(0) },
+          dbCmd.or([
+            { teacher_settled: false },
+            { teacher_settled: dbCmd.exists(false) },
+            { teacher_pay_status: 'failed' },
+            { teacher_pay_status: '' },
+            { teacher_pay_status: dbCmd.exists(false) }
+          ])
         ])).count()
       ])
 
@@ -715,7 +1159,8 @@ module.exports = {
         success: successRes.total || 0,
         rejected: rejectedRes.total || 0,
         waiting_teacher: waitingTeacherRes.total || 0,
-        actionable: actionableRes.total || 0
+        actionable: actionableRes.total || 0,
+        teacher_pay_pending: teacherPayPendingRes.total || 0
       })
     } catch (e) {
       console.error('[payment-refund] adminKpi failed', e)
@@ -737,6 +1182,11 @@ module.exports = {
 
     if (!isAdmin) {
       return error('无权访问')
+    }
+    try {
+      await requireRefundStaff(this)
+    } catch (e) {
+      return error(e.message || '无权访问')
     }
 
     const db = uniCloud.database()
@@ -765,11 +1215,53 @@ module.exports = {
           { status: dbCmd.in(['pending', 'processing']) },
           { teacher_review_status: dbCmd.neq('pending') }
         ])
+      } else if (status === 'teacher_pay_pending') {
+        where = dbCmd.and([
+          { status: dbCmd.in(['success', 'completed']) },
+          { teacher_income: dbCmd.gt(0) },
+          dbCmd.or([
+            { teacher_settled: false },
+            { teacher_settled: dbCmd.exists(false) },
+            { teacher_pay_status: 'failed' },
+            { teacher_pay_status: '' },
+            { teacher_pay_status: dbCmd.exists(false) }
+          ])
+        ])
       }
 
       const kw = String(keyword || '').trim()
       if (kw) {
-        const kwCond = dbCmd.or([
+        const nameUserIds = []
+        if (!/^[a-zA-Z0-9_-]{16,}$/.test(kw)) {
+          try {
+            const queryRe = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+            const [userRes, teacherRes] = await Promise.all([
+              db.collection('uni-id-users')
+                .where(dbCmd.or([
+                  { nickname: queryRe },
+                  { username: queryRe },
+                  { wx_nickname: queryRe },
+                  { mobile: queryRe }
+                ]))
+                .field({ _id: true })
+                .limit(100)
+                .get(),
+              db.collection('teacher-profiles')
+                .where(dbCmd.or([
+                  { display_name: queryRe },
+                  { real_name: queryRe }
+                ]))
+                .field({ teacher_id: true })
+                .limit(100)
+                .get()
+            ])
+            ;(userRes.data || []).forEach((u) => { if (u && u._id) nameUserIds.push(u._id) })
+            ;(teacherRes.data || []).forEach((p) => { if (p && p.teacher_id) nameUserIds.push(p.teacher_id) })
+          } catch (e) {
+            console.warn('[payment-refund.adminList] 昵称反查失败:', e)
+          }
+        }
+        const kwOr = [
           { _id: kw },
           { order_no: kw },
           { order_no: new RegExp(kw, 'i') },
@@ -778,7 +1270,12 @@ module.exports = {
           { payer_id: kw },
           { teacher_id: kw },
           { reason: new RegExp(kw, 'i') }
-        ])
+        ]
+        if (nameUserIds.length) {
+          kwOr.push({ payer_id: dbCmd.in(nameUserIds) })
+          kwOr.push({ teacher_id: dbCmd.in(nameUserIds) })
+        }
+        const kwCond = dbCmd.or(kwOr)
         where = Object.keys(where).length ? dbCmd.and([where, kwCond]) : kwCond
       }
 
@@ -807,7 +1304,11 @@ module.exports = {
             status: true,
             refund_status: true,
             course_type: true,
-            type: true
+            type: true,
+            teacher_income: true,
+            teacher_paid_wechat: true,
+            teacher_pay_status: true,
+            teacher_pay_fail_reason: true
           })
           .get()
         ;(aptRes.data || []).forEach(item => {
@@ -874,12 +1375,31 @@ module.exports = {
       const enriched = list.map(item => {
         const apt = appointmentMap[item.appointment_id] || null
         let conversationId = apt && apt.conversation_id ? apt.conversation_id : ''
+        const teacherIncome = Number(item.teacher_income || (apt && apt.teacher_income) || 0)
+        const courseType = item.course_type || (apt && apt.course_type) || ''
+        const payStatus = item.teacher_pay_status || (apt && apt.teacher_pay_status) || ''
+        const paidWechat = !!(apt && apt.teacher_paid_wechat) ||
+          item.teacher_settled === true ||
+          ['ok', 'success', 'completed', 'wait_confirm', 'pending'].includes(payStatus)
+        const isTrialLike = courseType === 'trial' ||
+          item.refund_type === 'refund_cancel' ||
+          teacherIncome > 0
+        const needTeacherRepair = ['success', 'completed'].includes(item.status) &&
+          isTrialLike &&
+          teacherIncome > 0 &&
+          !paidWechat
         return {
           ...item,
           parent_name: userNameMap[item.payer_id] || '',
           teacher_name: teacherNameMap[item.teacher_id] || userNameMap[item.teacher_id] || '',
           appointment_no: apt ? apt.appointment_no : '',
           appointment_status: apt ? apt.status : '',
+          course_type: courseType,
+          teacher_income: teacherIncome,
+          teacher_paid_wechat: !!(apt && apt.teacher_paid_wechat),
+          teacher_pay_status: payStatus,
+          teacher_pay_fail_reason: item.teacher_pay_fail_reason || (apt && apt.teacher_pay_fail_reason) || '',
+          need_teacher_repair: needTeacherRepair,
           conversation_id: conversationId,
           chat_enabled: conversationId && conversationMap[conversationId]
             ? conversationMap[conversationId].chat_enabled
@@ -919,6 +1439,11 @@ module.exports = {
     const { order_id, isAdmin = false } = params
     if (!isAdmin) {
       return error('无权访问')
+    }
+    try {
+      await requireRefundStaff(this)
+    } catch (e) {
+      return error(e.message || '无权访问')
     }
     if (!order_id) {
       return error('缺少订单ID')
@@ -1056,6 +1581,15 @@ module.exports = {
 
     if (!isAdmin) {
       return error('无权访问')
+    }
+    try {
+      await assertStaffAccess(this, [
+        PERMISSION.AUDIT_REFUND,
+        PERMISSION.AUDIT_TEACHER,
+        PERMISSION.AUDIT_RECRUITMENT
+      ])
+    } catch (e) {
+      return error(e.message || '无权访问')
     }
     if (!conversation_id && !appointment_id && !(teacher_id && parent_id)) {
       return error('缺少会话或预约ID')

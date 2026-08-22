@@ -1,0 +1,27 @@
+{
+  "bsonType": "object",
+  "required": ["oa_openid"],
+  "permission": {
+    "read": false,
+    "create": false,
+    "update": false,
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "description": "使用服务号 openid 作为文档 ID"
+    },
+    "oa_openid": {
+      "bsonType": "string",
+      "description": "服务号 openid"
+    },
+    "unionid": {
+      "bsonType": "string",
+      "description": "若已能取到则写入"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "关注时间"
+    }
+  }
+}

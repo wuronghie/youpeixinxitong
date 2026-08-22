@@ -31,34 +31,123 @@ function formatDate(date) {
   return `${year}-${month}-${day}`
 }
 
-/** 累计学生 = 试课成功（completed 且 trial_result 非 fail）的去重家长数 */
-async function countSuccessfulTrialStudents(db, teacher_id) {
-  const $ = db.command.aggregate
+/**
+ * 累计学生 = 预约过试课的去重家长数（邀请发出即算）
+ */
+async function countAcceptedTrialStudents(db, teacher_id) {
+  const dbCmd = db.command
   const agg = await db.collection('appointments')
     .aggregate()
     .match({
       teacher_id,
       course_type: 'trial',
-      status: 'completed'
+      status: dbCmd.in([
+        'trial_invited',
+        'pending_payment',
+        'pending_confirm',
+        'confirmed',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'refunded'
+      ])
     })
     .group({
-      _id: '$parent_id',
-      hasSuccess: $.max(
-        $.cond({
-          if: $.or([
-            $.eq(['$trial_result', 'success']),
-            $.eq([$.ifNull(['$trial_result', '']), ''])
-          ]),
-          then: 1,
-          else: 0
-        })
-      )
+      _id: '$parent_id'
     })
-    .match({ hasSuccess: 1 })
     .count('total')
     .end()
 
   return agg.data && agg.data.length > 0 ? Number(agg.data[0].total || 0) : 0
+}
+
+/** 试课次数 / 成功次数（与 teacher-list、appointment-complete 口径一致） */
+async function countTrialStats(db, teacher_id) {
+  const dbCmd = db.command
+  const trialAppointments = await db.collection('appointments')
+    .where({
+      teacher_id,
+      course_type: 'trial',
+      status: dbCmd.in(['completed', 'refunded', 'cancelled'])
+    })
+    .field({ status: true, trial_result: true })
+    .get()
+
+  const list = trialAppointments.data || []
+  const trialCount = list.length
+  const successfulTrials = list.filter(a => {
+    if (a.status !== 'completed') return false
+    return !a.trial_result || a.trial_result === 'success'
+  }).length
+  return { trialCount, successfulTrials }
+}
+
+/**
+ * 累计收入：预约 teacher_income（完成/取消/退款）与钱包 total_income 取较大值
+ * （退款 70% 常落在 cancelled/refunded，不能只看 completed）
+ */
+async function countTeacherTotalIncome(db, teacher_id) {
+  const dbCmd = db.command
+  const $ = db.command.aggregate
+
+  const aptAgg = await db.collection('appointments')
+    .aggregate()
+    .match({
+      teacher_id,
+      teacher_income: dbCmd.gt(0),
+      status: dbCmd.in(['completed', 'cancelled', 'refunded'])
+    })
+    .group({
+      _id: null,
+      total: $.sum('$teacher_income')
+    })
+    .end()
+
+  const fromApt = aptAgg.data && aptAgg.data.length > 0
+    ? Number(aptAgg.data[0].total || 0)
+    : 0
+
+  let fromWallet = 0
+  try {
+    const walletDoc = await db.collection('teacher-wallet')
+      .where({ teacher_id })
+      .field({ total_income: true })
+      .limit(1)
+      .get()
+    fromWallet = walletDoc.data && walletDoc.data[0]
+      ? Number(walletDoc.data[0].total_income || 0)
+      : 0
+  } catch (e) {
+    // ignore
+  }
+
+  const total = Number(Math.max(fromApt, fromWallet).toFixed(2))
+
+  // 钱包累计偏低时回写，保证收款页「累计收入」一致
+  if (total > fromWallet + 0.001) {
+    try {
+      const exist = await db.collection('teacher-wallet').where({ teacher_id }).limit(1).get()
+      if (exist.data && exist.data.length) {
+        await db.collection('teacher-wallet').doc(exist.data[0]._id).update({
+          total_income: total,
+          update_time: Date.now()
+        })
+      } else {
+        await db.collection('teacher-wallet').add({
+          teacher_id,
+          balance: 0,
+          frozen_amount: 0,
+          total_income: total,
+          total_withdraw: 0,
+          update_time: Date.now()
+        })
+      }
+    } catch (syncErr) {
+      console.warn('[teacher-dashboard] 回写钱包累计收入失败:', syncErr.message)
+    }
+  }
+
+  return total
 }
 
 module.exports = {
@@ -137,12 +226,12 @@ module.exports = {
         })
         .count()
 
-      // 本月收入（完成的预约），取 teacher_income 字段
+      // 本月收入：完成/取消/退款中已记 teacher_income 的预约
       const monthIncomeAgg = await db.collection('appointments')
         .aggregate()
         .match({
           teacher_id,
-          status: 'completed',
+          status: dbCmd.in(['completed', 'cancelled', 'refunded']),
           teacher_income: dbCmd.gt(0),
           create_time: dbCmd.and([dbCmd.gte(startOfMonth), dbCmd.lt(startOfNextMonth)])
         })
@@ -156,8 +245,8 @@ module.exports = {
         ? Number(monthIncomeAgg.data[0].total || 0)
         : 0
 
-      // 累计学生：仅统计试课成功后的去重家长
-      const totalStudents = await countSuccessfulTrialStudents(db, teacher_id)
+      // 累计学生：家长接受试课后即计入（去重家长）
+      const totalStudents = await countAcceptedTrialStudents(db, teacher_id)
 
       // 待处理预约（待支付或待确认）
       const pendingAppointmentsRes = await db.collection('appointments')
@@ -508,8 +597,7 @@ module.exports = {
               then: 1,
               else: 0
             })
-          ),
-          total_income: $.sum('$teacher_income')
+          )
         })
         .end()
 
@@ -517,15 +605,13 @@ module.exports = {
         ? appointmentsAgg.data[0]
         : null
 
-      const totalStudents = await countSuccessfulTrialStudents(db, teacher_id)
+      const totalStudents = await countAcceptedTrialStudents(db, teacher_id)
 
       const recentCompleted = appointmentInfo && appointmentInfo.recent_completed
         ? appointmentInfo.recent_completed
         : 0
 
-      const totalIncome = appointmentInfo && appointmentInfo.total_income
-        ? Number(appointmentInfo.total_income)
-        : 0
+      const totalIncome = await countTeacherTotalIncome(db, teacher_id)
 
       // 评价统计
       const reviewsAgg = await db.collection('reviews')
@@ -550,42 +636,26 @@ module.exports = {
         ? Number(reviewInfo.average_rating.toFixed(1))
         : (profile.rating || 5.0)
 
-      // 试课统计
-      const trialAppointmentsAgg = await db.collection('appointments')
-        .aggregate()
-        .match({
-          teacher_id,
-          type: 'trial'
-        })
-        .group({
-          _id: null,
-          total_trials: $.sum(1),
-          successful_trials: $.sum(
-            $.cond({
-              if: {
-                $and: [
-                  { $eq: ['$status', 'completed'] },
-                  { $eq: ['$trial_result.is_satisfied', true] }
-                ]
-              },
-              then: 1,
-              else: 0
-            })
-          )
-        })
-        .end()
+      // 试课统计（course_type + trial_result 字符串，勿用遗留 type / is_satisfied）
+      const trialStats = await countTrialStats(db, teacher_id)
+      const totalTrials = trialStats.trialCount
+      const successfulTrials = trialStats.successfulTrials
 
-      const trialInfo = trialAppointmentsAgg.data && trialAppointmentsAgg.data.length > 0
-        ? trialAppointmentsAgg.data[0]
-        : null
-
-      const totalTrials = trialInfo && trialInfo.total_trials
-        ? trialInfo.total_trials
-        : 0
-
-      const successfulTrials = trialInfo && trialInfo.successful_trials
-        ? trialInfo.successful_trials
-        : 0
+      // 写回 profile，保证家长端读缓存时也正确
+      try {
+        const trialSuccessRate = totalTrials > 0 ? Number((successfulTrials / totalTrials).toFixed(2)) : 0
+        await db.collection('teacher-profiles')
+          .where({ teacher_id })
+          .update({
+            total_students: totalStudents,
+            trial_count: totalTrials,
+            trial_success_count: successfulTrials,
+            trial_success_rate: trialSuccessRate,
+            update_time: Date.now()
+          })
+      } catch (syncErr) {
+        console.warn('[teacher-dashboard] 同步试课统计到 profile 失败:', syncErr.message)
+      }
 
       // 总预约数统计（包括试课和正式课程）
       const totalAppointmentsRes = await db.collection('appointments')

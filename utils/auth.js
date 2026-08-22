@@ -1,3 +1,5 @@
+import { clearBoundPushClientId } from '@/utils/chatPush.js'
+
 const DEFAULT_ROLE = 'parent'
 
 // 单账号单角色：不再需要 roles 数组
@@ -36,6 +38,7 @@ export function clearStoredAuth() {
   uni.removeStorageSync('token')
   uni.removeStorageSync('userInfo')
   uni.removeStorageSync('last_role')
+  clearBoundPushClientId()
 }
 
 export function redirectByRole(role) {

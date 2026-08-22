@@ -1,8 +1,12 @@
 {
   "bsonType": "object",
-  "required": ["teacher_id", "amount", "method"],
+  "required": [
+    "teacher_id",
+    "amount",
+    "method"
+  ],
   "permission": {
-    "read": "doc.teacher_id == auth.uid",
+    "read": "(doc.teacher_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
     "create": false,
     "update": false,
     "delete": false
@@ -40,7 +44,12 @@
     },
     "status": {
       "bsonType": "string",
-      "enum": ["pending", "wait_confirm", "completed", "failed"],
+      "enum": [
+        "pending",
+        "wait_confirm",
+        "completed",
+        "failed"
+      ],
       "description": "申请状态",
       "defaultValue": "pending"
     },

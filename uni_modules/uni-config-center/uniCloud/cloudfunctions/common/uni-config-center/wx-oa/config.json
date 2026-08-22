@@ -1,0 +1,35 @@
+{
+  "appid": "wxce50f8f482b823fc",
+  "appsecret": "71d7fcc18e251b323db6e3ecd0e52f1d",
+  "token": "QzvqGuuQO2BXTrwjH4WzZn2ODxT2ZJys",
+  "encodingAESKey": "oTDxpLks49DWZBip380nOlj48wuUwTka4k049XiLil1",
+  "notifyType": "template",
+  "templates": {
+    "check_in": "2DqafAtEP-xD_Ozi7c8R3dyI1YiBqBLkOWMHh4cDqQE",
+    "new_chat": "btcgyTDHTfLiYb2WXmwgqiNzdMLglLeRAgKwSWX4GkM",
+    "appointment_success": "f8ayRdkNq-pYOe9gdXNz9OpIFZfKBKhpxfyQZ7_pKoM"
+  },
+  "templateDataKeys": {
+    "check_in": {
+      "thing12": "course",
+      "thing13": "place",
+      "thing18": "person",
+      "time19": "time"
+    },
+    "new_chat": {
+      "thing2": "visitor_name",
+      "thing4": "reason",
+      "time5": "visit_time",
+      "time16": "send_time"
+    },
+    "appointment_success": {
+      "character_string9": "order_no",
+      "time10": "date",
+      "phrase17": "type",
+      "thing18": "project"
+    }
+  },
+  "mpAppId": "wx920e8bcaa338caf6",
+  "oaName": "叁谦",
+  "username": "gh_d8aa03b3fd59"
+}

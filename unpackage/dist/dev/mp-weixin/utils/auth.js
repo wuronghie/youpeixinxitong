@@ -1,5 +1,6 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
+const utils_chatPush = require("./chatPush.js");
 const DEFAULT_ROLE = "parent";
 function normalizeUserInfoFromDb(data = {}) {
   const activeRole = data.role || DEFAULT_ROLE;
@@ -33,6 +34,7 @@ function clearStoredAuth() {
   common_vendor.index.removeStorageSync("token");
   common_vendor.index.removeStorageSync("userInfo");
   common_vendor.index.removeStorageSync("last_role");
+  utils_chatPush.clearBoundPushClientId();
 }
 function redirectByRole(role) {
   const url = role === "teacher" ? "/pages-teacher/index/index" : "/pages/teacher/list";
@@ -64,7 +66,7 @@ async function checkProfileComplete(userInfo) {
       missing.push("孩子性别");
     if (!parentInfo.student_grade)
       missing.push("学生年级");
-    common_vendor.index.__f__("log", "at utils/auth.js:77", "[auth] 家长信息检查:", {
+    common_vendor.index.__f__("log", "at utils/auth.js:80", "[auth] 家长信息检查:", {
       real_name: parentInfo.real_name,
       gender: genderCode,
       phone,
@@ -85,7 +87,7 @@ async function checkProfileComplete(userInfo) {
     try {
       const dashboard = common_vendor.tr.importObject("teacher-dashboard", { customUI: true });
       const res = await dashboard.checkProfileComplete();
-      common_vendor.index.__f__("log", "at utils/auth.js:100", "[auth] 教师信息检查结果:", res);
+      common_vendor.index.__f__("log", "at utils/auth.js:103", "[auth] 教师信息检查结果:", res);
       if (res.code === 0 && res.data) {
         const { isComplete, missingFieldsText } = res.data;
         if (!isComplete) {
@@ -99,11 +101,11 @@ async function checkProfileComplete(userInfo) {
         }
         return { isComplete: true };
       } else {
-        common_vendor.index.__f__("warn", "at utils/auth.js:116", "[auth] 检查教师信息失败，跳转到首页:", res.message);
+        common_vendor.index.__f__("warn", "at utils/auth.js:119", "[auth] 检查教师信息失败，跳转到首页:", res.message);
         return { isComplete: true };
       }
     } catch (error) {
-      common_vendor.index.__f__("error", "at utils/auth.js:120", "[auth] 检查教师信息异常:", error);
+      common_vendor.index.__f__("error", "at utils/auth.js:123", "[auth] 检查教师信息异常:", error);
       return { isComplete: true };
     }
   }
@@ -145,7 +147,7 @@ async function fetchRemoteUserInfo(options = {}) {
     }
     throw new Error(res.message || "获取用户信息失败");
   } catch (error) {
-    common_vendor.index.__f__("error", "at utils/auth.js:174", "[auth] 获取远程用户信息失败:", error);
+    common_vendor.index.__f__("error", "at utils/auth.js:177", "[auth] 获取远程用户信息失败:", error);
     const local = getStoredUserInfo();
     if (local && local.uid) {
       return local;

@@ -27,7 +27,7 @@ const _sfc_main = {
         hourly_rate: 0,
         experience_years: 0,
         school: "",
-        // 所在院校
+        // 是否在读（存院校/专职已毕业等枚举值）
         experience: "",
         // 教师资历
         tags: [],
@@ -54,7 +54,7 @@ const _sfc_main = {
       ],
       gradeOptions: ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "高一", "高二", "高三"],
       degreeOptions: ["高中", "大专", "本科", "本科在读", "硕士", "硕士研究生在读", "博士", "博士研究生在读"],
-      // 所在院校选项
+      // 是否在读选项（在读院校 / 专职已毕业）
       schoolOptions: [
         { label: "四川大学", value: "四川大学" },
         { label: "电子科技大学", value: "电子科技大学" },
@@ -997,7 +997,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     ab: common_vendor.t($data.errors.introduction)
   } : {}, {
     ac: $data.errors.introduction ? 1 : "",
-    ad: common_vendor.t($options.getSchoolLabel($data.formData.school) || "请选择所在院校（可选）"),
+    ad: common_vendor.t($options.getSchoolLabel($data.formData.school) || "请选择是否在读（可选）"),
     ae: common_vendor.n($data.formData.school ? "" : "text-light-muted"),
     af: $data.schoolOptions,
     ag: common_vendor.o((...args) => $options.onSchoolChange && $options.onSchoolChange(...args)),

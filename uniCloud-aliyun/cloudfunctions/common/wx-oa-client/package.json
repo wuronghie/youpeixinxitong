@@ -1,0 +1,9 @@
+{
+  "name": "wx-oa-client",
+  "version": "1.0.0",
+  "description": "微信服务号 access_token / 模板消息（固定出口 EIP）",
+  "main": "index.js",
+  "dependencies": {
+    "uni-config-center": "file:../../../../uni_modules/uni-config-center/uniCloud/cloudfunctions/common/uni-config-center"
+  }
+}

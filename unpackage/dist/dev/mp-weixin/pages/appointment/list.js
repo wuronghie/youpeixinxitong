@@ -58,13 +58,13 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "家教帮 · 我的预约",
+      title: "优培信息通 · 我的预约",
       path: "/pages/appointment/list"
     };
   },
   onShareTimeline() {
     return {
-      title: "家教帮 · 我的预约"
+      title: "优培信息通 · 我的预约"
     };
   },
   methods: {

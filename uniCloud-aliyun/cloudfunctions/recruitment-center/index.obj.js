@@ -2,6 +2,7 @@
  * 家长招募：发布、教师广场、邀请试课（含信息费前置）
  */
 const uniID = require('uni-id-common')
+const { assertStaffAccess, PERMISSION } = require('admin-auth')
 
 function success(data = null, message = 'success') {
   return { code: 0, message, data, timestamp: Date.now() }
@@ -170,7 +171,8 @@ async function teacherPaidDepositForParent(db, teacher_id, parent_id) {
 /**
  * 创建试课邀请预约 + 会话（与 appointment-create.inviteTrial 对齐）
  */
-const MIN_HOURLY_RATE = 120
+/** 暂时取消 120 限制，恢复时改回 120 */
+const MIN_HOURLY_RATE = 0
 
 async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
   const teacherProfileDoc = await db
@@ -182,13 +184,13 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
 
   const teacherProfile =
     teacherProfileDoc.data && teacherProfileDoc.data.length > 0 ? teacherProfileDoc.data[0] : {}
-  const profileHourlyRate = Number(teacherProfile.hourly_rate || MIN_HOURLY_RATE)
+  const profileHourlyRate = Number(teacherProfile.hourly_rate || 0)
   let hourlyRate = profileHourlyRate
   if (extras.trial_hourly_rate != null && extras.trial_hourly_rate !== '') {
     hourlyRate = Number(extras.trial_hourly_rate)
   }
-  if (!hourlyRate || hourlyRate < MIN_HOURLY_RATE) {
-    throw new Error(`试课课时费不能低于${MIN_HOURLY_RATE}元/小时`)
+  if (!Number.isFinite(hourlyRate) || hourlyRate <= MIN_HOURLY_RATE) {
+    throw new Error('请填写有效的试课课时费')
   }
   const trialAmount = Number((hourlyRate * 2).toFixed(2))
   const appointmentNo = generateAppointmentNo()
@@ -204,6 +206,11 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
     trial_invite_hourly_rate: hourlyRate,
     total_amount: trialAmount,
     duration: 2,
+    class_started_at: null,
+    class_started_location: null,
+    class_ended_at: null,
+    class_ended_location: null,
+    parent_paid: false,
     create_time: now,
     update_time: now,
     invited_by: 'teacher',
@@ -288,14 +295,9 @@ async function syncConversationDepositState(db, conversation_id, appointment_id,
 }
 
 async function assertAdmin(ctx) {
-  const uid = await resolveUserId(ctx)
-  if (!uid) throw new Error('未登录')
-  const db = uniCloud.database()
-  const doc = await db.collection('uni-id-users').doc(uid).field({ role: true }).get()
-  const role = doc.data && doc.data[0] ? doc.data[0].role : []
-  const roles = Array.isArray(role) ? role : role ? [role] : []
-  if (!roles.includes('admin')) throw new Error('需要管理员权限')
-  return uid
+  // 超管或持有招募审核权限的普通管理员
+  const access = await assertStaffAccess(ctx, [PERMISSION.AUDIT_RECRUITMENT])
+  return access.uid
 }
 
 module.exports = {
@@ -779,7 +781,30 @@ module.exports = {
     if (parent_id) parts.push({ parent_id })
     const kw = String(keyword || '').trim()
     if (kw) {
-      parts.push(_.or([{ _id: kw }, { parent_id: kw }]))
+      const kwOr = [{ _id: kw }, { parent_id: kw }]
+      if (!/^[a-zA-Z0-9_-]{16,}$/.test(kw)) {
+        try {
+          const queryRe = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+          const userRes = await db.collection('uni-id-users')
+            .where(_.or([
+              { nickname: queryRe },
+              { username: queryRe },
+              { wx_nickname: queryRe },
+              { mobile: queryRe },
+              { 'parent_info.real_name': queryRe }
+            ]))
+            .field({ _id: true })
+            .limit(100)
+            .get()
+          const ids = (userRes.data || []).map((u) => u._id).filter(Boolean)
+          if (ids.length) {
+            kwOr.push({ parent_id: _.in(ids) })
+          }
+        } catch (e) {
+          console.warn('[recruitment-center.adminList] 昵称反查失败:', e)
+        }
+      }
+      parts.push(_.or(kwOr))
     }
     if (audit_status === 'pending') {
       parts.push(_.or([{ audit_status: 'pending' }, { audit_status: _.exists(false) }]))

@@ -5,6 +5,8 @@
  */
 
 const uniID = require('uni-id-common')
+const { notifyChatNewMessage } = require('./helpers/notify-push')
+const { notifyChatNewMessageOa } = require('./helpers/notify-oa')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -288,11 +290,43 @@ module.exports = {
       
       await db.collection('chat-conversations').doc(conversation_id).update(updateData)
       
-      console.log('消息发送成功:', result.id)
+      console.log('消息发送成功:', result.id, 'receiver=', receiver_id, 'role=', sender_role)
+
+      // 在线推送：对方小程序在线时立刻收到，再拉增量；失败不影响发送结果
+      const pushDebug = await notifyChatNewMessage({
+        receiverId: receiver_id,
+        conversationId: conversation_id,
+        content,
+        sendTime: message.send_time
+      })
+      console.log('[chat-send.send] pushDebug=', JSON.stringify(pushDebug))
+
+      // 服务号消息通知（失败不影响发送结果）
+      let oaDebug = null
+      try {
+        oaDebug = await notifyChatNewMessageOa({
+          db,
+          receiverId: receiver_id,
+          receiverRole: receiver_role,
+          senderId: sender_id,
+          senderRole: sender_role,
+          conversationId: conversation_id,
+          messageId: result.id,
+          content,
+          messageType: message_type,
+          sendTime: message.send_time
+        })
+      } catch (oaErr) {
+        oaDebug = { ok: false, errmsg: oaErr && (oaErr.message || String(oaErr)) }
+        console.warn('[chat-send.send] 服务号通知失败:', oaErr && (oaErr.message || oaErr))
+      }
       
       return success({
         message_id: result.id,
-        send_time: message.send_time
+        send_time: message.send_time,
+        receiver_id,
+        push: pushDebug,
+        oa: oaDebug
       }, '发送成功')
       
     } catch (e) {
@@ -989,9 +1023,136 @@ module.exports = {
   },
 
   /**
+   * 上报 push_clientid，写入 uni-id-device / opendb-device
+   * 自建登录不走 uni-id-pages 自动上报，需主动调用
+   */
+  async reportPushClientId(params = {}) {
+    try {
+      const push_clientid = params.push_clientid || params.pushClientId || ''
+      if (!push_clientid) {
+        return error('push_clientid 不能为空')
+      }
+
+      const user_id = await resolveUserId(this)
+      if (!user_id) {
+        return error('未获取到token，请先登录')
+      }
+
+      const clientInfo = this.getClientInfo() || {}
+      const device_id = clientInfo.deviceId || clientInfo.device_id || ''
+      const appid = clientInfo.appId || clientInfo.appid || '__UNI__863DB44'
+      const now = Date.now()
+      // 推送侧 check_token 关闭时不依赖此字段；仍写较长有效期便于排查
+      const token_expired = now + 90 * 24 * 60 * 60 * 1000
+      const db = uniCloud.database()
+
+      if (device_id) {
+        const deviceRes = await db.collection('uni-id-device')
+          .where({ device_id })
+          .limit(1)
+          .get()
+        if (deviceRes.data && deviceRes.data.length) {
+          await db.collection('uni-id-device').doc(deviceRes.data[0]._id).update({
+            user_id,
+            push_clientid,
+            token_expired,
+            appid
+          })
+        } else {
+          await db.collection('uni-id-device').add({
+            user_id,
+            device_id,
+            push_clientid,
+            token_expired,
+            appid,
+            create_date: now
+          })
+        }
+
+        try {
+          const openRes = await db.collection('opendb-device')
+            .where({ device_id })
+            .limit(1)
+            .get()
+          if (openRes.data && openRes.data.length) {
+            await db.collection('opendb-device').doc(openRes.data[0]._id).update({
+              push_clientid,
+              appid,
+              last_update_date: now
+            })
+          } else {
+            await db.collection('opendb-device').add({
+              appid,
+              device_id,
+              push_clientid,
+              uni_platform: clientInfo.uniPlatform || clientInfo.platform || 'mp-weixin',
+              create_date: now,
+              last_update_date: now
+            })
+          }
+        } catch (openErr) {
+          console.warn('[chat-send.reportPushClientId] opendb-device skip:', openErr.message || openErr)
+        }
+      } else {
+        // 无 deviceId 时按 user_id 覆盖一条
+        const byUser = await db.collection('uni-id-device')
+          .where({ user_id })
+          .limit(1)
+          .get()
+        if (byUser.data && byUser.data.length) {
+          await db.collection('uni-id-device').doc(byUser.data[0]._id).update({
+            push_clientid,
+            token_expired,
+            appid
+          })
+        } else {
+          await db.collection('uni-id-device').add({
+            user_id,
+            device_id: `uid_${user_id}`,
+            push_clientid,
+            token_expired,
+            appid,
+            create_date: now
+          })
+        }
+      }
+
+      return success({ push_clientid }, '已绑定推送标识')
+    } catch (e) {
+      console.error('[chat-send.reportPushClientId] failed:', e)
+      return error(e.message || '绑定推送标识失败')
+    }
+  },
+
+  /**
    * 获取当前用户聊天未读汇总，用于自定义底部导航消息红点
    */
   async getUnreadSummary() {
+    try {
+      const res = await this.pollUpdates({ mode: 'badge' })
+      return res
+    } catch (e) {
+      console.error('获取聊天未读汇总失败:', e)
+      return error(e.message || '获取失败')
+    }
+  },
+
+  /**
+   * 轻量轮询：供会话页/列表页/角标定时刷新，避免重复拉全量与关联查询
+   * @param {Object} params
+   * @param {'badge'|'conversation'|'list'} params.mode
+   * @param {String} [params.conversation_id] mode=conversation 必填
+   * @param {Number} [params.since_time] 仅返回该时间之后的消息
+   * @param {Number} [params.since_update_time] 仅返回该时间后有更新的会话
+   */
+  async pollUpdates(params = {}) {
+    const {
+      mode = 'badge',
+      conversation_id = '',
+      since_time = 0,
+      since_update_time = 0
+    } = params
+
     try {
       const db = uniCloud.database()
       const dbCmd = db.command
@@ -1000,40 +1161,150 @@ module.exports = {
         return error('未获取到token，请先登录')
       }
 
-      const userDoc = await db.collection('uni-id-users')
-        .doc(user_id)
-        .field({ role: true })
-        .get()
-      if (!userDoc.data || userDoc.data.length === 0) {
-        return error('用户不存在')
+      const server_time = Date.now()
+
+      // badge：只统计未读数（不校验资料完整度、不做联表）
+      if (mode === 'badge') {
+        const userDoc = await db.collection('uni-id-users')
+          .doc(user_id)
+          .field({ role: true })
+          .get()
+        if (!userDoc.data || !userDoc.data.length) {
+          return error('用户不存在')
+        }
+        const role = Array.isArray(userDoc.data[0].role)
+          ? userDoc.data[0].role[0]
+          : userDoc.data[0].role
+        const isParent = role === 'parent'
+        const whereCondition = isParent
+          ? { parent_id: user_id, parent_deleted: dbCmd.neq(true) }
+          : { teacher_id: user_id, teacher_deleted: dbCmd.neq(true) }
+        const field = isParent ? 'unread_count_parent' : 'unread_count_teacher'
+        const conversationRes = await db.collection('chat-conversations')
+          .where(whereCondition)
+          .field({ [field]: true })
+          .get()
+        const list = conversationRes.data || []
+        const unreadMessages = list.reduce((sum, item) => sum + Number(item[field] || 0), 0)
+        const unreadConversations = list.filter(item => Number(item[field] || 0) > 0).length
+        return success({
+          unreadMessages,
+          unreadConversations,
+          server_time
+        }, '获取成功')
       }
 
-      const user = userDoc.data[0]
-      const role = Array.isArray(user.role) ? user.role[0] : user.role
-      const isParent = role === 'parent'
-      const whereCondition = isParent
-        ? { parent_id: user_id, parent_deleted: dbCmd.neq(true) }
-        : { teacher_id: user_id, teacher_deleted: dbCmd.neq(true) }
-      const field = isParent ? 'unread_count_parent' : 'unread_count_teacher'
+      // conversation：增量拉新消息（无 count、无全量分页）
+      if (mode === 'conversation') {
+        if (!conversation_id) return error('会话ID不能为空')
+        const conversationDoc = await db.collection('chat-conversations')
+          .doc(conversation_id)
+          .field({ parent_id: true, teacher_id: true })
+          .get()
+        if (!conversationDoc.data || !conversationDoc.data.length) {
+          return error('会话不存在')
+        }
+        const conversation = conversationDoc.data[0]
+        if (user_id !== conversation.parent_id && user_id !== conversation.teacher_id) {
+          return error('无权查看此会话')
+        }
 
-      const conversationRes = await db.collection('chat-conversations')
-        .where(whereCondition)
-        .field({ [field]: true })
-        .get()
+        const since = Number(since_time) || 0
+        let query = db.collection('chat-messages').where(
+          since > 0
+            ? { conversation_id, send_time: dbCmd.gt(since) }
+            : { conversation_id }
+        )
+        const messageDoc = await query
+          .orderBy('send_time', 'asc')
+          .limit(since > 0 ? 50 : 20)
+          .get()
 
-      const list = conversationRes.data || []
-      const unreadMessages = list.reduce((sum, item) => {
-        return sum + Number(item[field] || 0)
-      }, 0)
-      const unreadConversations = list.filter(item => Number(item[field] || 0) > 0).length
+        const messages = (messageDoc.data || []).map(msg => ({
+          message_id: msg._id,
+          conversation_id: msg.conversation_id,
+          sender_id: msg.sender_id,
+          sender_role: msg.sender_role,
+          message_type: msg.message_type,
+          content: msg.content,
+          send_time: msg.send_time,
+          is_read: msg.is_read
+        }))
 
-      return success({
-        unreadMessages,
-        unreadConversations
-      }, '获取成功')
+        return success({
+          messages,
+          has_new: messages.length > 0,
+          server_time
+        }, '获取成功')
+      }
+
+      // list：轻量会话摘要（全量字段投影，不做对方资料联表）
+      if (mode === 'list') {
+        const userDoc = await db.collection('uni-id-users')
+          .doc(user_id)
+          .field({ role: true })
+          .get()
+        if (!userDoc.data || !userDoc.data.length) {
+          return error('用户不存在')
+        }
+        const role = Array.isArray(userDoc.data[0].role)
+          ? userDoc.data[0].role[0]
+          : userDoc.data[0].role
+        const isParent = role === 'parent'
+        const whereCondition = isParent
+          ? { parent_id: user_id, parent_deleted: dbCmd.neq(true) }
+          : { teacher_id: user_id, teacher_deleted: dbCmd.neq(true) }
+        const unreadField = isParent ? 'unread_count_parent' : 'unread_count_teacher'
+        const result = await db.collection('chat-conversations')
+          .where(whereCondition)
+          .field({
+            appointment_id: true,
+            parent_id: true,
+            teacher_id: true,
+            last_message: true,
+            last_message_time: true,
+            update_time: true,
+            status: true,
+            unread_count_parent: true,
+            unread_count_teacher: true,
+            teacher_deposit_paid: true,
+            deposit_paid: true,
+            chat_enabled: true
+          })
+          .orderBy('last_message_time', 'desc')
+          .limit(100)
+          .get()
+
+        const list = (result.data || []).map(item => ({
+          _id: item._id,
+          appointment_id: item.appointment_id,
+          parent_id: item.parent_id,
+          teacher_id: item.teacher_id,
+          last_message: item.last_message,
+          last_message_time: item.last_message_time || item.update_time || 0,
+          update_time: item.update_time || 0,
+          status: item.status,
+          unread_count: Number(item[unreadField] || 0),
+          unread_count_parent: Number(item.unread_count_parent || 0),
+          unread_count_teacher: Number(item.unread_count_teacher || 0),
+          deposit_paid: !!(item.teacher_deposit_paid || item.deposit_paid),
+          chat_enabled: item.chat_enabled
+        }))
+
+        const unreadMessages = list.reduce((sum, item) => sum + Number(item.unread_count || 0), 0)
+        return success({
+          list,
+          unreadMessages,
+          unreadConversations: list.filter(item => Number(item.unread_count || 0) > 0).length,
+          server_time,
+          role: isParent ? 'parent' : 'teacher'
+        }, '获取成功')
+      }
+
+      return error('不支持的轮询模式')
     } catch (e) {
-      console.error('获取聊天未读汇总失败:', e)
-      return error(e.message || '获取失败')
+      console.error('[chat-send.pollUpdates] failed', e)
+      return error(e.message || '轮询失败')
     }
   },
   

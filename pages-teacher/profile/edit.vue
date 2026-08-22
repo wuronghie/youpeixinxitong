@@ -151,11 +151,11 @@
 				<!-- 教育背景 -->
 				<card headTitle="教育背景" class="mb-3 section-card">
 					<view class="p-3">
-						<text class="section-tip d-block mb-3">院校、学历和专业会展示在教师主页，建议如实填写，提升资料可信度。</text>
+						<text class="section-tip d-block mb-3">是否在读、学历和专业会展示在教师主页，建议如实填写，提升资料可信度。</text>
 						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-school">
-							<text class="font-md">所在院校</text>
+							<text class="font-md">是否在读</text>
 							<picker :range="schoolOptions" range-key="label" @change="onSchoolChange">
-								<view class="font-sm picker-view" :class="formData.school ? '' : 'text-light-muted'">{{ getSchoolLabel(formData.school) || '请选择所在院校（可选）' }}</view>
+								<view class="font-sm picker-view" :class="formData.school ? '' : 'text-light-muted'">{{ getSchoolLabel(formData.school) || '请选择是否在读（可选）' }}</view>
 							</picker>
 						</view>
 						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-experience">
@@ -341,7 +341,7 @@ export default {
 				grades: [],
 				hourly_rate: 0,
 				experience_years: 0,
-				school: '',           // 所在院校
+				school: '',           // 是否在读（存院校/专职已毕业等枚举值）
 				experience: '',       // 教师资历
 				tags: [],            // 附加标签
 				education: { degree: '', school: '', major: '', graduation_year: null },
@@ -364,7 +364,7 @@ export default {
 			],
 			gradeOptions: ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '初一', '初二', '初三', '高一', '高二', '高三'],
 			degreeOptions: ['高中', '大专', '本科', '本科在读', '硕士', '硕士研究生在读', '博士', '博士研究生在读'],
-			// 所在院校选项
+			// 是否在读选项（在读院校 / 专职已毕业）
 			schoolOptions: [
 				{ label: '四川大学', value: '四川大学' },
 				{ label: '电子科技大学', value: '电子科技大学' },
@@ -1116,7 +1116,7 @@ export default {
 				isValid = false
 			}
 
-			// 注意：所在院校和教师资历不是必填字段，已移除必填验证
+			// 注意：是否在读和教师资历不是必填字段，已移除必填验证
 
 			// 如果有错误，打印日志并滚动到第一个错误位置
 			if (!isValid) {

@@ -51,6 +51,21 @@ function roundCurrency(value) {
   return Number(num.toFixed(2))
 }
 
+/**
+ * 云对象被其他云对象 importObject 调用时，this 上常无私有方法。
+ * 优先用当前 this；否则回退到 module.exports，保证 _createAndTransfer 等可调用。
+ */
+function getLocalRunner(ctx, methodName) {
+  if (ctx && typeof ctx[methodName] === 'function') return ctx
+  if (typeof module.exports[methodName] === 'function') return module.exports
+  throw new Error(`${methodName} is not a function`)
+}
+
+async function runLocal(ctx, methodName, ...args) {
+  const runner = getLocalRunner(ctx, methodName)
+  return runner[methodName].call(runner, ...args)
+}
+
 async function resolveTeacherId(context) {
   const token = context.getUniIdToken()
   if (!token) {
@@ -344,38 +359,194 @@ module.exports = {
    * @param {String} params.method 提现方式（默认 wxpay）
    * @param {String} params.remark 备注
    */
-  async applyWithdraw(params = {}) {
-    const db = uniCloud.database()
-    const { amount, method = 'wxpay', remark = '' } = params
+  async applyWithdraw() {
+    // 钱包暂时停用：课酬统一打微信零钱，不再支持余额提现
+    return error('钱包提现已暂时停用，课酬将直接打入微信零钱')
+  },
 
+  /**
+   * 直接商家转账到教师微信零钱（不入钱包余额）
+   * 供 payment-refund 试课退款 70% 打款使用
+   */
+  async directPayTeacher(params = {}) {
+    const {
+      teacher_id,
+      amount,
+      appointment_id = '',
+      remark = '试课课酬到账'
+    } = params
+
+    const logPrefix = '[teacher-wallet.directPayTeacher]'
     try {
-      const withdrawAmount = Number(amount)
-      if (!withdrawAmount || Number.isNaN(withdrawAmount)) {
-        return error('请输入合法的提现金额')
+      if (!teacher_id) {
+        console.warn(logPrefix, '失败：教师ID为空')
+        return error('教师ID不能为空', -1, { transfer_ok: false, fail_reason: '教师ID为空' })
       }
-      if (withdrawAmount < 0.3) {
-        return error('提现金额需不少于0.3元')
+      const payAmount = roundCurrency(amount)
+      if (payAmount < 0.3) {
+        console.warn(logPrefix, '失败：金额过低', { teacher_id, payAmount })
+        return error('打款金额需不少于0.3元', -1, {
+          transfer_ok: false,
+          fail_reason: `金额过低：${payAmount}`
+        })
       }
 
-      const teacher_id = await resolveTeacherId(this)
-      const result = await this._createAndTransfer({
+      console.log(logPrefix, '开始转账', {
         teacher_id,
-        amount: withdrawAmount,
-        method,
-        remark: remark || '教师提现',
-        source: 'manual'
+        amount: payAmount,
+        appointment_id,
+        remark
       })
-      return result
+
+      const db = uniCloud.database()
+      await ensureWalletExists(db, teacher_id)
+
+      // 退款云对象跨调用时 this._createAndTransfer 不存在，必须走 runLocal
+      const transferRes = await runLocal(this, '_createAndTransfer', {
+        teacher_id,
+        amount: payAmount,
+        method: 'wxpay',
+        remark,
+        source: 'auto_settle',
+        appointment_id,
+        skipBalanceFreeze: true
+      })
+
+      const data = (transferRes && transferRes.data) || {}
+      const status = data.status || ''
+      const code = transferRes && transferRes.code
+
+      // 打款已受理时记入累计收入（与 settleToWechat 一致，避免「累计收入」不更新）
+      const recordIncomeIfNeeded = async () => {
+        try {
+          if (appointment_id) {
+            const existTx = await db.collection(TRANSACTION_COLLECTION)
+              .where({
+                teacher_id,
+                appointment_id,
+                type: db.command.in(['income', 'refund'])
+              })
+              .limit(1)
+              .get()
+            if (existTx.data && existTx.data.length) return
+          }
+          await appendTransaction(db, teacher_id, {
+            type: 'income',
+            title: '试课课酬',
+            description: remark || '试课退款课酬70%',
+            amount: payAmount,
+            status: 'completed',
+            appointment_id: appointment_id || null,
+            source: 'trial_refund_pay'
+          })
+          await db.collection(WALLET_COLLECTION)
+            .where({ teacher_id })
+            .update({
+              total_income: db.command.inc(payAmount),
+              update_time: Date.now()
+            })
+        } catch (incomeErr) {
+          console.warn(logPrefix, '记累计收入失败（不影响打款）', incomeErr.message)
+        }
+      }
+
+      if (code === 0 && status === 'completed') {
+        await recordIncomeIfNeeded()
+        console.log(logPrefix, '成功：已转入微信零钱', {
+          teacher_id,
+          amount: payAmount,
+          withdraw_id: data.withdraw_id || data.request_id,
+          payment_no: data.payment_no
+        })
+        return success({
+          transfer_ok: true,
+          status: 'completed',
+          auto_transferred: true,
+          need_confirm: false,
+          amount: payAmount,
+          withdraw_id: data.withdraw_id || data.request_id || '',
+          payment_no: data.payment_no || '',
+          fail_reason: ''
+        }, '已转入教师微信零钱')
+      }
+
+      if (code === 0 && status === 'wait_confirm') {
+        await recordIncomeIfNeeded()
+        console.log(logPrefix, '待确认：需教师在微信确认收款', {
+          teacher_id,
+          amount: payAmount,
+          withdraw_id: data.withdraw_id || data.request_id,
+          has_package: !!data.package_info
+        })
+        return success({
+          transfer_ok: true,
+          status: 'wait_confirm',
+          auto_transferred: false,
+          need_confirm: true,
+          amount: payAmount,
+          withdraw_id: data.withdraw_id || data.request_id || '',
+          package_info: data.package_info || '',
+          mchId: data.mchId || '',
+          appId: data.appId || '',
+          fail_reason: '需教师在微信确认收款后到账'
+        }, '已发起转账，待教师确认收款')
+      }
+
+      if (code === 0 && status === 'pending') {
+        await recordIncomeIfNeeded()
+        console.log(logPrefix, '处理中：微信受理转账', {
+          teacher_id,
+          amount: payAmount,
+          payment_no: data.payment_no
+        })
+        return success({
+          transfer_ok: true,
+          status: 'pending',
+          auto_transferred: false,
+          need_confirm: false,
+          amount: payAmount,
+          withdraw_id: data.withdraw_id || data.request_id || '',
+          payment_no: data.payment_no || '',
+          fail_reason: '微信转账处理中'
+        }, '转账处理中')
+      }
+
+      const failReason = (transferRes && transferRes.message) || data.fail_reason || status || '转账失败'
+      console.error(logPrefix, '失败', {
+        teacher_id,
+        amount: payAmount,
+        appointment_id,
+        code,
+        status,
+        fail_reason: failReason,
+        raw: transferRes
+      })
+      return error(failReason, -1, {
+        transfer_ok: false,
+        status: status || 'failed',
+        auto_transferred: false,
+        need_confirm: false,
+        amount: payAmount,
+        fail_reason: failReason
+      })
     } catch (e) {
-      console.error('[teacher-wallet] 提现申请失败', e)
-      return error(e.message || '提现申请失败')
+      console.error(logPrefix, '异常', {
+        teacher_id,
+        amount,
+        appointment_id,
+        message: e.message,
+        stack: e.stack
+      })
+      return error(e.message || '直接打款异常', -1, {
+        transfer_ok: false,
+        fail_reason: e.message || '直接打款异常'
+      })
     }
   },
 
   /**
    * 课程结算后自动打款到微信零钱（由 appointment-complete 调用）
-   * 成功：不增加可提现余额，直接记累计提现
-   * 需确认/失败：金额留在钱包余额，教师可手动提现或确认收款
+   * 钱包暂时停用：不再把失败金额写入 balance，统一打零钱（含待确认）
    */
   async settleToWechat(params = {}) {
     const {
@@ -385,14 +556,15 @@ module.exports = {
       remark = '课程收入到账',
       income_title = '',
       income_type = 'income',
-      income_source = 'appointment_complete'
+      income_source = 'appointment_complete',
+      disable_wallet_fallback = true
     } = params
 
     try {
       if (!teacher_id) return error('教师ID不能为空')
       const settleAmount = roundCurrency(amount)
       if (settleAmount <= 0) {
-        return success({ skipped: true }, '无需打款')
+        return success({ skipped: true, settled: true }, '无需打款')
       }
 
       const db = uniCloud.database()
@@ -411,7 +583,7 @@ module.exports = {
         source: income_source
       })
 
-      // 累计收入始终增加
+      // 累计收入始终增加（统计用，不增加可提现余额）
       const _ = db.command
       await db.collection(WALLET_COLLECTION)
         .where({ teacher_id })
@@ -420,8 +592,7 @@ module.exports = {
           update_time: Date.now()
         })
 
-      // 尝试自动转账（不先加 balance，成功则记 total_withdraw；失败再加 balance）
-      const transferRes = await this._createAndTransfer({
+      const transferRes = await runLocal(this, '_createAndTransfer', {
         teacher_id,
         amount: settleAmount,
         method: 'wxpay',
@@ -438,65 +609,82 @@ module.exports = {
             ...transferRes.data,
             income_transaction_id: incomeTx && incomeTx.id,
             auto_transferred: true,
+            need_confirm: false,
             settled: true
           }, '收入已转入微信零钱')
         }
         if (status === 'wait_confirm') {
-          // 待确认：金额先入余额，教师确认后扣减
-          await db.collection(WALLET_COLLECTION)
-            .where({ teacher_id })
-            .update({
-              balance: _.inc(settleAmount),
-              update_time: Date.now()
-            })
+          // 待微信确认收款：不入钱包余额
           return success({
             ...transferRes.data,
             income_transaction_id: incomeTx && incomeTx.id,
             auto_transferred: false,
             need_confirm: true,
             settled: true
-          }, '请在钱包中确认收款')
+          }, '已发起转账，请教师在微信确认收款')
+        }
+        if (status === 'pending') {
+          return success({
+            ...transferRes.data,
+            income_transaction_id: incomeTx && incomeTx.id,
+            auto_transferred: false,
+            need_confirm: false,
+            settled: true
+          }, '转账处理中')
         }
       }
 
-      // 转账失败或处理中：金额入余额兜底
-      await db.collection(WALLET_COLLECTION)
-        .where({ teacher_id })
-        .update({
-          balance: _.inc(settleAmount),
-          update_time: Date.now()
-        })
-      return success({
-        auto_transferred: false,
-        need_confirm: false,
-        fail_reason: (transferRes && transferRes.message) || '自动转账未完成，已入钱包',
-        income_transaction_id: incomeTx && incomeTx.id,
-        settled: true,
-        ...(transferRes && transferRes.data ? transferRes.data : {})
-      }, '收入已入钱包，可手动提现')
-    } catch (e) {
-      console.error('[teacher-wallet] settleToWechat 失败', e)
-      try {
-        const db = uniCloud.database()
-        const _ = db.command
-        const settleAmount = roundCurrency(amount)
-        if (teacher_id && settleAmount > 0) {
-          await ensureWalletExists(db, teacher_id)
-          await db.collection(WALLET_COLLECTION)
-            .where({ teacher_id })
-            .update({
-              balance: _.inc(settleAmount),
-              update_time: Date.now()
-            })
-        }
+      const failReason = (transferRes && transferRes.message) || '自动转账未完成'
+      if (!disable_wallet_fallback) {
+        await db.collection(WALLET_COLLECTION)
+          .where({ teacher_id })
+          .update({
+            balance: _.inc(settleAmount),
+            update_time: Date.now()
+          })
         return success({
           auto_transferred: false,
           need_confirm: false,
+          fail_reason: failReason,
+          income_transaction_id: incomeTx && incomeTx.id,
           settled: true,
-          fail_reason: e.message || '自动转账异常，已入钱包'
+          ...(transferRes && transferRes.data ? transferRes.data : {})
         }, '收入已入钱包，可手动提现')
-      } catch (fallbackErr) {
-        console.error('[teacher-wallet] settleToWechat 余额兜底失败', fallbackErr)
+      }
+
+      console.error('[teacher-wallet] settleToWechat 打款失败且已禁用钱包兜底:', failReason)
+      return error(failReason, -1, {
+        auto_transferred: false,
+        need_confirm: false,
+        settled: false,
+        fail_reason: failReason,
+        income_transaction_id: incomeTx && incomeTx.id
+      })
+    } catch (e) {
+      console.error('[teacher-wallet] settleToWechat 失败', e)
+      if (!disable_wallet_fallback) {
+        try {
+          const db = uniCloud.database()
+          const _ = db.command
+          const settleAmount = roundCurrency(amount)
+          if (teacher_id && settleAmount > 0) {
+            await ensureWalletExists(db, teacher_id)
+            await db.collection(WALLET_COLLECTION)
+              .where({ teacher_id })
+              .update({
+                balance: _.inc(settleAmount),
+                update_time: Date.now()
+              })
+          }
+          return success({
+            auto_transferred: false,
+            need_confirm: false,
+            settled: true,
+            fail_reason: e.message || '自动转账异常，已入钱包'
+          }, '收入已入钱包，可手动提现')
+        } catch (fallbackErr) {
+          console.error('[teacher-wallet] settleToWechat 余额兜底失败', fallbackErr)
+        }
       }
       return error(e.message || '自动结算失败')
     }
@@ -518,7 +706,7 @@ module.exports = {
         .limit(10)
         .get()
 
-      const config = await this.getWeChatPayConfig()
+      const config = await runLocal(this, 'getWeChatPayConfig')
       const list = (res.data || []).map(item => ({
         _id: item._id,
         amount: item.amount,
@@ -552,7 +740,7 @@ module.exports = {
       if (withdraw.teacher_id !== teacher_id) return error('无权操作该提现单')
       if (!withdraw.out_bill_no) return error('缺少商户单号')
 
-      const queryRes = await this.queryWeChatTransfer(withdraw.out_bill_no)
+      const queryRes = await runLocal(this, 'queryWeChatTransfer', withdraw.out_bill_no)
       if (!queryRes.success) {
         return error(queryRes.message || '查询转账状态失败')
       }
@@ -562,7 +750,7 @@ module.exports = {
       const _ = db.command
 
       if (state === 'SUCCESS') {
-        await this._markWithdrawCompleted(db, withdraw, queryRes.transfer_bill_no || withdraw.payment_no)
+        await runLocal(this, '_markWithdrawCompleted', db, withdraw, queryRes.transfer_bill_no || withdraw.payment_no)
         return success({ status: 'completed' }, '已到账')
       }
 
@@ -615,12 +803,12 @@ module.exports = {
 
       // wait_confirm：优先查单；仍待确认则返回 package
       if (withdraw.status === 'wait_confirm' && withdraw.out_bill_no) {
-        const queryRes = await this.queryWeChatTransfer(withdraw.out_bill_no)
+        const queryRes = await runLocal(this, 'queryWeChatTransfer', withdraw.out_bill_no)
         if (queryRes.success && queryRes.state === 'SUCCESS') {
-          await this._markWithdrawCompleted(db, withdraw, queryRes.transfer_bill_no)
+          await runLocal(this, '_markWithdrawCompleted', db, withdraw, queryRes.transfer_bill_no)
           return success({ withdraw_id, status: 'completed' }, '提现已完成')
         }
-        const config = await this.getWeChatPayConfig()
+        const config = await runLocal(this, 'getWeChatPayConfig')
         return success({
           withdraw_id,
           status: 'wait_confirm',
@@ -636,7 +824,7 @@ module.exports = {
         if (Number(wallet.balance || 0) < Number(withdraw.amount || 0)) {
           return error('可提现余额不足，无法重试')
         }
-        return await this._createAndTransfer({
+        return await runLocal(this, '_createAndTransfer', {
           teacher_id: withdraw.teacher_id,
           amount: withdraw.amount,
           method: withdraw.method || 'wxpay',
@@ -648,7 +836,7 @@ module.exports = {
       }
 
       // pending：继续打款
-      return await this._transferExistingWithdraw(db, withdraw)
+      return await runLocal(this, '_transferExistingWithdraw', db, withdraw)
     } catch (e) {
       console.error('[teacher-wallet] 处理提现转账失败:', e)
       return error(e.message || '处理提现转账失败')
@@ -734,12 +922,11 @@ module.exports = {
 
     const withdrawDoc = await db.collection(WITHDRAW_COLLECTION).doc(withdrawId).get()
     const withdraw = withdrawDoc.data[0]
-    return await this._transferExistingWithdraw(db, withdraw, { skipBalanceFreeze })
+    return await runLocal(this, '_transferExistingWithdraw', db, withdraw, { skipBalanceFreeze })
   },
 
   async _transferExistingWithdraw(db, withdraw, options = {}) {
     const { skipBalanceFreeze = false } = options
-    const _ = db.command
     const now = Date.now()
 
     const userDoc = await db.collection('uni-id-users')
@@ -748,12 +935,12 @@ module.exports = {
       .get()
 
     if (!userDoc.data || !userDoc.data.length) {
-      return await this._failWithdraw(db, withdraw, '用户信息不存在', { skipBalanceFreeze })
+      return await runLocal(this, '_failWithdraw', db, withdraw, '用户信息不存在', { skipBalanceFreeze })
     }
 
     const openid = userDoc.data[0].wx_openid && userDoc.data[0].wx_openid.mp
     if (!openid) {
-      return await this._failWithdraw(db, withdraw, '未获取到教师微信OpenID，请先用微信登录小程序', { skipBalanceFreeze })
+      return await runLocal(this, '_failWithdraw', db, withdraw, '未获取到教师微信OpenID，请先用微信登录小程序', { skipBalanceFreeze })
     }
 
     const outBillNo = withdraw.out_bill_no || `TW${Date.now()}${Math.random().toString(36).slice(2, 8)}`.slice(0, 32)
@@ -762,7 +949,7 @@ module.exports = {
       update_time: now
     })
 
-    const transferResult = await this.callWeChatTransfer({
+    const transferResult = await runLocal(this, 'callWeChatTransfer', {
       openid,
       amount: Math.round(Number(withdraw.amount) * 100),
       description: (withdraw.remark || '教师课酬').slice(0, 32),
@@ -770,7 +957,7 @@ module.exports = {
     })
 
     if (transferResult.success && transferResult.state === 'SUCCESS') {
-      await this._markWithdrawCompleted(db, { ...withdraw, out_bill_no: outBillNo }, transferResult.payment_no, {
+      await runLocal(this, '_markWithdrawCompleted', db, { ...withdraw, out_bill_no: outBillNo }, transferResult.payment_no, {
         skipBalanceFreeze
       })
       return success({
@@ -789,11 +976,11 @@ module.exports = {
         payment_no: transferResult.payment_no || '',
         update_time: Date.now()
       })
-      await this._updateWithdrawTransaction(db, withdraw._id, {
+      await runLocal(this, '_updateWithdrawTransaction', db, withdraw._id, {
         status: 'pending',
         description: '待确认收款后到账'
       })
-      const config = await this.getWeChatPayConfig()
+      const config = await runLocal(this, 'getWeChatPayConfig')
       return success({
         request_id: withdraw._id,
         withdraw_id: withdraw._id,
@@ -821,7 +1008,9 @@ module.exports = {
       }, '转账处理中')
     }
 
-    return await this._failWithdraw(
+    return await runLocal(
+      this,
+      '_failWithdraw',
       db,
       { ...withdraw, out_bill_no: outBillNo },
       transferResult.message || '转账失败',
@@ -850,16 +1039,14 @@ module.exports = {
     }
     if (!skipBalanceFreeze && withdraw.source !== 'auto_settle') {
       walletUpdate.frozen_amount = _.inc(-amount)
-    } else if (withdraw.source === 'auto_settle' && withdraw.status === 'wait_confirm') {
-      // 自动结算待确认时余额已加过，确认成功后扣余额
-      walletUpdate.balance = _.inc(-amount)
     }
+    // auto_settle 已统一打零钱、不再入余额，确认到账时无需再扣 balance
 
     await db.collection(WALLET_COLLECTION)
       .where({ teacher_id: withdraw.teacher_id })
       .update(walletUpdate)
 
-    await this._updateWithdrawTransaction(db, withdraw._id, {
+    await runLocal(this, '_updateWithdrawTransaction', db, withdraw._id, {
       status: 'completed',
       description: `¥${amount}已到微信零钱`
     })
@@ -888,7 +1075,7 @@ module.exports = {
         })
     }
 
-    await this._updateWithdrawTransaction(db, withdraw._id, {
+    await runLocal(this, '_updateWithdrawTransaction', db, withdraw._id, {
       status: 'failed',
       description: `提现失败：${reason}`
     })
@@ -913,11 +1100,46 @@ module.exports = {
   },
 
   /**
+   * 阿里云必须走固定出口 IP 代理，否则微信商家转账会报「此IP地址不允许调用接口」
+   * 文档：https://doc.dcloud.net.cn/uniCloud/cf-functions.html#eip
+   * 需将代理 IP 全部加入商户平台「商家转账」IP 白名单：
+   * 47.92.132.2 / 47.92.152.34 / 47.92.87.58 / 47.92.207.183 / 8.142.185.204
+   */
+  async _requestWeChatPayEip(method, url, bodyStr, authHeaders) {
+    const headers = {
+      Accept: 'application/json',
+      ...(authHeaders || {})
+    }
+    let eipRes
+    if (method === 'GET') {
+      eipRes = await uniCloud.httpProxyForEip.get(url, {}, headers)
+    } else {
+      // 用 post + 原始 bodyStr，保证与签名原文一致（勿用 postJson 二次序列化）
+      headers['Content-Type'] = 'application/json'
+      eipRes = await uniCloud.httpProxyForEip.post(url, bodyStr || '', headers)
+    }
+
+    const status = eipRes.statusCodeValue != null
+      ? Number(eipRes.statusCodeValue)
+      : (eipRes.status != null ? Number(eipRes.status) : 0)
+    let data = eipRes.body
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data)
+      } catch (e) {
+        data = { message: data }
+      }
+    }
+    if (data == null) data = {}
+    return { status, data, headers: eipRes.headers || {} }
+  },
+
+  /**
    * 调用微信商家转账（新版 transfer-bills）
    */
   async callWeChatTransfer(params) {
     const { openid, amount, description, partner_trade_no } = params
-    const config = await this.getWeChatPayConfig()
+    const config = await runLocal(this, 'getWeChatPayConfig')
 
     if (!config.mchId || !config.appId || !config.privateKey || !config.serialNo) {
       console.error('[微信转账] 微信支付配置不完整', {
@@ -948,19 +1170,9 @@ module.exports = {
       }
 
       const bodyStr = JSON.stringify(requestBody)
-      const headers = this.buildWeChatPayHeaders(url, 'POST', bodyStr, config)
-
-      const response = await uniCloud.httpclient.request(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          ...headers
-        },
-        data: requestBody,
-        dataType: 'json',
-        timeout: 20000
-      })
+      const runner = getLocalRunner(this, 'buildWeChatPayHeaders')
+      const headers = runner.buildWeChatPayHeaders(url, 'POST', bodyStr, config)
+      const response = await runLocal(this, '_requestWeChatPayEip', 'POST', url, bodyStr, headers)
 
       console.log('[微信转账] API响应:', response.status, JSON.stringify(response.data))
 
@@ -974,7 +1186,8 @@ module.exports = {
         }
       }
 
-      const errorMsg = (response.data && (response.data.message || response.data.detail)) || `转账失败(${response.status})`
+      const errorMsg = (response.data && (response.data.message || response.data.detail || response.data.code)) ||
+        `转账失败(${response.status})`
       return { success: false, message: errorMsg }
     } catch (error) {
       console.error('[微信转账] API调用异常:', error)
@@ -986,22 +1199,15 @@ module.exports = {
   },
 
   async queryWeChatTransfer(outBillNo) {
-    const config = await this.getWeChatPayConfig()
+    const config = await runLocal(this, 'getWeChatPayConfig')
     if (!config.mchId || !config.privateKey || !config.serialNo) {
       return { success: false, message: '微信支付配置不完整' }
     }
     try {
       const url = `https://api.mch.weixin.qq.com/v3/fund-app/mch-transfer/transfer-bills/out-bill-no/${outBillNo}`
-      const headers = this.buildWeChatPayHeaders(url, 'GET', '', config)
-      const response = await uniCloud.httpclient.request(url, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          ...headers
-        },
-        dataType: 'json',
-        timeout: 15000
-      })
+      const runner = getLocalRunner(this, 'buildWeChatPayHeaders')
+      const headers = runner.buildWeChatPayHeaders(url, 'GET', '', config)
+      const response = await runLocal(this, '_requestWeChatPayEip', 'GET', url, '', headers)
       if (response.status === 200 && response.data) {
         return {
           success: true,
@@ -1013,7 +1219,7 @@ module.exports = {
       }
       return {
         success: false,
-        message: (response.data && response.data.message) || '查询失败'
+        message: (response.data && (response.data.message || response.data.detail)) || '查询失败'
       }
     } catch (e) {
       console.error('[微信转账] 查单失败:', e)

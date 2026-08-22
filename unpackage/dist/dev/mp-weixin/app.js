@@ -2,6 +2,9 @@
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const common_vendor = require("./common/vendor.js");
 const utils_trialConfirmReminder = require("./utils/trialConfirmReminder.js");
+const utils_chatPush = require("./utils/chatPush.js");
+const utils_oaBind = require("./utils/oaBind.js");
+const utils_oaFollow = require("./utils/oaFollow.js");
 const utils_pagePullDownRefresh = require("./utils/pagePullDownRefresh.js");
 if (!Math) {
   "./pages/index/index.js";
@@ -9,6 +12,7 @@ if (!Math) {
   "./pages/common/register.js";
   "./pages/common/agreement.js";
   "./pages/common/webview.js";
+  "./pages/common/follow-oa.js";
   "./pages/teacher/list.js";
   "./pages/teacher/detail.js";
   "./pages/appointment/create.js";
@@ -54,16 +58,27 @@ if (!Math) {
 }
 const _sfc_main = {
   onLaunch: function() {
-    common_vendor.index.__f__("log", "at App.vue:6", "App Launch");
+    common_vendor.index.__f__("log", "at App.vue:9", "[App] Launch → 初始化 push 监听与 cid 绑定");
+    utils_chatPush.setupChatPushListener();
+    utils_chatPush.bindPushClientId().then((ok) => {
+      common_vendor.index.__f__("log", "at App.vue:12", "[App] 启动绑定 cid 结果=", ok);
+    });
+    utils_oaBind.syncOaBind({ force: true });
   },
   onShow: function() {
-    common_vendor.index.__f__("log", "at App.vue:9", "App Show");
+    common_vendor.index.__f__("log", "at App.vue:17", "[App] Show → 重新绑定 cid");
+    utils_chatPush.bindPushClientId().then((ok) => {
+      common_vendor.index.__f__("log", "at App.vue:19", "[App] Show 绑定 cid 结果=", ok);
+    });
+    utils_oaBind.syncOaBind().then(() => {
+      utils_oaFollow.promptFollowOfficialAccount({ delayMs: 1500 });
+    });
     setTimeout(() => {
       utils_trialConfirmReminder.checkPendingTrialConfirmReminder();
     }, 600);
   },
   onHide: function() {
-    common_vendor.index.__f__("log", "at App.vue:15", "App Hide");
+    common_vendor.index.__f__("log", "at App.vue:31", "App Hide");
   }
 };
 function createApp() {

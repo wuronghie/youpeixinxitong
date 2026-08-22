@@ -1,6 +1,7 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_auth = require("../../utils/auth.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const _sfc_main = {
   name: "Login",
@@ -51,13 +52,13 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "叁谦 · 家教帮登录",
+      title: "优培信息通登录",
       path: "/pages/login/index"
     };
   },
   onShareTimeline() {
     return {
-      title: "叁谦 · 家教帮登录"
+      title: "优培信息通登录"
     };
   },
   methods: {
@@ -109,16 +110,16 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "请先阅读并勾选同意《用户协议》和《隐私政策》", icon: "none" });
         return;
       }
-      common_vendor.index.__f__("log", "at pages/login/index.vue:214", "[login] 使用角色:", this.selectedRole);
+      common_vendor.index.__f__("log", "at pages/login/index.vue:215", "[login] 使用角色:", this.selectedRole);
       this.isLogging = true;
       try {
         const loginRes = await new Promise((resolve, reject) => {
           common_vendor.index.login({ provider: "weixin", success: resolve, fail: reject });
         });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:220", "[login] 获取到微信code:", loginRes.code);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:221", "[login] 获取到微信code:", loginRes.code);
         const userLogin = common_vendor.tr.importObject("user-login", { customUI: true });
         const res = await userLogin.login({ code: loginRes.code, role: this.selectedRole });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:224", "[login] 云函数返回:", res);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:225", "[login] 云函数返回:", res);
         if (res.code === 0) {
           let { token, userInfo } = res.data;
           if (token) {
@@ -129,12 +130,13 @@ const _sfc_main = {
             utils_auth.setStoredUserInfo(userInfo);
           }
           common_vendor.index.setStorageSync("last_role", this.selectedRole);
+          utils_chatPush.bindPushClientId();
           common_vendor.index.showToast({ title: "登录成功", icon: "success" });
           try {
             const freshInfo = await utils_auth.fetchRemoteUserInfo({ token });
             userInfo = freshInfo || userInfo;
           } catch (fetchError) {
-            common_vendor.index.__f__("warn", "at pages/login/index.vue:242", "获取最新用户信息失败，使用登录返回的数据", fetchError);
+            common_vendor.index.__f__("warn", "at pages/login/index.vue:244", "获取最新用户信息失败，使用登录返回的数据", fetchError);
           }
           if (userInfo && userInfo.role) {
             if (userInfo.role === "parent") {
@@ -145,12 +147,12 @@ const _sfc_main = {
                   await inviteCenter.acceptInvite({ invite_code: pendingCode });
                   common_vendor.index.removeStorageSync("pending_invite_code");
                 } catch (inviteErr) {
-                  common_vendor.index.__f__("error", "at pages/login/index.vue:254", "[login] 处理邀请关系失败:", inviteErr);
+                  common_vendor.index.__f__("error", "at pages/login/index.vue:256", "[login] 处理邀请关系失败:", inviteErr);
                 }
               }
             }
             const profileCheck = await utils_auth.checkProfileComplete(userInfo);
-            common_vendor.index.__f__("log", "at pages/login/index.vue:261", "[login] 信息检查结果:", profileCheck);
+            common_vendor.index.__f__("log", "at pages/login/index.vue:263", "[login] 信息检查结果:", profileCheck);
             utils_auth.redirectByRole(userInfo.role);
             if (!profileCheck.isComplete) {
               setTimeout(() => {
@@ -174,7 +176,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "登录失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/login/index.vue:290", "登录失败:", error);
+        common_vendor.index.__f__("error", "at pages/login/index.vue:292", "登录失败:", error);
         common_vendor.index.showToast({ title: "登录失败，请稍后再试", icon: "none" });
       } finally {
         this.isLogging = false;

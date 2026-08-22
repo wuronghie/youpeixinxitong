@@ -3,7 +3,7 @@
 		{
 			"path": "pages/index/index",
 			"style": {
-				"navigationBarTitleText": "家教帮",
+				"navigationBarTitleText": "优培信息通",
 				"enablePullDownRefresh": false,
 				"enableShareAppMessage": true,
 				"enableShareTimeline": true
@@ -40,6 +40,13 @@
 			"path": "pages/common/webview",
 			"style": {
 				"navigationBarTitleText": "网页浏览",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/common/follow-oa",
+			"style": {
+				"navigationBarTitleText": "关注服务号",
 				"enablePullDownRefresh": false
 			}
 		},
@@ -400,7 +407,7 @@
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
-		"navigationBarTitleText": "家教帮",
+		"navigationBarTitleText": "优培信息通",
 		"navigationBarBackgroundColor": "#FFFFFF",
 		"backgroundColor": "#F8F8F8",
 		"enablePullDownRefresh": true,

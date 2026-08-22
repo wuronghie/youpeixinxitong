@@ -82,7 +82,7 @@
 		<card headTitle="费用信息" bodyPadding>
 			<view class="d-flex a-center j-sb py-2">
 				<text class="font-md main-text-color">课程费用</text>
-				<text class="font-md main-text-color font-weight">¥{{ Number(appointment.amount || 0).toFixed(2) }}</text>
+				<text class="font-md main-text-color font-weight">¥{{ Number(courseAmount || 0).toFixed(2) }}</text>
 			</view>
 			<!-- 优惠券选择 -->
 			<view 
@@ -174,7 +174,15 @@
 					class="action-refund-link"
 					@click="handleRefund"
 				>
-					遇到老师爽约等异常？申请退款
+					申请退款（需平台审核）
+				</button>
+				<button
+					v-if="canRepairTeacherPay"
+					class="action-refund-link"
+					:disabled="repairingTeacherPay"
+					@click="handleRepairTeacherPay"
+				>
+					{{ repairingTeacherPay ? '补打款处理中...' : '补打教师课酬（70%转微信）' }}
 				</button>
 				</view>
 				<button 
@@ -231,11 +239,13 @@ export default {
 			appointment: {},
 			// 优惠券相关
 			availableCoupons: [],
+			couponsLoaded: false,
 			couponPreview: null, // 试算结果：originalAmount / discountAmount / payableAmount 等
 			couponLoading: false,
 			isLoading: false,
 			isRefreshing: false,
 			navigatingToReview: false,
+			repairingTeacherPay: false,
 			scrollTop: 0,
 			canRefresh: true,
 			// 默认头像URL（从CDN）
@@ -318,21 +328,30 @@ export default {
 			const apt = this.appointment || {}
 			return apt.course_type === 'trial' && apt.invited_by === 'teacher'
 		},
-		// 是否有可用优惠券（根据列表和金额动态判断）
-		canUseCoupon() {
-			if (!this.appointment) return false
-			const amount = Number(this.appointment.amount || 0)
-			if (!amount) return false
-			if (!this.availableCoupons || this.availableCoupons.length === 0) return false
-			// 简单按最低消费本地筛一遍
-			return this.availableCoupons.some(c => {
+		courseAmount() {
+			const apt = this.appointment || {}
+			const direct = Number(apt.amount || apt.total_amount || 0)
+			if (Number.isFinite(direct) && direct > 0) return direct
+			const rate = Number(apt.hourly_rate || apt.houry_rate || 0)
+			const duration = Number(apt.duration || 2)
+			if (Number.isFinite(rate) && rate > 0) return Number((rate * duration).toFixed(2))
+			return 0
+		},
+		// 当前金额下真正可用的券
+		usableCoupons() {
+			const amount = this.courseAmount
+			if (!amount || !this.availableCoupons.length) return []
+			return this.availableCoupons.filter(c => {
 				const min = Number(c.min_spend || 0)
 				return !min || amount >= min
 			})
 		},
+		canUseCoupon() {
+			return this.usableCoupons.length > 0
+		},
 		// 实际应付金额（考虑优惠券）
 		payableAmount() {
-			const base = Number(this.appointment?.amount || 0)
+			const base = this.courseAmount
 			if (!this.couponPreview) return base
 			const pRaw = this.couponPreview.payableAmount
 			const p = Number(pRaw)
@@ -342,7 +361,7 @@ export default {
 		},
 		// 优惠金额
 		couponDiscountAmount() {
-			const base = Number(this.appointment?.amount || 0)
+			const base = this.courseAmount
 			const pay = Number(this.payableAmount)
 			if (!base || Number.isNaN(pay) || pay < 0) return 0
 			const diff = base - pay
@@ -350,9 +369,7 @@ export default {
 		},
 		// 费用区块里优惠券行的展示文案
 		couponDisplayText() {
-			if (!this.canUseCoupon) {
-				return '暂无可用优惠券'
-			}
+			if (this.couponLoading && !this.couponsLoaded) return '加载中...'
 			if (this.couponPreview && this.couponPreview.couponName) {
 				const discount = Number(this.couponDiscountAmount || 0)
 				if (discount > 0) {
@@ -360,7 +377,10 @@ export default {
 				}
 				return this.couponPreview.couponName
 			}
-			return '请选择优惠券'
+			if (!this.couponsLoaded) return '请选择优惠券'
+			if (!this.availableCoupons.length) return '暂无可用优惠券'
+			if (!this.canUseCoupon) return '未满使用门槛'
+			return `请选择优惠券（${this.usableCoupons.length}张可用）`
 		},
 		canRefund() {
 			if (!this.appointment || !this.isParentPaid) {
@@ -372,6 +392,16 @@ export default {
 			const allowStatuses = ['pending_confirm', 'confirmed', 'in_progress']
 			const disallowStatuses = ['refunding', 'refunded', 'cancelled', 'rejected', 'completed']
 			return allowStatuses.includes(this.appointment.status) && !disallowStatuses.includes(this.appointment.status)
+		},
+		/** 家长已退款成功，但教师微信课酬尚未打出时，允许补打款 */
+		canRepairTeacherPay() {
+			if (!this.appointment || this.appointment.course_type !== 'trial') return false
+			if (!this.isParentPaid) return false
+			if (this.appointment.teacher_paid_wechat) return false
+			const refundedLike = ['cancelled', 'refunded'].includes(this.appointment.status) ||
+				this.appointment.refund_status === 'success' ||
+				this.appointment.refund_status === 'partial_auto'
+			return refundedLike
 		},
 		payButtonText() {
 			return '支付课程费'
@@ -395,6 +425,7 @@ export default {
 			       this.canShowConfirmButton ||
 			       (this.appointment.status === 'completed' && !this.appointment.has_review) ||
 			       this.canRefund ||
+			       this.canRepairTeacherPay ||
 			       (this.appointment.status === 'pending_confirm' && !this.isParentPaid && !this.canPayCourse)
 		},
 		canShowConfirmButton() {
@@ -474,7 +505,14 @@ export default {
 						date: data.date || data.appointment_date,
 						time: data.start_time || data.appointment_time,
 						duration: data.duration,
-						amount: data.total_amount || data.total_fee,
+						amount: (() => {
+							const total = Number(data.total_amount || data.total_fee || 0)
+							if (total > 0) return total
+							const rate = Number(data.trial_invite_hourly_rate || data.hourly_rate || data.teacher_info?.hourly_rate || 0)
+							const duration = Number(data.duration || 2)
+							return rate > 0 ? Number((rate * duration).toFixed(2)) : 0
+						})(),
+						total_amount: Number(data.total_amount || data.total_fee || 0),
 						houry_rate: data.trial_invite_hourly_rate || data.hourly_rate || data.teacher_info?.hourly_rate,
 						hourly_rate: data.trial_invite_hourly_rate || data.hourly_rate || data.teacher_info?.hourly_rate,
 						address: this.formatAddress(data.lesson_mode, data.address),
@@ -521,6 +559,14 @@ export default {
 						this.appointment.parent_paid = true
 					}
 					await this.syncAttendanceStatus()
+					// 待支付时预加载优惠券，避免界面一直显示「暂无可用」
+					if (this.canPayCourse) {
+						this.loadAvailableCoupons(false)
+					} else {
+						this.availableCoupons = []
+						this.couponsLoaded = false
+						this.couponPreview = null
+					}
 				} else {
 					throw new Error(res.message || '获取预约详情失败')
 				}
@@ -776,6 +822,27 @@ export default {
 			return `${month}-${day} ${hour}:${minute}`
 		},
 		// 打开优惠券选择
+		async loadAvailableCoupons(force = false) {
+			if (this.couponLoading) return
+			if (this.couponsLoaded && !force) return
+			this.couponLoading = true
+			try {
+				const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
+				const res = await couponCenter.getAvailableCoupons({ role: 'parent' })
+				if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
+					this.availableCoupons = res.data.list
+				} else {
+					this.availableCoupons = []
+				}
+				this.couponsLoaded = true
+			} catch (e) {
+				console.error('[appointment/detail] 加载优惠券失败:', e)
+				this.availableCoupons = []
+				this.couponsLoaded = true
+			} finally {
+				this.couponLoading = false
+			}
+		},
 		async openCouponSelector() {
 			if (!this.canPayCourse) return
 			if (!this.appointmentId) {
@@ -783,63 +850,56 @@ export default {
 				return
 			}
 			if (this.couponLoading) return
-			
-			const amount = Number(this.appointment.amount || 0)
+
+			const amount = this.courseAmount
 			if (!amount) {
 				uni.showToast({ title: '课程金额异常，无法使用优惠券', icon: 'none' })
 				return
 			}
-			
+
 			try {
-				this.couponLoading = true
-				// 首次打开时从云端拉取可用优惠券
-				if (!this.availableCoupons || this.availableCoupons.length === 0) {
-					const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
-					const res = await couponCenter.getAvailableCoupons()
-					if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
-						this.availableCoupons = res.data.list
-					} else {
-						this.availableCoupons = []
-					}
-				}
-				
-				if (!this.canUseCoupon) {
+				await this.loadAvailableCoupons(true)
+
+				if (!this.availableCoupons.length) {
 					uni.showToast({ title: '暂无可用优惠券', icon: 'none' })
 					return
 				}
-				
-				// 本地按金额过滤一遍可用券
-				const usableCoupons = this.availableCoupons.filter(c => {
-					const min = Number(c.min_spend || 0)
-					return !min || amount >= min
-				})
-				
+
+				const usableCoupons = this.usableCoupons
 				if (!usableCoupons.length) {
-					uni.showToast({ title: '当前金额未达到优惠券使用门槛', icon: 'none' })
+					const mins = this.availableCoupons
+						.map(c => Number(c.min_spend || 0))
+						.filter(n => n > 0)
+					const minNeed = mins.length ? Math.min(...mins) : 0
+					uni.showToast({
+						title: minNeed > 0
+							? `当前金额¥${amount.toFixed(2)}，需满¥${minNeed.toFixed(2)}可用`
+							: '当前金额未达到优惠券使用门槛',
+						icon: 'none'
+					})
 					return
 				}
-				
+
 				const itemList = ['不使用优惠券', ...usableCoupons.map(c => {
 					const min = Number(c.min_spend || 0)
 					const title = c.type === 'amount'
 						? `减¥${Number(c.amount || 0).toFixed(2)}`
-						: `${Number(c.discount * 10 || 0).toFixed(1)}折`
+						: `${(Number(c.discount || 0) * 10).toFixed(1)}折`
 					const minText = min > 0 ? `（满¥${min.toFixed(2)}可用）` : ''
 					return `${c.name || '优惠券'} ${title}${minText}`
 				})]
-				
+
 				uni.showActionSheet({
 					itemList,
 					success: async (res) => {
 						const index = res.tapIndex
 						if (index === 0) {
-							// 不使用优惠券
 							this.couponPreview = null
 							return
 						}
 						const couponRecord = usableCoupons[index - 1]
 						if (!couponRecord) return
-						
+
 						try {
 							const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
 							const previewRes = await couponCenter.previewForAppointment({
@@ -863,13 +923,11 @@ export default {
 			} catch (error) {
 				console.error('打开优惠券选择失败:', error)
 				uni.showToast({ title: '加载优惠券失败', icon: 'none' })
-			} finally {
-				this.couponLoading = false
 			}
 		},
 		async handlePay() {
 			if (!this.appointmentId) return
-			const baseAmount = Number(this.appointment.amount || 0)
+			const baseAmount = this.courseAmount
 			// 优先使用优惠后应付金额（即使为 0 元也视为合法），否则回退到原价
 			const hasCouponPreview = !!this.couponPreview
 			const rawPayable = hasCouponPreview ? this.payableAmount : baseAmount
@@ -1254,6 +1312,43 @@ export default {
 			}
 			this.openReviewPage(actionId)
 		},
+		async handleRepairTeacherPay() {
+			if (!this.appointmentId || this.repairingTeacherPay) return
+			if (!this.canRepairTeacherPay) {
+				uni.showToast({ title: '当前无需补打款', icon: 'none' })
+				return
+			}
+			this.repairingTeacherPay = true
+			uni.showLoading({ title: '补打款中...', mask: true })
+			try {
+				const refundObj = uniCloud.importObject('payment-refund', { customUI: true })
+				const res = await refundObj.repairTeacherPay({ appointment_id: this.appointmentId })
+				uni.hideLoading()
+				if (res.code === 0) {
+					uni.showModal({
+						title: '补打款结果',
+						content: res.message || '已处理',
+						showCancel: false,
+						success: () => this.loadDetail()
+					})
+				} else {
+					uni.showModal({
+						title: '补打款失败',
+						content: res.message || '请稍后重试或联系客服',
+						showCancel: false
+					})
+				}
+			} catch (e) {
+				uni.hideLoading()
+				uni.showModal({
+					title: '补打款失败',
+					content: e.message || '网络异常',
+					showCancel: false
+				})
+			} finally {
+				this.repairingTeacherPay = false
+			}
+		},
 		async handleRefund() {
 			if (!this.appointmentId) return
 			
@@ -1347,6 +1442,17 @@ export default {
 								})
 								return
 							} else if (refund.status === 'approved' || refund.status === 'completed' || refund.status === 'success') {
+								if (this.canRepairTeacherPay) {
+									uni.showModal({
+										title: '家长退款已完成',
+										content: '教师课酬尚未到账，是否立即补打 70% 到教师微信零钱？',
+										confirmText: '补打款',
+										success: (modalRes) => {
+											if (modalRes.confirm) this.handleRepairTeacherPay()
+										}
+									})
+									return
+								}
 								uni.showModal({
 									title: '提示',
 									content: '退款已完成，无法再次申请',

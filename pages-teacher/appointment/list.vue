@@ -130,13 +130,13 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: '家教帮 · 教师预约管理',
+			title: '优培信息通 · 教师预约管理',
 			path: '/pages-teacher/appointment/list'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '家教帮 · 教师预约管理'
+			title: '优培信息通 · 教师预约管理'
 		}
 	},
 	methods: {

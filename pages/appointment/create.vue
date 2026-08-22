@@ -53,7 +53,7 @@
 						<text class="iconfont icon-huangguan main-text-color mr-2" style="font-size: 40rpx;"></text>
 						<view class="flex-1">
 							<text class="font-md font-weight d-block mb-1">老师邀请您预约试课</text>
-							<text class="font-sm text-light-muted">2小时试课，不满意可退一半</text>
+							<text class="font-sm text-light-muted">2小时试课，不满意可退30%</text>
 						</view>
 						<text class="font-md font-weight main-text-color">¥{{ trialPrice }}</text>
 					</view>
@@ -74,7 +74,7 @@
 							<text class="font-sm" :class="formData.time ? '' : 'text-light-muted'">{{ formData.time || '请选择' }}</text>
 						</view>
 					</picker>
-					<view class="text-light-muted font-sm mt-2">最早可约一小时后开课；课程默认持续 2 小时，如需调整可与老师沟通修改。</view>
+					<view class="text-light-muted font-sm mt-2">{{ bookingTimeTip }}</view>
 				</card>
 
 				<!-- 学生信息 -->
@@ -169,7 +169,7 @@
 						<text class="main-text-color font-md font-weight">¥{{ totalAmount }}</text>
 					</view>
 					<view class="text-light-muted font-sm mt-2 pt-2 border-top" v-if="formData.courseType === 'trial'">
-						试课费用为2小时价格（{{ hourlyRate }}元/小时 × 2小时）。如不满意可申请退款，将退还1小时费用（50%）。
+						试课费用为2小时价格（{{ hourlyRate }}元/小时 × 2小时）。不满意可退30%（原路退回），其余70%结算给教师。
 					</view>
 					<view class="text-light-muted font-sm mt-2 pt-2 border-top" v-else>
 						正式课程结束后，如正式长线合作，费用将根据课时套餐调整。
@@ -267,11 +267,23 @@ export default {
 			const rate = Number(this.teacherInfo?.hourly_rate)
 			return Number.isFinite(rate) && rate > 0 ? rate : 100
 		},
-		/** 最早可约时刻（当前时间 + 1 小时） */
+		/** 试课（含邀请）不限制时段；正式课仍要求提前约 */
+		isTrialBooking() {
+			return this.formData.courseType === 'trial' || !!this.formData.invite_id || !!this.routeInviteId
+		},
+		bookingTimeTip() {
+			if (this.isTrialBooking) {
+				return '试课上课时间不限，可随时预约；课程默认持续 2 小时，如需调整可与老师沟通修改。'
+			}
+			return '最早可约一小时后开课；可选时段 08:00–21:00；课程默认持续 2 小时，如需调整可与老师沟通修改。'
+		},
+		/** 最早可约时刻（正式课：当前 + 1 小时；试课：不限） */
 		earliestBookableAt() {
+			if (this.isTrialBooking) return new Date(0)
 			return new Date(Date.now() + 60 * 60 * 1000)
 		},
 		timePickerStart() {
+			if (this.isTrialBooking) return '00:00'
 			const earliest = this.earliestBookableAt
 			const earliestDate = this.formatDate(earliest)
 			if (this.formData.date === earliestDate) {
@@ -283,7 +295,7 @@ export default {
 			return '08:00'
 		},
 		timePickerEnd() {
-			return '21:00'
+			return this.isTrialBooking ? '23:59' : '21:00'
 		},
 		trialPrice() {
 			if (this.formData.invite_id && this.inviteTotalAmount > 0) {
@@ -341,6 +353,8 @@ export default {
 			if (this.routeInviteId) {
 				this.formData.invite_id = this.routeInviteId
 				this.formData.courseType = 'trial'
+				// 邀请试课：按不限时段重算可选日期
+				this.setupDateRange()
 				const ok = await this.loadInviteInfo(this.routeInviteId)
 				if (!ok) return
 				if (this.shouldFetchTeacherDetail()) {
@@ -363,12 +377,15 @@ export default {
 	methods: {
 		setupDateRange() {
 			const now = new Date()
-			const earliest = new Date(now.getTime() + 60 * 60 * 1000)
-			// 若一小时后已超过当日可约时段（21:00），则从次日开始
-			let startDate = earliest
-			const earliestHm = `${String(earliest.getHours()).padStart(2, '0')}:${String(earliest.getMinutes()).padStart(2, '0')}`
-			if (earliestHm > '21:00') {
-				startDate = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate() + 1)
+			let startDate = now
+			// 正式课：最早一小时后；超过当日 21:00 则从次日开始。试课不限。
+			if (!this.isTrialBooking) {
+				const earliest = new Date(now.getTime() + 60 * 60 * 1000)
+				startDate = earliest
+				const earliestHm = `${String(earliest.getHours()).padStart(2, '0')}:${String(earliest.getMinutes()).padStart(2, '0')}`
+				if (earliestHm > '21:00') {
+					startDate = new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate() + 1)
+				}
 			}
 			const oneMonthLater = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate())
 			this.dateOptions.start = this.formatDate(startDate)
@@ -524,7 +541,7 @@ export default {
 		},
 		onTimeChange(e) {
 			const time = e.detail.value
-			if (time < this.timePickerStart) {
+			if (!this.isTrialBooking && time < this.timePickerStart) {
 				uni.showToast({ title: '请选择一小时后的时间', icon: 'none' })
 				this.formData.time = ''
 				return
@@ -639,7 +656,8 @@ export default {
 			if (!scheduleTs || Number.isNaN(scheduleTs)) {
 				return '上课时间格式不正确'
 			}
-			if (scheduleTs < Date.now() + 60 * 60 * 1000) {
+			// 试课不限制上课时间；正式课仍须至少提前一小时
+			if (!this.isTrialBooking && scheduleTs < Date.now() + 60 * 60 * 1000) {
 				return '上课时间须至少在一小时之后'
 			}
 			if (!this.formData.studentName) {

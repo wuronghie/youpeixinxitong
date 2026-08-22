@@ -4,6 +4,8 @@ const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_appointmentTeacherPreview = require("../../utils/appointmentTeacherPreview.js");
+const utils_chatPoll = require("../../utils/chatPoll.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const _sfc_main = {
   name: "ChatConversation",
   mixins: [utils_pullRefreshMixin.pullRefreshMixin],
@@ -25,10 +27,9 @@ const _sfc_main = {
       scrollTop: 0,
       canRefresh: true,
       currentUserRole: "parent",
-      // 消息轮询定时器
+      // 消息轮询定时器（push 为主，长间隔兜底）
       pollTimer: null,
-      pollInterval: 5e3,
-      // 5秒轮询一次
+      pollInterval: utils_chatPoll.CHAT_POLL_INTERVAL.conversation,
       currentUserInfo: {},
       otherUserInfo: {
         nickname: "",
@@ -107,8 +108,8 @@ const _sfc_main = {
     }
   },
   onLoad(options) {
-    this.conversationId = options.conversationId || "";
-    this.appointmentId = options.appointmentId || "";
+    this.conversationId = options.conversationId || options.conversation_id || options.id || "";
+    this.appointmentId = options.appointmentId || options.appointment_id || "";
     this.useMock = utils_mockData.useMockData() === true;
     const userInfo = common_vendor.index.getStorageSync("userInfo");
     if (userInfo) {
@@ -118,32 +119,66 @@ const _sfc_main = {
         avatar: userInfo.avatar || defaultAvatarUrl
       };
     }
-    this.$nextTick(() => {
-      setTimeout(() => {
-        this.initConversation();
-      }, 100);
-    });
+    this.initConversation();
   },
   async onShow() {
+    if (!this.isInitialized && !this.initPromise) {
+      this.initConversation();
+    }
     if (this.initPromise) {
       await this.initPromise;
     }
     if (this.isInitialized && this.conversationId && !this.useMock) {
+      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:286", "[parent-chat] onShow 就绪，绑定 push，conversationId=", this.conversationId);
       this.loadNewMessages();
       this.startPolling();
+      this.bindChatPush();
+    } else {
+      common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:291", "[parent-chat] onShow 未绑定 push", {
+        isInitialized: this.isInitialized,
+        conversationId: this.conversationId,
+        useMock: this.useMock
+      });
     }
   },
   onHide() {
     this.stopPolling();
+    this.unbindChatPush();
   },
   onUnload() {
     this.stopPolling();
+    this.unbindChatPush();
     if (this.refreshTipTimer) {
       clearTimeout(this.refreshTipTimer);
       this.refreshTipTimer = null;
     }
   },
   methods: {
+    bindChatPush() {
+      if (this._onChatPush) {
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:315", "[parent-chat] push 已绑定，跳过");
+        return;
+      }
+      this._onChatPush = (payload) => {
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:319", "[parent-chat] 收到 push，准备拉增量", payload, "当前会话=", this.conversationId);
+        if (!this.conversationId)
+          return;
+        if (payload && payload.conversation_id && payload.conversation_id !== this.conversationId) {
+          common_vendor.index.__f__("log", "at pages/chat/conversation.vue:322", "[parent-chat] 非本会话 push，忽略");
+          return;
+        }
+        this.loadNewMessages();
+      };
+      utils_chatPush.onChatPush(this._onChatPush);
+      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:328", "[parent-chat] 已订阅 chat:push");
+    },
+    unbindChatPush() {
+      if (!this._onChatPush)
+        return;
+      utils_chatPush.offChatPush(this._onChatPush);
+      this._onChatPush = null;
+      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:334", "[parent-chat] 已取消订阅 chat:push");
+    },
     /**
      * 启动消息轮询
      */
@@ -155,6 +190,7 @@ const _sfc_main = {
             return;
           }
           this.loadNewMessages();
+          this.loadTrialInviteStatuses();
         }, this.pollInterval);
       }
     },
@@ -168,10 +204,12 @@ const _sfc_main = {
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:316", "[chat-conversation] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages/chat/conversation.vue:365", "[chat-conversation] 下拉刷新：重新加载消息");
       await this.refreshMessages();
     },
     async initConversation() {
+      if (this.initPromise)
+        return this.initPromise;
       this.initPromise = (async () => {
         try {
           if (this.appointmentId && !this.conversationId && !this.useMock) {
@@ -187,7 +225,7 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: res.message || "获取会话失败", icon: "none" });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/chat/conversation.vue:336", "获取会话失败:", error);
+              common_vendor.index.__f__("error", "at pages/chat/conversation.vue:385", "获取会话失败:", error);
               common_vendor.index.showToast({ title: "获取会话失败", icon: "none" });
             }
           } else {
@@ -196,10 +234,14 @@ const _sfc_main = {
           }
         } finally {
           this.isInitialized = true;
-          this.initPromise = null;
         }
       })();
-      await this.initPromise;
+      try {
+        await this.initPromise;
+      } finally {
+        this.initPromise = null;
+      }
+      return true;
     },
     async loadUserInfo() {
       try {
@@ -250,7 +292,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:396", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:449", "加载用户信息失败:", error);
       }
     },
     async refreshMessages() {
@@ -266,60 +308,63 @@ const _sfc_main = {
       }
     },
     async loadNewMessages() {
-      var _a, _b;
       if (!this.conversationId || this.useMock) {
         return;
       }
-      if (this.loading) {
+      if (this.loading || this.sending) {
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:470", "[parent-chat] loadNewMessages 跳过：loading/sending", this.loading, this.sending);
         return;
       }
       try {
         const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
-        const res = await chatSend.getMessages({
+        const sinceTime = this.messages.length ? Number(this.messages[this.messages.length - 1].send_time || 0) : 0;
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:479", "[parent-chat] loadNewMessages since=", sinceTime);
+        const res = await chatSend.pollUpdates({
+          mode: "conversation",
           conversation_id: this.conversationId,
-          page: 1,
-          pageSize: this.pagination.pageSize
+          since_time: sinceTime
         });
-        if (res.code === 0 && res.data && res.data.messages) {
-          const fetchedMessages = (res.data.messages || []).map((msg) => ({
-            message_id: msg.message_id,
-            conversation_id: msg.conversation_id,
-            sender_id: msg.sender_id,
-            sender_role: msg.sender_role,
-            content: msg.content,
-            send_time: msg.send_time,
-            is_read: msg.is_read
-          }));
-          if (this.messages.length > 0) {
-            const messageMap = /* @__PURE__ */ new Map();
-            this.messages.forEach((msg) => {
-              messageMap.set(msg.message_id, msg);
-            });
-            fetchedMessages.forEach((msg) => {
-              messageMap.set(msg.message_id, msg);
-            });
-            const mergedMessages = Array.from(messageMap.values()).sort((a, b) => a.send_time - b.send_time);
-            if (mergedMessages.length !== this.messages.length || ((_a = mergedMessages[mergedMessages.length - 1]) == null ? void 0 : _a.message_id) !== ((_b = this.messages[this.messages.length - 1]) == null ? void 0 : _b.message_id)) {
-              this.messages = mergedMessages;
-              this.$nextTick(() => {
-                if (this.messages.length > 0) {
-                  this.scrollIntoView = `msg-${this.messages.length - 1}`;
-                }
-              });
-            }
-          } else {
-            this.messages = fetchedMessages.sort((a, b) => a.send_time - b.send_time);
-            this.$nextTick(() => {
-              if (this.messages.length > 0) {
-                this.scrollIntoView = `msg-${this.messages.length - 1}`;
-              }
-            });
-          }
-          await chatSend.markRead({ conversation_id: this.conversationId });
-          this.loadTrialInviteStatuses();
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:485", "[parent-chat] loadNewMessages 结果=", res && res.code, "条数=", res && res.data && (res.data.messages || []).length);
+        if (res.code !== 0 || !res.data) {
+          return;
         }
+        const fetchedMessages = (res.data.messages || []).map((msg) => ({
+          message_id: msg.message_id,
+          conversation_id: msg.conversation_id,
+          sender_id: msg.sender_id,
+          sender_role: msg.sender_role,
+          content: msg.content,
+          send_time: msg.send_time,
+          is_read: msg.is_read
+        }));
+        if (!fetchedMessages.length) {
+          return;
+        }
+        const messageMap = /* @__PURE__ */ new Map();
+        this.messages.forEach((msg) => messageMap.set(msg.message_id, msg));
+        let hasBrandNew = false;
+        fetchedMessages.forEach((msg) => {
+          if (!messageMap.has(msg.message_id))
+            hasBrandNew = true;
+          messageMap.set(msg.message_id, msg);
+        });
+        if (!hasBrandNew && this.messages.length > 0) {
+          return;
+        }
+        this.messages = Array.from(messageMap.values()).sort((a, b) => a.send_time - b.send_time);
+        this.$nextTick(() => {
+          if (this.messages.length > 0) {
+            this.scrollIntoView = `msg-${this.messages.length - 1}`;
+          }
+        });
+        const hasIncoming = fetchedMessages.some((msg) => msg.sender_id && msg.sender_role !== "parent");
+        if (hasIncoming || sinceTime === 0) {
+          await chatSend.markRead({ conversation_id: this.conversationId });
+          utils_chatPush.refreshChatBadge("parent-conversation-poll");
+        }
+        this.loadTrialInviteStatuses();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:481", "加载新消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:532", "加载新消息失败:", error);
         if (this.messages.length === 0) {
           await this.refreshMessages();
         }
@@ -357,7 +402,7 @@ const _sfc_main = {
         await Promise.all([this.refreshConversationInfo(), this.refreshMessages()]);
         this.showRefreshTipWithText("刷新完成");
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:519", "刷新失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:569", "刷新失败:", error);
         common_vendor.index.showToast({ title: "刷新失败，请稍后再试", icon: "none" });
         this.showRefreshTipWithText("刷新失败");
       } finally {
@@ -403,7 +448,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:563", "刷新会话信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:613", "刷新会话信息失败:", error);
       }
     },
     async fetchMessages({ page = 1, reset = false, prepend = false } = {}) {
@@ -454,13 +499,14 @@ const _sfc_main = {
           this.pagination.hasMore = !!res.data.hasMore;
           if (!prepend) {
             await chatSend.markRead({ conversation_id: this.conversationId });
+            utils_chatPush.refreshChatBadge("parent-conversation-open");
             this.loadTrialInviteStatuses();
           }
         } else {
           common_vendor.index.showToast({ title: res.message || "消息加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:626", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:677", "加载消息失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -479,7 +525,7 @@ const _sfc_main = {
           await this.fetchMessages({ page: 1, reset: true });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:643", "通过预约加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:694", "通过预约加载消息失败:", error);
       }
     },
     async sendMessage() {
@@ -510,7 +556,15 @@ const _sfc_main = {
           message_type: "text",
           content
         });
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:727", "[parent-chat] send 返回=", res);
+        common_vendor.index.__f__("log", "at pages/chat/conversation.vue:728", "[parent-chat] push 调试=", res.data && res.data.push);
         if (res.code === 0) {
+          const pushInfo = res.data && res.data.push || {};
+          if (pushInfo.error || !(pushInfo.cids && pushInfo.cids.length)) {
+            common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:732", "[parent-chat] 推送可能未成功送达对方:", pushInfo);
+          } else {
+            common_vendor.index.__f__("log", "at pages/chat/conversation.vue:734", "[parent-chat] 已触发推送 → receiver=", res.data.receiver_id, "cids=", pushInfo.cids);
+          }
           const index = this.messages.findIndex((msg) => msg.message_id === tempMsg.message_id);
           if (index !== -1) {
             this.messages.splice(index, 1, {
@@ -519,16 +573,11 @@ const _sfc_main = {
               send_time: res.data.send_time
             });
           }
-          setTimeout(() => {
-            if (!this.loading && !this.sending) {
-              this.loadNewMessages();
-            }
-          }, 1e3);
         } else {
           this.rollbackTempMessage(tempMsg.message_id, res.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:695", "发送消息失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/conversation.vue:748", "发送消息失败:", error);
         this.rollbackTempMessage(tempMsg.message_id);
       } finally {
         this.sending = false;
@@ -589,6 +638,55 @@ const _sfc_main = {
       } catch (e) {
         return false;
       }
+    },
+    parseAttendanceClockPayload(msg) {
+      if (!msg || !msg.content)
+        return null;
+      try {
+        const parsed = typeof msg.content === "string" ? JSON.parse(msg.content) : msg.content;
+        if (parsed && parsed.type === "attendance_clock")
+          return parsed;
+      } catch (e) {
+        return null;
+      }
+      return null;
+    },
+    isAttendanceClockMessage(msg) {
+      return !!this.parseAttendanceClockPayload(msg);
+    },
+    getAttendanceClockIcon(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      return p && p.action === "clock_out" ? "🏁" : "📍";
+    },
+    getAttendanceClockTitle(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      return p && p.title || "打卡提醒";
+    },
+    getAttendanceClockTime(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      const ts = Number(p && p.clock_time);
+      if (!ts)
+        return "-";
+      const d = new Date(ts);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    },
+    getAttendanceClockAddress(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      return p && p.address || "";
+    },
+    getAttendanceClockTip(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      return p && p.tip || "点击查看预约详情";
+    },
+    goAttendanceAppointment(msg) {
+      const p = this.parseAttendanceClockPayload(msg);
+      const id = p && p.appointment_id || this.appointmentId;
+      if (!id) {
+        common_vendor.index.showToast({ title: "未关联预约", icon: "none" });
+        return;
+      }
+      common_vendor.index.navigateTo({ url: `/pages/appointment/detail?id=${id}` });
     },
     /**
      * 从邀请消息中提取邀请ID
@@ -653,7 +751,7 @@ const _sfc_main = {
               }];
             }
           } catch (e) {
-            common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:812", "[chat-conversation] 加载试课邀请状态失败:", inviteId, e);
+            common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:911", "[chat-conversation] 加载试课邀请状态失败:", inviteId, e);
           }
           return [inviteId, this.trialInviteStatusMap[inviteId] || { status: "" }];
         }));
@@ -663,7 +761,7 @@ const _sfc_main = {
         });
         this.trialInviteStatusMap = nextMap;
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:822", "[chat-conversation] 批量加载试课邀请状态失败:", e);
+        common_vendor.index.__f__("warn", "at pages/chat/conversation.vue:921", "[chat-conversation] 批量加载试课邀请状态失败:", e);
       }
     },
     goPayTrialFee() {
@@ -730,7 +828,7 @@ const _sfc_main = {
             common_vendor.index.showToast({ title: "已不通过", icon: "success" });
             setTimeout(() => this.loadNewMessages(), 500);
           } catch (e) {
-            common_vendor.index.__f__("error", "at pages/chat/conversation.vue:886", "拒绝试课邀请失败:", e);
+            common_vendor.index.__f__("error", "at pages/chat/conversation.vue:985", "拒绝试课邀请失败:", e);
             common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
           } finally {
             const next = { ...this.rejectingInviteIds };
@@ -764,20 +862,31 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         f: common_vendor.o(($event) => $options.handleAcceptInvite(item.data), item.id)
       } : {
         g: common_vendor.t($options.getTrialInviteStatusText(item.data))
+      }) : $options.isAttendanceClockMessage(item.data) ? common_vendor.e({
+        i: common_vendor.t($options.getAttendanceClockIcon(item.data)),
+        j: common_vendor.t($options.getAttendanceClockTitle(item.data)),
+        k: common_vendor.t($options.getAttendanceClockTime(item.data)),
+        l: $options.getAttendanceClockAddress(item.data)
+      }, $options.getAttendanceClockAddress(item.data) ? {
+        m: common_vendor.t($options.getAttendanceClockAddress(item.data))
+      } : {}, {
+        n: common_vendor.t($options.getAttendanceClockTip(item.data)),
+        o: common_vendor.o(($event) => $options.goAttendanceAppointment(item.data), item.id)
       }) : common_vendor.e({
-        h: item.data.sender_role !== $data.currentUserRole
+        p: item.data.sender_role !== $data.currentUserRole
       }, item.data.sender_role !== $data.currentUserRole ? {
-        i: $options.otherAvatar,
-        j: common_vendor.t(item.data.content)
+        q: $options.otherAvatar,
+        r: common_vendor.t(item.data.content)
       } : {
-        k: common_vendor.t(item.data.content),
-        l: $data.currentUserInfo.avatar || _ctx.defaultAvatarUrl
+        s: common_vendor.t(item.data.content),
+        t: $data.currentUserInfo.avatar || _ctx.defaultAvatarUrl
       }, {
-        m: item.data.sender_role === $data.currentUserRole ? 1 : ""
+        v: item.data.sender_role === $data.currentUserRole ? 1 : ""
       }), {
         c: $options.isTrialInviteMessage(item.data),
-        n: item.id,
-        o: item.id
+        h: $options.isAttendanceClockMessage(item.data),
+        w: item.id,
+        x: item.id
       });
     }),
     h: !$options.formattedMessages.length && !$data.loading

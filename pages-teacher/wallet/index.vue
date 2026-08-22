@@ -1,13 +1,12 @@
 <template>
 	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
+		<!-- 头部：钱包提现暂时停用，课酬统一打微信零钱 -->
 		<view class="main-bg-color py-4 px-3 text-white">
 			<view class="d-flex flex-column mb-3">
-				<text class="font-sm d-block mb-2" style="opacity: 0.85;">可提现余额</text>
-				<text class="font-xl font-weight d-block mb-2">¥{{ formatCurrency(wallet.balance) }}</text>
-				<text class="font-xs d-block" style="opacity: 0.75;">课程完成后优先自动转入微信零钱；未到账金额可在此提现</text>
+				<text class="font-sm d-block mb-2" style="opacity: 0.85;">课酬到账方式</text>
+				<text class="font-xl font-weight d-block mb-2">微信零钱</text>
+				<text class="font-xs d-block" style="opacity: 0.75;">钱包提现已暂时停用；课程收入/试课课酬将直接打入微信零钱。若微信提示确认收款，请在下方处理。</text>
 			</view>
-			<button class="bg-white main-text-color rounded px-4 py-2 font-sm" @click="goToWithdraw">提现到微信零钱</button>
 		</view>
 
 		<scroll-view scroll-y class="scroll">

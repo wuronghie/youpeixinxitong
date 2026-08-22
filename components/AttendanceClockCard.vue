@@ -172,28 +172,117 @@ async function resolveAddressByMap(latitude, longitude) {
   }
 }
 
-function getLocation() {
+function locationErrorMessage(err) {
+  const msg = String((err && (err.message || err.errMsg)) || '')
+  if (!msg) return '获取定位失败，请重试'
+  if (/auth deny|authorize|permission|隐私|权限/i.test(msg)) {
+    return '需要开启小程序位置权限才能打卡'
+  }
+  if (/timeout/i.test(msg)) return '定位超时，请到开阔处重试'
+  if (/system|GPS|location/i.test(msg) && /fail/i.test(msg)) {
+    return '定位失败，请确认手机系统定位已开启'
+  }
+  return msg.length > 40 ? '获取定位失败，请重试' : msg
+}
+
+function ensureLocationPermission() {
+  return new Promise((resolve) => {
+    uni.getSetting({
+      success: (setting) => {
+        const authed = setting.authSetting && setting.authSetting['scope.userLocation']
+        if (authed === true) {
+          resolve(true)
+          return
+        }
+        if (authed === false) {
+          uni.showModal({
+            title: '需要位置权限',
+            content: '打卡需要获取当前位置。请在设置中开启位置权限后重试。',
+            confirmText: '去设置',
+            success: (modalRes) => {
+              if (!modalRes.confirm) {
+                resolve(false)
+                return
+              }
+              uni.openSetting({
+                success: (r) => resolve(!!(r.authSetting && r.authSetting['scope.userLocation'])),
+                fail: () => resolve(false)
+              })
+            }
+          })
+          return
+        }
+        uni.authorize({
+          scope: 'scope.userLocation',
+          success: () => resolve(true),
+          fail: () => {
+            uni.showModal({
+              title: '需要位置权限',
+              content: '打卡需要获取当前位置。请在设置中开启位置权限后重试。',
+              confirmText: '去设置',
+              success: (modalRes) => {
+                if (!modalRes.confirm) {
+                  resolve(false)
+                  return
+                }
+                uni.openSetting({
+                  success: (r) => resolve(!!(r.authSetting && r.authSetting['scope.userLocation'])),
+                  fail: () => resolve(false)
+                })
+              }
+            })
+          }
+        })
+      },
+      fail: () => resolve(true)
+    })
+  })
+}
+
+function requestRawLocation() {
   return new Promise((resolve, reject) => {
     uni.getLocation({
       type: 'gcj02',
-      isHighAccuracy: true,
-      geocode: true,
-      success: async (res) => {
-        const address = resolveAddress(res) || await resolveAddressByMap(res.latitude, res.longitude)
-        if (!address) {
-          reject(new Error('未获取到文字地址，请检查定位授权或地图服务配置后重试'))
-          return
-        }
-        resolve({
-          latitude: res.latitude,
-          longitude: res.longitude,
-          address,
-          accuracy: res.accuracy || 0
-        })
-      },
+      // 微信小程序 geocode 无效；高精度在部分机型易超时，先普通定位
+      isHighAccuracy: false,
+      success: (res) => resolve(res),
       fail: (err) => reject(err)
     })
   })
+}
+
+/**
+ * 打卡定位：必须有经纬度；文字地址尽量解析，失败时用兜底文案，不阻断打卡
+ */
+async function getLocationForClock() {
+  const ok = await ensureLocationPermission()
+  if (!ok) {
+    throw new Error('需要开启小程序位置权限才能打卡')
+  }
+
+  const res = await requestRawLocation()
+  const latitude = Number(res.latitude)
+  const longitude = Number(res.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    throw new Error('定位结果无效，请重试')
+  }
+
+  let address = resolveAddress(res)
+  if (!address) {
+    address = await resolveAddressByMap(latitude, longitude)
+  }
+  if (!address) {
+    // 逆地理失败时仍允许打卡，后端只强依赖经纬度
+    address = `已定位(${latitude.toFixed(5)},${longitude.toFixed(5)})`
+    console.warn('[打卡定位] 文字地址解析失败，使用经纬度兜底')
+  }
+
+  return {
+    latitude,
+    longitude,
+    address,
+    accuracy: Number(res.accuracy) || 0
+  }
 }
 
 async function callAttendance(method, payload) {
@@ -206,8 +295,8 @@ async function onClockIn() {
   loading.value = true
   pendingAction.value = 'in'
   try {
-    const location = await getLocation().catch((e) => {
-      uni.showToast({ icon: 'none', title: (e && e.message) || '需要授权定位才能打卡' })
+    const location = await getLocationForClock().catch((e) => {
+      uni.showToast({ icon: 'none', title: locationErrorMessage(e) })
       return null
     })
     if (!location) {
@@ -224,7 +313,7 @@ async function onClockIn() {
       uni.showToast({ icon: 'none', title: (res && res.message) || '打卡失败' })
     }
   } catch (e) {
-    uni.showToast({ icon: 'none', title: '打卡异常：' + (e && e.message || e) })
+    uni.showToast({ icon: 'none', title: '打卡异常：' + locationErrorMessage(e) })
   } finally {
     loading.value = false
     pendingAction.value = ''
@@ -236,8 +325,8 @@ async function onClockOut() {
   loading.value = true
   pendingAction.value = 'out'
   try {
-    const location = await getLocation().catch((e) => {
-      uni.showToast({ icon: 'none', title: (e && e.message) || '需要授权定位才能打卡' })
+    const location = await getLocationForClock().catch((e) => {
+      uni.showToast({ icon: 'none', title: locationErrorMessage(e) })
       return null
     })
     if (!location) {
@@ -254,7 +343,7 @@ async function onClockOut() {
       uni.showToast({ icon: 'none', title: (res && res.message) || '打卡失败' })
     }
   } catch (e) {
-    uni.showToast({ icon: 'none', title: '打卡异常：' + (e && e.message || e) })
+    uni.showToast({ icon: 'none', title: '打卡异常：' + locationErrorMessage(e) })
   } finally {
     loading.value = false
     pendingAction.value = ''

@@ -18,13 +18,13 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "优培信息通 · 家教帮",
+      title: "优培信息通",
       path: "/pages/index/index"
     };
   },
   onShareTimeline() {
     return {
-      title: "优培信息通 · 家教帮"
+      title: "优培信息通"
     };
   },
   /**

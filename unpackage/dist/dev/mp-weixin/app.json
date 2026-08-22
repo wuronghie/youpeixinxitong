@@ -5,6 +5,7 @@
     "pages/common/register",
     "pages/common/agreement",
     "pages/common/webview",
+    "pages/common/follow-oa",
     "pages/teacher/list",
     "pages/teacher/detail",
     "pages/appointment/create",
@@ -57,7 +58,7 @@
   ],
   "window": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "家教帮",
+    "navigationBarTitleText": "优培信息通",
     "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F8F8F8",
     "enablePullDownRefresh": true,
@@ -65,7 +66,7 @@
   },
   "permission": {
     "scope.userLocation": {
-      "desc": "获取您的位置信息，用于展示附近的教师"
+      "desc": "获取您的位置信息，用于附近教师推荐与课堂打卡留证"
     }
   },
   "requiredPrivateInfos": [

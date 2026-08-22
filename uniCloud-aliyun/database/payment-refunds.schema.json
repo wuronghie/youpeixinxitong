@@ -1,1 +1,130 @@
-{"bsonType":"object","required":["order_id","payer_id","amount","status"],"permission":{"read":"doc.payer_id == auth.uid || doc.teacher_id == auth.uid","create":"auth.uid != null","update":"doc.payer_id == auth.uid || doc.teacher_id == auth.uid","delete":false},"properties":{"_id":{"description":"退款ID"},"order_id":{"bsonType":"string","description":"关联的支付订单ID","foreignKey":"payment-orders._id"},"order_no":{"bsonType":"string","description":"订单号"},"appointment_id":{"bsonType":"string","description":"关联的预约ID","foreignKey":"appointments._id"},"payer_id":{"bsonType":"string","description":"申请人（家长）用户ID","foreignKey":"uni-id-users._id"},"teacher_id":{"bsonType":"string","description":"教师用户ID","foreignKey":"uni-id-users._id"},"amount":{"bsonType":"number","description":"退款金额（元）","minimum":0},"reason":{"bsonType":"string","description":"退款原因"},"refund_type":{"bsonType":"string","enum":["only_refund","refund_cancel"],"description":"退款类型：only_refund-仅退款，refund_cancel-退款并取消预约","defaultValue":"only_refund"},"description":{"bsonType":"string","description":"退款说明"},"images":{"bsonType":"array","description":"凭证图片URL数组","items":{"bsonType":"string"}},"status":{"bsonType":"string","enum":["pending","processing","success","rejected","approved","completed"],"description":"退款状态：pending-待审核，processing-处理中，success-退款成功，rejected-已驳回，approved-已通过，completed-已完成","defaultValue":"pending"},"teacher_review_status":{"bsonType":"string","enum":["pending","approved","rejected"],"description":"教师审核状态：pending-待审核，approved-已同意，rejected-已拒绝","defaultValue":"pending"},"teacher_opinion":{"bsonType":"string","description":"教师审核意见"},"teacher_review_time":{"bsonType":"timestamp","description":"教师审核时间"},"review_opinion":{"bsonType":"string","description":"平台审核意见"},"review_time":{"bsonType":"timestamp","description":"平台审核时间"},"finish_time":{"bsonType":"timestamp","description":"退款完成时间"},"create_time":{"bsonType":"timestamp","description":"创建时间","forceDefaultValue":{"$env":"now"}},"update_time":{"bsonType":"timestamp","description":"更新时间","forceDefaultValue":{"$env":"now"}}}}
+{
+  "bsonType": "object",
+  "required": [
+    "order_id",
+    "payer_id",
+    "amount",
+    "status"
+  ],
+  "permission": {
+    "read": "(doc.payer_id == auth.uid || doc.teacher_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
+    "create": "auth.uid != null",
+    "update": "(doc.payer_id == auth.uid || doc.teacher_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "description": "退款ID"
+    },
+    "order_id": {
+      "bsonType": "string",
+      "description": "关联的支付订单ID",
+      "foreignKey": "payment-orders._id"
+    },
+    "order_no": {
+      "bsonType": "string",
+      "description": "订单号"
+    },
+    "appointment_id": {
+      "bsonType": "string",
+      "description": "关联的预约ID",
+      "foreignKey": "appointments._id"
+    },
+    "payer_id": {
+      "bsonType": "string",
+      "description": "申请人（家长）用户ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "teacher_id": {
+      "bsonType": "string",
+      "description": "教师用户ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "amount": {
+      "bsonType": "number",
+      "description": "退款金额（元）",
+      "minimum": 0
+    },
+    "reason": {
+      "bsonType": "string",
+      "description": "退款原因"
+    },
+    "refund_type": {
+      "bsonType": "string",
+      "enum": [
+        "only_refund",
+        "refund_cancel"
+      ],
+      "description": "退款类型：only_refund-仅退款，refund_cancel-退款并取消预约",
+      "defaultValue": "only_refund"
+    },
+    "description": {
+      "bsonType": "string",
+      "description": "退款说明"
+    },
+    "images": {
+      "bsonType": "array",
+      "description": "凭证图片URL数组",
+      "items": {
+        "bsonType": "string"
+      }
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "success",
+        "rejected",
+        "approved",
+        "completed"
+      ],
+      "description": "退款状态：pending-待审核，processing-处理中，success-退款成功，rejected-已驳回，approved-已通过，completed-已完成",
+      "defaultValue": "pending"
+    },
+    "teacher_review_status": {
+      "bsonType": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "description": "教师审核状态：pending-待审核，approved-已同意，rejected-已拒绝",
+      "defaultValue": "pending"
+    },
+    "teacher_opinion": {
+      "bsonType": "string",
+      "description": "教师审核意见"
+    },
+    "teacher_review_time": {
+      "bsonType": "timestamp",
+      "description": "教师审核时间"
+    },
+    "review_opinion": {
+      "bsonType": "string",
+      "description": "平台审核意见"
+    },
+    "review_time": {
+      "bsonType": "timestamp",
+      "description": "平台审核时间"
+    },
+    "finish_time": {
+      "bsonType": "timestamp",
+      "description": "退款完成时间"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    },
+    "update_time": {
+      "bsonType": "timestamp",
+      "description": "更新时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    }
+  }
+}

@@ -573,7 +573,7 @@ module.exports = {
         trial_success_rate: Number(trialSuccessRate.toFixed(2)), // 试课成功率（实时计算，保留2位小数）
         experience_years: profile.teaching_experience?.years || 0, // 教龄（年数）
         experience: profile.experience || '', // 教师资历（新增字段）
-        school: profile.school || '', // 所在院校（新增字段）
+        school: profile.school || '', // 是否在读（院校/专职已毕业）
         tags: profile.tags || [], // 附加标签（新增字段）
         introduction: profile.introduction || '',
         specialties: profile.specialties || [], // 可能不存在

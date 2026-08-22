@@ -203,12 +203,13 @@ module.exports = {
       
       const openid = wxData.openid
       const sessionKey = wxData.session_key
+      const unionid = wxData.unionid || ''
       
       if (!openid) {
         return error('微信登录失败：未获取到openid')
       }
       
-      console.log('微信登录成功，openid:', openid)
+      console.log('微信登录成功，openid:', openid, 'hasUnionid:', !!unionid)
       
       // 查找或创建用户
       const usersCollection = db.collection('uni-id-users')
@@ -217,6 +218,11 @@ module.exports = {
           mp: openid
         }
       }).get()
+
+      // 若按 mp openid 找不到，但有 unionid，再按 unionid 兜底（避免多端身份分裂）
+      if ((!userDoc.data || userDoc.data.length === 0) && unionid) {
+        userDoc = await usersCollection.where({ wx_unionid: unionid }).limit(1).get()
+      }
       
       let uid
       let userData
@@ -235,6 +241,9 @@ module.exports = {
           last_login_date: Date.now(),
           last_login_ip: ''
         }
+        if (unionid) {
+          newUser.wx_unionid = unionid
+        }
         
         const addResult = await usersCollection.add(newUser)
         uid = addResult.id
@@ -242,17 +251,51 @@ module.exports = {
         userData._id = uid
         console.log('新用户创建成功，uid:', uid)
       } else {
-        // 老用户，更新session_key和登录时间
+        // 老用户，更新 session_key / unionid / 登录时间
         userData = userDoc.data[0]
         uid = userData._id
         
-        await usersCollection.doc(uid).update({
+        const loginPatch = {
           wx_session_key: {
             mp: sessionKey
           },
-          last_login_date: Date.now()
-        })
-        console.log('老用户登录成功，uid:', uid)
+          last_login_date: Date.now(),
+          'wx_openid.mp': openid
+        }
+        if (unionid) {
+          loginPatch.wx_unionid = unionid
+        }
+        await usersCollection.doc(uid).update(loginPatch)
+        if (unionid) {
+          userData.wx_unionid = unionid
+        }
+        const wxOpenid = Object.assign({}, userData.wx_openid || {}, { mp: openid })
+        userData.wx_openid = wxOpenid
+        console.log('老用户登录成功，uid:', uid, 'hasUnionid:', !!unionid)
+      }
+
+      // 登录后：用 unionid 补绑服务号 openid（关注时若用户尚未有 unionid 会落入 pending）
+      if (unionid) {
+        try {
+          const pendingRes = await db.collection('wx-oa-pending-bind')
+            .where({ unionid })
+            .limit(5)
+            .get()
+          const pendingList = pendingRes.data || []
+          for (const p of pendingList) {
+            const oaOpenid = p.oa_openid || p._id
+            if (!oaOpenid) continue
+            const wx_openid = Object.assign({}, userData.wx_openid || {}, { mp: openid, h5: oaOpenid })
+            await usersCollection.doc(uid).update({ wx_openid })
+            userData.wx_openid = wx_openid
+            try {
+              await db.collection('wx-oa-pending-bind').doc(p._id).remove()
+            } catch (e) {}
+            console.log('登录补绑服务号 openid 成功', { uid, oaOpenid })
+          }
+        } catch (bindErr) {
+          console.warn('登录补绑服务号失败（可忽略）:', bindErr.message || bindErr)
+        }
       }
       
       // 使用 uni-id-common 生成 token（不传 role，避免 $in 期望数组的错误）

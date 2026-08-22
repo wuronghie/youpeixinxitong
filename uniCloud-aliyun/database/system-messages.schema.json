@@ -1,1 +1,82 @@
-{"bsonType":"object","required":["user_id","type","title"],"permission":{"read":"doc.user_id == auth.uid","create":false,"update":"doc.user_id == auth.uid","delete":false},"properties":{"_id":{"description":"消息ID"},"user_id":{"bsonType":"string","description":"接收用户ID","foreignKey":"uni-id-users._id"},"type":{"bsonType":"string","enum":["system","appointment","payment","review","withdraw","recruitment"],"description":"消息类型"},"title":{"bsonType":"string","description":"消息标题"},"content":{"bsonType":"string","description":"消息内容"},"related_id":{"bsonType":"string","description":"关联的业务ID（预约ID、订单ID等）"},"action":{"bsonType":"object","description":"消息操作","properties":{"type":{"bsonType":"string","enum":["navigate","url"],"description":"操作类型"},"path":{"bsonType":"string","description":"跳转路径"},"params":{"bsonType":"object","description":"跳转参数"}}},"is_read":{"bsonType":"bool","description":"是否已读","defaultValue":false},"create_time":{"bsonType":"timestamp","description":"创建时间","forceDefaultValue":{"$env":"now"}}}}
+{
+  "bsonType": "object",
+  "required": [
+    "user_id",
+    "type",
+    "title"
+  ],
+  "permission": {
+    "read": "(doc.user_id == auth.uid) || 'admin' in auth.role || 'auditor' in auth.role",
+    "create": false,
+    "update": "doc.user_id == auth.uid",
+    "delete": false
+  },
+  "properties": {
+    "_id": {
+      "description": "消息ID"
+    },
+    "user_id": {
+      "bsonType": "string",
+      "description": "接收用户ID",
+      "foreignKey": "uni-id-users._id"
+    },
+    "type": {
+      "bsonType": "string",
+      "enum": [
+        "system",
+        "appointment",
+        "payment",
+        "review",
+        "withdraw",
+        "recruitment"
+      ],
+      "description": "消息类型"
+    },
+    "title": {
+      "bsonType": "string",
+      "description": "消息标题"
+    },
+    "content": {
+      "bsonType": "string",
+      "description": "消息内容"
+    },
+    "related_id": {
+      "bsonType": "string",
+      "description": "关联的业务ID（预约ID、订单ID等）"
+    },
+    "action": {
+      "bsonType": "object",
+      "description": "消息操作",
+      "properties": {
+        "type": {
+          "bsonType": "string",
+          "enum": [
+            "navigate",
+            "url"
+          ],
+          "description": "操作类型"
+        },
+        "path": {
+          "bsonType": "string",
+          "description": "跳转路径"
+        },
+        "params": {
+          "bsonType": "object",
+          "description": "跳转参数"
+        }
+      }
+    },
+    "is_read": {
+      "bsonType": "bool",
+      "description": "是否已读",
+      "defaultValue": false
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    }
+  }
+}

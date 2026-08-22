@@ -22,7 +22,7 @@
 				<view class="logo-box mb-3">
 					<image class="logo-image" :src="logoUrl" mode="aspectFit"></image>
 				</view>
-				<view class="font-big mb-2">叁谦</view>
+				<view class="font-big mb-2">优培信息通</view>
 				<view class="text-light-muted font">连接家长与专业教师的智能平台</view>
 			</view>
 			
@@ -100,6 +100,7 @@
 
 <script>
 import { setStoredUserInfo, redirectByRole, fetchRemoteUserInfo, checkProfileComplete } from '@/utils/auth.js'
+import { bindPushClientId } from '@/utils/chatPush.js'
 import { getLogoUrl, getIconUrl } from '@/utils/imageConfig.js'
 
 export default {
@@ -149,13 +150,13 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: '叁谦 · 家教帮登录',
+			title: '优培信息通登录',
 			path: '/pages/login/index'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '叁谦 · 家教帮登录'
+			title: '优培信息通登录'
 		}
 	},
 
@@ -233,6 +234,7 @@ export default {
 						setStoredUserInfo(userInfo)
 					}
 					uni.setStorageSync('last_role', this.selectedRole)
+					bindPushClientId()
 					uni.showToast({ title: '登录成功', icon: 'success' })
 					try {
 						// 优先获取最新的角色信息

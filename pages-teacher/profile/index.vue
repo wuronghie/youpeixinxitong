@@ -178,13 +178,13 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: '家教帮 · 教师主页',
+			title: '优培信息通 · 教师主页',
 			path: '/pages-teacher/profile/index'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '家教帮 · 教师主页'
+			title: '优培信息通 · 教师主页'
 		}
 	},
 	methods: {

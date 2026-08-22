@@ -1,0 +1,15 @@
+{
+  "name": "wx-oa-push",
+  "version": "1.0.0",
+  "description": "微信服务号消息与事件推送接收（URL校验、关注/取关）",
+  "main": "index.js",
+  "dependencies": {
+    "uni-config-center": "file:../../../uni_modules/uni-config-center/uniCloud/cloudfunctions/common/uni-config-center"
+  },
+  "cloudfunction-config": {
+    "memorySize": 256,
+    "timeout": 15,
+    "path": "/wx-oa-push",
+    "triggers": []
+  }
+}

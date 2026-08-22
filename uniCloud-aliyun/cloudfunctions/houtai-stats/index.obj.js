@@ -49,7 +49,7 @@ function fail(message = '操作失败', code = -1) {
 }
 
 /**
- * 鉴权：必须是后台管理员（role 包含 admin）才允许访问
+ * 鉴权：后台员工（admin 超管 / auditor 普通管理员）可查看统计
  * 注意：不能用 _ 前缀的方法放在 module.exports 里，否则云对象 this 访问不到
  */
 async function assertAdmin(ctx) {
@@ -71,13 +71,8 @@ async function assertAdmin(ctx) {
     throw new Error('用户不存在');
   }
   const roles = Array.isArray(userData.role) ? userData.role : (userData.role ? [userData.role] : []);
-  const isAdmin = roles.some(r => {
-    if (typeof r === 'string') {
-      return r === 'admin';
-    }
-    return false;
-  });
-  if (!isAdmin) {
+  const isStaff = roles.some(r => typeof r === 'string' && (r === 'admin' || r === 'auditor'));
+  if (!isStaff) {
     throw new Error('无权限访问后台统计');
   }
   return uid;

@@ -156,7 +156,7 @@ export default {
 							message_id: 'mock-1',
 							type: 'system',
 							title: '系统通知',
-							content: '欢迎加入家教帮，完善资料可提升曝光率',
+							content: '欢迎加入优培信息通，完善资料可提升曝光率',
 							is_read: false,
 							create_time: Date.now() - 60 * 60 * 1000
 						},

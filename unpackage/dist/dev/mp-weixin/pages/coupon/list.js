@@ -32,7 +32,7 @@ const _sfc_main = {
       this.loading = true;
       try {
         const couponCenter = common_vendor.tr.importObject("coupon-center", { customUI: true });
-        const res = await couponCenter.getAvailableCoupons();
+        const res = await couponCenter.getAvailableCoupons({ role: "parent" });
         common_vendor.index.__f__("log", "at pages/coupon/list.vue:80", "[coupon-list] getAvailableCoupons 返回:", res);
         if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
           this.coupons = res.data.list;

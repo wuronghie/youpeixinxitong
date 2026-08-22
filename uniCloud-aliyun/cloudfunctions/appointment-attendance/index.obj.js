@@ -9,6 +9,7 @@
  *      - 必须上传定位（latitude/longitude）
  *      - 不校验与排课开始/结束时间的先后关系
  *      - 成功后将 status 置为 in_progress 并写入 class_started_at + class_started_location
+ *      - 同步写入聊天提醒，便于家长与后台查看
  *
  *   2. 下课打卡（clockOut）：
  *      - 仅教师本人可调用
@@ -16,12 +17,66 @@
  *      - 家长须已支付本单课程费
  *      - 必须上传定位；不限制相对排课结束时间多久
  *      - 成功后写入 class_ended_at + class_ended_location
+ *      - 同步写入聊天提醒
  *
  *   3. 结算等流程仍以「存在下课打卡记录」等为准，由 appointment-complete 等单独校验
  */
 
+const { appendAttendanceChatNotice } = require('./helpers/append-attendance-notice')
+const { sendCheckIn } = require('wx-oa-client')
+
 function success(data = null, message = 'success') {
   return { code: 0, message, data, timestamp: Date.now() }
+}
+
+function formatNotifyTime(value) {
+  if (value == null || value === '') return ''
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 20)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+async function notifyParentCheckInOa(db, appointment, location, appointmentId) {
+  if (!appointment || !appointment.parent_id) return
+  const schedule = appointment.schedule || {}
+  const course =
+    appointment.subject ||
+    (appointment.student_info && appointment.student_info.subject) ||
+    appointment.course_type ||
+    '家教课程'
+  const place =
+    (location && location.address) ||
+    appointment.address ||
+    (appointment.location && appointment.location.address) ||
+    '待确认'
+  let person = '老师'
+  try {
+    const teacherDoc = await db.collection('uni-id-users')
+      .doc(appointment.teacher_id)
+      .field({ nickname: true, username: true })
+      .get()
+    const teacher = teacherDoc.data && teacherDoc.data[0]
+    if (teacher) {
+      person = teacher.nickname || teacher.username || person
+    }
+  } catch (e) {}
+  const time =
+    formatNotifyTime(schedule.start_time || appointment.start_time || appointment.appointment_time) ||
+    formatNotifyTime(Date.now())
+
+  const oaRes = await sendCheckIn({
+    user_id: appointment.parent_id,
+    appointment_id: appointmentId,
+    course: String(course).slice(0, 20),
+    place: String(place).slice(0, 20),
+    person: String(person).slice(0, 20),
+    time,
+    pagepath: 'pages/appointment/detail?id=' + encodeURIComponent(appointmentId)
+  })
+  if (oaRes && !oaRes.ok && !oaRes.skipped) {
+    console.warn('[appointment-attendance] 服务号签到通知失败', oaRes.errcode, oaRes.errmsg)
+  }
 }
 
 function error(message = 'error', code = -1, data = null) {
@@ -61,25 +116,30 @@ function resolveSchedule(appointment) {
 
 function validateLocation(location) {
   if (!location || typeof location !== 'object') return '请上传打卡定位'
-  const { latitude, longitude, address } = location
-  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+  const latitude = Number(location.latitude)
+  const longitude = Number(location.longitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return '定位参数不合法（缺少经纬度）'
   }
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
     return '定位参数超出合法范围'
   }
-  if (typeof address !== 'string' || !address.trim()) {
-    return '请上传打卡文字地址'
-  }
+  // 文字地址可选：逆地理失败时允许仅凭经纬度打卡
   return null
 }
 
 function buildLocation(location) {
+  const latitude = Number(location.latitude)
+  const longitude = Number(location.longitude)
+  let address = typeof location.address === 'string' ? location.address.trim() : ''
+  if (!address && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    address = `已定位(${latitude.toFixed(5)},${longitude.toFixed(5)})`
+  }
   return {
-    latitude: Number(location.latitude),
-    longitude: Number(location.longitude),
-    address: typeof location.address === 'string' ? location.address.trim() : '',
-    accuracy: typeof location.accuracy === 'number' ? location.accuracy : 0
+    latitude,
+    longitude,
+    address,
+    accuracy: typeof location.accuracy === 'number' ? location.accuracy : Number(location.accuracy) || 0
   }
 }
 
@@ -213,17 +273,35 @@ module.exports = {
 
       const now = Date.now()
 
+      const startedLocation = buildLocation(location)
       await db.collection('appointments').doc(appointment_id).update({
         status: 'in_progress',
         class_started_at: now,
-        class_started_location: buildLocation(location),
+        class_started_location: startedLocation,
         update_time: now
       })
+
+      try {
+        await appendAttendanceChatNotice(db, {
+          appointment: { ...appointment, _id: appointment_id },
+          action: 'clock_in',
+          clockTime: now,
+          location: startedLocation
+        })
+      } catch (noticeErr) {
+        console.warn('[appointment-attendance.clockIn] 聊天提醒失败:', noticeErr)
+      }
+
+      try {
+        await notifyParentCheckInOa(db, appointment, startedLocation, appointment_id)
+      } catch (oaErr) {
+        console.warn('[appointment-attendance.clockIn] 服务号签到通知失败:', oaErr)
+      }
 
       return success({
         appointment_id,
         class_started_at: now,
-        location: buildLocation(location)
+        location: startedLocation
       }, '上课打卡成功')
     } catch (e) {
       console.error('[appointment-attendance.clockIn]', e)
@@ -285,9 +363,10 @@ module.exports = {
         location: buildLocation(location)
       })
 
+      const endedLocation = buildLocation(location)
       await db.collection('appointments').doc(appointment_id).update({
         class_ended_at: now,
-        class_ended_location: buildLocation(location),
+        class_ended_location: endedLocation,
         update_time: now
       })
       console.log('[appointment-attendance.clockOut] 下课打卡写入完成:', {
@@ -295,10 +374,21 @@ module.exports = {
         class_ended_at: now
       })
 
+      try {
+        await appendAttendanceChatNotice(db, {
+          appointment: { ...appointment, _id: appointment_id },
+          action: 'clock_out',
+          clockTime: now,
+          location: endedLocation
+        })
+      } catch (noticeErr) {
+        console.warn('[appointment-attendance.clockOut] 聊天提醒失败:', noticeErr)
+      }
+
       return success({
         appointment_id,
         class_ended_at: now,
-        location: buildLocation(location)
+        location: endedLocation
       }, '下课打卡成功')
     } catch (e) {
       console.error('[appointment-attendance.clockOut]', e)

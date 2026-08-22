@@ -35,7 +35,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:117", "[teacher-wallet] 下拉刷新：重新加载钱包");
+      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:116", "[teacher-wallet] 下拉刷新：重新加载钱包");
       await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
     },
     async loadPendingConfirms() {
@@ -46,7 +46,7 @@ const _sfc_main = {
           this.pendingConfirms = res.data.list || [];
         }
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages-teacher/wallet/index.vue:128", "[teacher-wallet] 加载待确认收款失败", e);
+        common_vendor.index.__f__("warn", "at pages-teacher/wallet/index.vue:127", "[teacher-wallet] 加载待确认收款失败", e);
       }
     },
     requestMerchantTransfer(item) {
@@ -79,7 +79,7 @@ const _sfc_main = {
         }
         await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:162", "确认收款失败", e);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:161", "确认收款失败", e);
         const msg = e && (e.errMsg || e.message) || "确认收款失败";
         if (String(msg).includes("cancel")) {
           common_vendor.index.showToast({ title: "已取消确认", icon: "none" });
@@ -137,7 +137,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取钱包信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:221", "获取钱包信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:220", "获取钱包信息失败:", error);
         common_vendor.index.showToast({ title: "获取钱包信息失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -179,12 +179,10 @@ if (!Array) {
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.t($options.formatCurrency($data.wallet.balance)),
-    b: common_vendor.o((...args) => $options.goToWithdraw && $options.goToWithdraw(...args)),
-    c: $data.pendingConfirms.length
+    a: $data.pendingConfirms.length
   }, $data.pendingConfirms.length ? {
-    d: common_vendor.t($data.pendingConfirms.length),
-    e: common_vendor.f($data.pendingConfirms, (item, k0, i0) => {
+    b: common_vendor.t($data.pendingConfirms.length),
+    c: common_vendor.f($data.pendingConfirms, (item, k0, i0) => {
       return {
         a: common_vendor.t($options.formatCurrency(item.amount)),
         b: common_vendor.t($options.formatTime(item.create_time)),
@@ -194,13 +192,13 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    f: common_vendor.t($options.formatCurrency($data.wallet.total_income)),
-    g: common_vendor.t($options.formatCurrency($data.wallet.total_withdraw)),
-    h: common_vendor.t($options.formatCurrency($data.wallet.frozen_amount)),
-    i: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
-    j: $data.recentTransactions.length
+    d: common_vendor.t($options.formatCurrency($data.wallet.total_income)),
+    e: common_vendor.t($options.formatCurrency($data.wallet.total_withdraw)),
+    f: common_vendor.t($options.formatCurrency($data.wallet.frozen_amount)),
+    g: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
+    h: $data.recentTransactions.length
   }, $data.recentTransactions.length ? {
-    k: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
+    i: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
       return {
         a: common_vendor.t(item.title),
         b: common_vendor.t(item.description || $options.defaultDescription(item.type)),
@@ -212,7 +210,7 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    l: common_vendor.p({
+    j: common_vendor.p({
       headTitle: "最近交易"
     })
   });

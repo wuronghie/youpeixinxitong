@@ -211,8 +211,8 @@ export default {
 					url: '/pages-teacher/profile/index'
 				},
 				{
-					title: '我的钱包',
-					desc: '查看余额与交易明细',
+					title: '收款确认',
+					desc: '微信转账待确认时在此处理',
 					icon: getIconUrl('wallet.png'),
 					url: '/pages-teacher/wallet/index'
 				},
@@ -227,6 +227,12 @@ export default {
 					desc: '查看并回复家长评价',
 					icon: getIconUrl('star.png'),
 					url: '/pages-teacher/review/list'
+				},
+				{
+					title: '关注服务号',
+					desc: '一键关注，接收预约与消息通知',
+					icon: getIconUrl('bell.png'),
+					url: '/pages/common/follow-oa'
 				},
 				{
 					title: '系统消息',

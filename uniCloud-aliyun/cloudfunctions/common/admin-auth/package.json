@@ -1,0 +1,7 @@
+{
+  "name": "admin-auth",
+  "version": "1.0.0",
+  "description": "后台管理员/审核员鉴权公共模块",
+  "main": "index.js",
+  "private": true
+}

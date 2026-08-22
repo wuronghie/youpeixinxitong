@@ -2,7 +2,7 @@
   "bsonType": "object",
   "description": "用户优惠券表（记录每张券的发放与使用情况）",
   "permission": {
-    "read": "doc.user_id == auth.uid || 'READ_USER_COUPONS' in auth.permission",
+    "read": "(doc.user_id == auth.uid || 'READ_USER_COUPONS' in auth.permission) || 'admin' in auth.role || 'auditor' in auth.role",
     "create": "'CREATE_USER_COUPONS' in auth.permission",
     "update": "doc.user_id == auth.uid || 'UPDATE_USER_COUPONS' in auth.permission",
     "delete": "'DELETE_USER_COUPONS' in auth.permission"
@@ -88,4 +88,3 @@
     "status"
   ]
 }
-

@@ -24,7 +24,13 @@
             class="icon"
             mode="aspectFit"
           ></image>
-          <view v-if="item.key === 'chat' && hasUnreadChat" class="red-dot"></view>
+          <view
+            v-if="item.key === 'chat' && unreadChatCount > 0"
+            class="badge"
+            :class="{ 'badge-wide': unreadChatCount > 9 }"
+          >
+            <text class="badge-text">{{ unreadBadgeText }}</text>
+          </view>
         </view>
         <text class="label">{{ item.label }}</text>
       </template>
@@ -34,6 +40,8 @@
 
 <script>
 import { getIconUrl } from '@/utils/imageConfig.js'
+import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
+import { onChatPush, offChatPush, onChatBadge, offChatBadge, getCachedUnreadCount } from '@/utils/chatPush.js'
 
 export default {
   name: 'ParentTabBar',
@@ -83,22 +91,80 @@ export default {
 						path: '/pages/user/index'
 					}
 				],
-				hasUnreadChat: false
+				unreadChatCount: 0,
+				badgePollTimer: null
 			}
 		},
-  mounted() {
-    this.loadUnreadChat()
+  computed: {
+    unreadBadgeText() {
+      const n = Number(this.unreadChatCount || 0)
+      if (n <= 0) return ''
+      return n > 99 ? '99+' : String(n)
+    }
   },
+  mounted() {
+    this.unreadChatCount = getCachedUnreadCount()
+    this.loadUnreadChat()
+    this.startBadgePolling()
+    this.bindChatPush()
+  },
+  beforeUnmount() {
+    this.stopBadgePolling()
+    this.unbindChatPush()
+  },
+  // #ifndef VUE3
+  beforeDestroy() {
+    this.stopBadgePolling()
+    this.unbindChatPush()
+  },
+  // #endif
   methods: {
+    bindChatPush() {
+      if (this._onChatPush) return
+      this._onChatPush = (payload) => {
+        console.log('[ParentTabBar] 收到 push，刷新角标', payload)
+        this.loadUnreadChat()
+      }
+      this._onChatBadge = (count) => {
+        console.log('[ParentTabBar] 收到 badge 事件', count)
+        this.unreadChatCount = Math.max(0, Number(count) || 0)
+      }
+      onChatPush(this._onChatPush)
+      onChatBadge(this._onChatBadge)
+    },
+    unbindChatPush() {
+      if (this._onChatPush) {
+        offChatPush(this._onChatPush)
+        this._onChatPush = null
+      }
+      if (this._onChatBadge) {
+        offChatBadge(this._onChatBadge)
+        this._onChatBadge = null
+      }
+    },
+    startBadgePolling() {
+      this.stopBadgePolling()
+      if (!CHAT_POLL_ENABLED) return
+      this.badgePollTimer = setInterval(() => {
+        this.loadUnreadChat()
+      }, CHAT_POLL_INTERVAL.badge)
+    },
+    stopBadgePolling() {
+      if (this.badgePollTimer) {
+        clearInterval(this.badgePollTimer)
+        this.badgePollTimer = null
+      }
+    },
     async loadUnreadChat() {
       try {
         const chatSend = uniCloud.importObject('chat-send', { customUI: true })
-        const res = await chatSend.getUnreadSummary()
+        const res = await chatSend.pollUpdates({ mode: 'badge' })
+        console.log('[ParentTabBar] loadUnreadChat=', res)
         if (res.code === 0) {
-          this.hasUnreadChat = Number(res.data?.unreadMessages || 0) > 0
+          this.unreadChatCount = Math.max(0, Number(res.data?.unreadMessages || 0))
         }
       } catch (e) {
-        this.hasUnreadChat = false
+        this.unreadChatCount = 0
       }
     },
     handleClick(item) {
@@ -186,15 +252,35 @@ export default {
   margin-bottom: 0;
 }
 
-.red-dot {
+/* 微信风格未读角标：显示条数，超过 99 显示 99+ */
+.badge {
   position: absolute;
-  top: -4rpx;
-  right: -8rpx;
-  width: 16rpx;
-  height: 16rpx;
-  border-radius: 50%;
-  background: #ff3b30;
+  top: -10rpx;
+  right: -18rpx;
+  min-width: 28rpx;
+  height: 28rpx;
+  padding: 0 6rpx;
+  border-radius: 28rpx;
+  background: #fa5151;
   border: 2rpx solid #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.badge-wide {
+  right: -28rpx;
+  min-width: 36rpx;
+  padding: 0 8rpx;
+}
+
+.badge-text {
+  color: #ffffff;
+  font-size: 18rpx;
+  line-height: 1;
+  font-weight: 600;
+  transform: scale(0.92);
 }
 
 .tabbar-item.active {

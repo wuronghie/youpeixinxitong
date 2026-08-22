@@ -124,9 +124,9 @@ const _sfc_main = {
         { label: "价格从低到高", value: "price_asc" },
         { label: "价格从高到低", value: "price" }
       ],
-      // 院校筛选选项
+      // 是否在读筛选选项
       schoolFilters: [
-        { label: "全部院校", value: "" },
+        { label: "全部", value: "" },
         { label: "四川大学", value: "四川大学" },
         { label: "电子科技大学", value: "电子科技大学" },
         { label: "西南交通大学", value: "西南交通大学" },
@@ -246,7 +246,7 @@ const _sfc_main = {
       return "已选";
     },
     schoolTabText() {
-      return this.schoolDisplayLabel || "院校";
+      return this.schoolDisplayLabel || "是否在读";
     },
     experienceDisplayLabel() {
       if (!this.experienceLabel)
@@ -315,13 +315,13 @@ const _sfc_main = {
   },
   onShareAppMessage() {
     return {
-      title: "家教帮 · 找优质家教老师",
+      title: "优培信息通 · 找优质家教老师",
       path: "/pages/teacher/list"
     };
   },
   onShareTimeline() {
     return {
-      title: "家教帮 · 找优质家教老师"
+      title: "优培信息通 · 找优质家教老师"
     };
   },
   methods: {

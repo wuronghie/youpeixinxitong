@@ -87,6 +87,8 @@ import { mockConversations, useMockData } from '@/utils/mockData.js'
 import ParentTabBar from '@/components/ParentTabBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
+import { onChatPush, offChatPush } from '@/utils/chatPush.js'
 
 export default {
 	name: 'ChatList',
@@ -114,9 +116,10 @@ export default {
 			useMock: false,
 			scrollTop: 0,
 			canRefresh: true,
-			// 会话列表轮询定时器
+			// 会话列表轮询定时器（push 为主，长间隔兜底）
 			pollTimer: null,
-			pollInterval: 10000 // 10秒轮询一次（列表更新频率可以稍低）
+			pollInterval: CHAT_POLL_INTERVAL.list,
+			silentPolling: false
 		}
 	},
 	watch: {
@@ -135,42 +138,61 @@ export default {
 	},
 	onShareAppMessage() {
 		return {
-			title: '家教帮 · 老师沟通',
+			title: '优培信息通 · 老师沟通',
 			path: '/pages/chat/list'
 		}
 	},
 	onShareTimeline() {
 		return {
-			title: '家教帮 · 老师沟通'
+			title: '优培信息通 · 老师沟通'
 		}
 	},
 	onShow() {
 		if (!this.useMock) {
-			// 延迟加载数据，避免阻塞页面渲染
+			// 先绑定 push，再拉列表，避免短窗口内收不到推送
+			this.bindChatPush()
+			this.startPolling()
 			this.$nextTick(() => {
-				setTimeout(() => {
-					this.resetAndLoad()
-					// 启动会话列表轮询
-					this.startPolling()
-				}, 50)
+				this.resetAndLoad()
 			})
 		}
 	},
 	onHide() {
 		// 页面隐藏时停止轮询
 		this.stopPolling()
+		this.unbindChatPush()
 	},
 	onUnload() {
 		// 页面卸载时清理定时器
 		this.stopPolling()
+		this.unbindChatPush()
 	},
 	methods: {
+		bindChatPush() {
+			if (this._onChatPush) {
+				console.log('[parent-chat-list] push 已绑定，跳过')
+				return
+			}
+			this._onChatPush = (payload) => {
+				console.log('[parent-chat-list] 收到 push，刷新列表', payload)
+				this.refreshConversationsSilently()
+			}
+			onChatPush(this._onChatPush)
+			console.log('[parent-chat-list] 已订阅 chat:push')
+		},
+		unbindChatPush() {
+			if (!this._onChatPush) return
+			offChatPush(this._onChatPush)
+			this._onChatPush = null
+			console.log('[parent-chat-list] 已取消订阅 chat:push')
+		},
 		/**
 		 * 启动会话列表轮询
 		 */
 		startPolling() {
 			// 如果已有定时器，先清除
 			this.stopPolling()
+			if (!CHAT_POLL_ENABLED) return
 			// 只在非mock模式时轮询
 			if (!this.useMock) {
 				this.pollTimer = setInterval(() => {
@@ -224,55 +246,59 @@ export default {
 		 * 静默刷新会话列表（用于轮询）
 		 */
 		async refreshConversationsSilently() {
-			if (this.loading || this.useMock) return
-			this.loading = true
+			if (this.loading || this.silentPolling || this.useMock) return
+			this.silentPolling = true
 			try {
 				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
-				const res = await chatSend.getConversationList()
-				if (res.code === 0) {
-					const fetched = (res.data?.list || []).map(item => {
+				// 轻量摘要：不做对方资料联表，显著降低轮询成本
+				const res = await chatSend.pollUpdates({ mode: 'list' })
+				if (res.code === 0 && res.data) {
+					const listMap = new Map()
+					this.list.forEach(item => {
+						listMap.set(item.conversation_id, item)
+					})
+					let hasUnknownConversation = false
+					;(res.data.list || []).forEach(item => {
 						let lastMessage = ''
 						if (item.last_message) {
 							if (typeof item.last_message === 'object') {
-								lastMessage = item.last_message.content || item.last_message.text || JSON.stringify(item.last_message)
+								lastMessage = item.last_message.content || item.last_message.text || ''
 							} else {
 								lastMessage = item.last_message
 							}
 						}
 						lastMessage = this.formatLastMessage(lastMessage)
-						return {
+						const prev = listMap.get(item._id)
+						if (!prev) hasUnknownConversation = true
+						listMap.set(item._id, {
+							...(prev || {}),
 							conversation_id: item._id,
 							appointment_id: item.appointment_id,
-							name: this.resolveName(item, '老师'),
-							avatar: this.resolveAvatar(item),
+							name: (prev && prev.name) || '老师',
+							avatar: (prev && prev.avatar) || this.defaultAvatarUrl,
 							last_message: lastMessage,
 							last_message_time: item.last_message_time || item.update_time || Date.now(),
-							unread_count: Number(item.unread_count_parent ?? 0),
+							unread_count: Number(item.unread_count ?? item.unread_count_parent ?? 0),
 							status: item.status,
 							deposit_paid: item.deposit_paid,
-							tag: this.resolveTag(item)
-						}
+							tag: (prev && prev.tag) || ''
+						})
 					})
-					// 静默合并更新：以 conversation_id 为 key，更新已存在的项，添加新项
-					const listMap = new Map()
-					this.list.forEach(item => {
-						listMap.set(item.conversation_id, item)
-					})
-					fetched.forEach(item => {
-						listMap.set(item.conversation_id, item)
-					})
-					// 按最后消息时间排序
-					this.list = Array.from(listMap.values()).sort((a, b) => 
+					this.list = Array.from(listMap.values()).sort((a, b) =>
 						(b.last_message_time || 0) - (a.last_message_time || 0)
 					)
 					this.updateStats()
 					this.filterList()
+					// 出现全新会话时补一次完整列表，补齐头像昵称
+					if (hasUnknownConversation) {
+						this.finished = false
+						this.$nextTick(() => this.loadConversations())
+					}
 				}
 			} catch (error) {
 				console.error('静默刷新会话列表失败:', error)
-				// 静默刷新失败不提示用户
 			} finally {
-				this.loading = false
+				this.silentPolling = false
 			}
 		},
 		async loadConversations() {
@@ -456,6 +482,10 @@ export default {
 			// 只要包含 trial_invite 且看起来像JSON格式，就识别为试课邀请
 			if (trimmed.includes('trial_invite') && (trimmed.startsWith('{') || trimmed.includes('"type"') || trimmed.includes('type'))) {
 				return '邀请试课'
+			}
+			if (trimmed.includes('attendance_clock')) {
+				if (trimmed.includes('clock_out')) return '老师已下课打卡'
+				return '老师已上课打卡'
 			}
 			
 			return message

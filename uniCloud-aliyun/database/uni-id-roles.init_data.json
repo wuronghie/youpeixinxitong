@@ -1,0 +1,14 @@
+[
+  {
+    "role_id": "auditor",
+    "role_name": "普通管理员",
+    "permission": [
+      "AUDIT_TEACHER",
+      "AUDIT_REFUND",
+      "AUDIT_RECRUITMENT",
+      "READ_UNI_ID_USERS"
+    ],
+    "comment": "普通管理员：可看全部、可审核、不可删除（勿赋 DELETE_*）。admin 角色库中已有，勿重复导入。",
+    "create_date": 0
+  }
+]

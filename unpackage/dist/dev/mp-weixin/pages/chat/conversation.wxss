@@ -366,3 +366,47 @@
 	color: #999999;
 	font-size: 26rpx;
 }
+.attendance-clock-card.data-v-ad2b89bd {
+	width: 560rpx;
+	background-color: #FFFFFF;
+	border-radius: 24rpx;
+	padding: 28rpx 32rpx;
+	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+}
+.attendance-clock-header.data-v-ad2b89bd {
+	display: flex;
+	align-items: center;
+	margin-bottom: 16rpx;
+}
+.attendance-clock-icon.data-v-ad2b89bd {
+	font-size: 40rpx;
+	margin-right: 12rpx;
+}
+.attendance-clock-title.data-v-ad2b89bd {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #333333;
+}
+.attendance-clock-row.data-v-ad2b89bd {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 8rpx;
+}
+.attendance-clock-label.data-v-ad2b89bd {
+	width: 72rpx;
+	font-size: 24rpx;
+	color: #999999;
+	flex-shrink: 0;
+}
+.attendance-clock-value.data-v-ad2b89bd {
+	flex: 1;
+	font-size: 24rpx;
+	color: #555555;
+	line-height: 1.5;
+}
+.attendance-clock-tip.data-v-ad2b89bd {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 22rpx;
+	color: #4A90E2;
+}

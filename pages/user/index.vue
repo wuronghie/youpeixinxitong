@@ -24,12 +24,6 @@
 	<view>
 		<!-- 头部区域：显示用户信息和统计 -->
 		<view class="position-relative d-flex a-center animated fadeIn faster" style="height: 320rpx;">
-			<!-- 消息列表入口 -->
-			<view @click="goToPage('/pages/chat/list')"
-			class="iconfont icon-xiaoxi position-absolute text-white" 
-			style="font-size: 50rpx;top: 75rpx;right: 20rpx;z-index: 100;"
-			></view>
-			
 			<view class="main-bg-color" style="height: 320rpx;width: 100%;position: absolute;top: 0;left: 0;"></view>
 			
 			<view class="d-flex a-center position-absolute left-0 right-0" style="bottom: 50rpx;">
@@ -80,7 +74,6 @@
 					<view class="iconfont font-lg line-h"
 					:class="item.icon"></view>
 					<view>{{item.name}}</view>
-					<view v-if="item.badge" class="badge">{{item.badge}}</view>
 				</view>
 			</view>
 		</card>
@@ -156,6 +149,16 @@
 				<view class="d-flex a-center">
 					<view class="iconfont icon-service mr-2" style="color:#FA6C5E;font-size: 40rpx;"></view>
 					<text class="font-md">完善资料</text>
+				</view>
+				<text class="iconfont icon-you text-light-muted"></text>
+			</view>
+			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
+			hover-class="bg-light-secondary"
+			@click="goToPage('/pages/common/follow-oa')">
+				<view class="d-flex a-center">
+					<view class="iconfont icon-xiaoxi mr-2" style="color:#07C160;font-size: 40rpx;"></view>
+					<text class="font-md">关注服务号</text>
+					<text class="font-xs text-light-muted ml-2">接收预约/消息通知</text>
 				</view>
 				<text class="iconfont icon-you text-light-muted"></text>
 			</view>
@@ -314,31 +317,26 @@ export default {
 		 *   - 修改跳转状态：修改 index 字段（对应 appointment/list 页面的 status 参数）
 		 */
 		appointmentOrders() {
-			const stats = this.overview.appointmentStats || {}
 			return [
 				{
 					name: '待支付',
 					icon: 'icon-wallet_icon',
-					index: 'pending_payment',
-					badge: this.badgeValue(stats.pending_payment || 0)
+					index: 'pending_payment'
 				},
 				{
 					name: '待确认',
 					icon: 'icon-daishouhuo',
-					index: 'pending_confirm',
-					badge: this.badgeValue(stats.pending_confirm || 0)
+					index: 'pending_confirm'
 				},
 				{
 					name: '进行中',
 					icon: 'icon-pinglun',
-					index: 'in_progress',
-					badge: this.badgeValue(stats.in_progress || 0)
+					index: 'in_progress'
 				},
 				{
 					name: '已完成',
 					icon: 'icon-buoumaotubiao46',
-					index: 'completed',
-					badge: ''
+					index: 'completed'
 				}
 			]
 		}
@@ -371,7 +369,7 @@ export default {
 	onShareAppMessage() {
 		const query = this.myInviteCode ? `?inviteCode=${this.myInviteCode}` : ''
 		return {
-			title: '家教帮 · 家长个人中心',
+			title: '优培信息通 · 家长个人中心',
 			// 将分享落地页指向登录页，方便新用户注册，并携带邀请码
 			path: `/pages/login/index${query}`
 		}
@@ -379,7 +377,7 @@ export default {
 	onShareTimeline() {
 		const query = this.myInviteCode ? `inviteCode=${this.myInviteCode}` : ''
 		return {
-			title: '家教帮 · 家长个人中心',
+			title: '优培信息通 · 家长个人中心',
 			query
 		}
 	},
@@ -431,15 +429,6 @@ export default {
 				this.goLogin()
 			}, 300)
 			return false
-		},
-		/**
-		 * 格式化徽章数值
-		 * @param {Number} count - 数量
-		 * @returns {String} 格式化后的徽章文字（超过99显示99+）
-		 */
-		badgeValue(count) {
-			if (!count) return ''
-			return count > 99 ? '99+' : String(count)
 		},
 		/**
 		 * 初始化页面数据
@@ -790,20 +779,6 @@ export default {
 </script>
 
 <style scoped>
-.badge {
-	position: absolute;
-	top: 8rpx;
-	right: 20rpx;
-	background: #ff4757;
-	color: #fff;
-	font-size: 20rpx;
-	border-radius: 999rpx;
-	padding: 2rpx 10rpx;
-	min-width: 32rpx;
-	text-align: center;
-	line-height: 1.2;
-}
-
 .tabbar-spacer {
 	height: 140rpx;
 }
