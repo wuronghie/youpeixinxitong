@@ -5,6 +5,7 @@
  */
 
 const uniID = require('uni-id-common')
+const { notifySystemMessage } = require('notify-push')
 
 /** 课时费下限（元/小时） */
 const MIN_HOURLY_RATE = 120
@@ -538,6 +539,13 @@ module.exports = {
           action_url: '/pages-teacher/profile/index',  // 兼容字段，用于前端跳转
           is_read: false
         })
+        await notifySystemMessage({
+          userId: teacher_id,
+          title: messageTitle,
+          content: messageContent,
+          messageType: 'system',
+          relatedId: profile._id
+        })
         console.log(`已为教师 ${teacher_id} 创建审核等待消息（wasApproved=${wasApproved}）`)
       } catch (msgError) {
         console.error('创建系统消息失败:', msgError)
@@ -687,6 +695,13 @@ module.exports = {
           },
           action_url: '/pages-teacher/profile/index',  // 兼容字段，用于前端跳转
           is_read: false
+        })
+        await notifySystemMessage({
+          userId: teacher_id,
+          title: messageTitle,
+          content: messageContent,
+          messageType: 'system',
+          relatedId: profile._id
         })
         console.log(`已为教师 ${teacher_id} 创建审核结果消息，审核${approve ? '通过' : '未通过'}`)
       } catch (msgError) {

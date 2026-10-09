@@ -4,6 +4,8 @@
   "description": "用户登录云对象",
   "main": "index.obj.js",
   "dependencies": {
+    "coupon-issue": "file:../common/coupon-issue",
+    "notify-push": "file:../common/notify-push",
     "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
   },
   "cloudfunction-config": {
@@ -12,5 +14,7 @@
     "timeout": 60,
     "triggers": []
   },
-  "extensions": {}
+  "extensions": {
+    "uni-cloud-push": {}
+  }
 }

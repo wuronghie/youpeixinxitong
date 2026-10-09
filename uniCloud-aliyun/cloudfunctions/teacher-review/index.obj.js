@@ -1,4 +1,5 @@
 const uniID = require('uni-id-common')
+const { appendReviewChatNotice } = require('chat-notice')
 
 const REVIEW_COLLECTION = 'reviews'
 const PROFILE_COLLECTION = 'user-profiles'
@@ -142,8 +143,9 @@ module.exports = {
       if (!score || score < 1 || score > 5) {
         return error('请给出1-5星评分')
       }
-      if (!content || !content.trim()) {
-        return error('请填写评价内容')
+      const contentText = String(content || '').trim()
+      if (contentText.length > 500) {
+        return error('评价内容不超过 500 字')
       }
 
       const userDoc = await db.collection(USER_COLLECTION).doc(parent_id).get()
@@ -210,7 +212,7 @@ module.exports = {
         parent_id,
         rating: score,
         tags: Array.isArray(tags) ? tags.slice(0, 10) : [],
-        content: content.trim(),
+        content: contentText,
         is_satisfied: typeof is_satisfied === 'boolean' ? is_satisfied : null,
         status: 'published',
         teacher_name: teacherProfile.display_name || appointment.teacher_name || '',
@@ -245,6 +247,22 @@ module.exports = {
         })
 
       await updateTeacherReviewStats(db, teacher_id)
+
+      try {
+        await appendReviewChatNotice(db, {
+          appointment,
+          review: {
+            review_id: addRes.id,
+            rating: score,
+            tags: reviewData.tags,
+            content: contentText,
+            is_satisfied: reviewData.is_satisfied,
+            is_auto: false
+          }
+        })
+      } catch (noticeErr) {
+        console.warn('[teacher-review] 聊天评价卡片失败', noticeErr)
+      }
 
       return success({ review_id: addRes.id }, '评价提交成功')
     } catch (e) {

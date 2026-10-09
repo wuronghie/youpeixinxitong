@@ -1,7 +1,5 @@
 {
-  "navigationBarTitleText": "消息",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "navigationBarTitleText": "老师沟通",
   "usingComponents": {
     "parent-tab-bar": "../../components/ParentTabBar"
   }

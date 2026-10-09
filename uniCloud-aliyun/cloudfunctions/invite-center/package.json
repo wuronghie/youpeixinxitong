@@ -1,7 +1,11 @@
 {
   "name": "invite-center",
   "dependencies": {
+    "coupon-issue": "file:../common/coupon-issue",
+    "notify-push": "file:../common/notify-push",
     "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common"
   },
-  "extensions": {}
+  "extensions": {
+    "uni-cloud-push": {}
+  }
 }

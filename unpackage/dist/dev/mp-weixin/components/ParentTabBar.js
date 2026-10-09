@@ -1,7 +1,6 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
 const utils_imageConfig = require("../utils/imageConfig.js");
-const utils_chatPoll = require("../utils/chatPoll.js");
 const utils_chatPush = require("../utils/chatPush.js");
 const _sfc_main = {
   name: "ParentTabBar",
@@ -31,8 +30,8 @@ const _sfc_main = {
         {
           key: "recruitment",
           label: "招募",
-          icon: utils_imageConfig.getIconUrl("chat.png"),
-          activeIcon: utils_imageConfig.getIconUrl("chat-active.png"),
+          icon: utils_imageConfig.getRecruitmentIconUrl(),
+          activeIcon: utils_imageConfig.getRecruitmentIconUrl(),
           path: "/pages/recruitment/list",
           center: true
         },
@@ -65,8 +64,6 @@ const _sfc_main = {
   },
   mounted() {
     this.unreadChatCount = utils_chatPush.getCachedUnreadCount();
-    this.loadUnreadChat();
-    this.startBadgePolling();
     this.bindChatPush();
   },
   beforeUnmount() {
@@ -78,11 +75,11 @@ const _sfc_main = {
       if (this._onChatPush)
         return;
       this._onChatPush = (payload) => {
-        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:125", "[ParentTabBar] 收到 push，刷新角标", payload);
+        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:128", "[ParentTabBar] 收到 push，刷新角标", payload);
         this.loadUnreadChat();
       };
       this._onChatBadge = (count) => {
-        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:129", "[ParentTabBar] 收到 badge 事件", count);
+        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:132", "[ParentTabBar] 收到 badge 事件", count);
         this.unreadChatCount = Math.max(0, Number(count) || 0);
       };
       utils_chatPush.onChatPush(this._onChatPush);
@@ -100,9 +97,7 @@ const _sfc_main = {
     },
     startBadgePolling() {
       this.stopBadgePolling();
-      this.badgePollTimer = setInterval(() => {
-        this.loadUnreadChat();
-      }, utils_chatPoll.CHAT_POLL_INTERVAL.badge);
+      return;
     },
     stopBadgePolling() {
       if (this.badgePollTimer) {
@@ -115,7 +110,7 @@ const _sfc_main = {
       try {
         const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
         const res = await chatSend.pollUpdates({ mode: "badge" });
-        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:162", "[ParentTabBar] loadUnreadChat=", res);
+        common_vendor.index.__f__("log", "at components/ParentTabBar.vue:165", "[ParentTabBar] loadUnreadChat=", res);
         if (res.code === 0) {
           this.unreadChatCount = Math.max(0, Number(((_a = res.data) == null ? void 0 : _a.unreadMessages) || 0));
         }
@@ -137,11 +132,11 @@ const _sfc_main = {
         common_vendor.index.redirectTo({
           url: item.path,
           fail: (err) => {
-            common_vendor.index.__f__("warn", "at components/ParentTabBar.vue:191", "redirectTo 失败，尝试使用 navigateTo:", err);
+            common_vendor.index.__f__("warn", "at components/ParentTabBar.vue:194", "redirectTo 失败，尝试使用 navigateTo:", err);
             common_vendor.index.navigateTo({
               url: item.path,
               fail: (navErr) => {
-                common_vendor.index.__f__("error", "at components/ParentTabBar.vue:196", "页面导航失败:", navErr);
+                common_vendor.index.__f__("error", "at components/ParentTabBar.vue:199", "页面导航失败:", navErr);
               }
             });
           }

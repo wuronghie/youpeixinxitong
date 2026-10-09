@@ -1,7 +1,6 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
-const card = () => "../../components/common/card.js";
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 const DAY_NAMES = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const DEFAULT_SLOTS = [
@@ -24,9 +23,6 @@ function buildDefaultWeek() {
 }
 const _sfc_main = {
   name: "TeacherSchedule",
-  components: {
-    card
-  },
   data() {
     return {
       weekSchedule: buildDefaultWeek(),
@@ -41,6 +37,17 @@ const _sfc_main = {
     this.loadSchedule();
   },
   methods: {
+    formatSlot(slot) {
+      const start = (slot.start || "").slice(0, 5);
+      const end = (slot.end || "").slice(0, 5);
+      return `${start.replace(":00", "")}–${end.replace(":00", "")}`;
+    },
+    dayOpenText(day) {
+      const open = (day.slots || []).filter((slot) => slot.is_available);
+      if (!open.length)
+        return "";
+      return open.map((slot) => `${this.formatSlot(slot)} 开`).join(" / ");
+    },
     dayDescription(dayIndex) {
       if (dayIndex === 0 || dayIndex === 6)
         return "建议全天可约";
@@ -77,7 +84,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/schedule.vue:142", "加载时间设置失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/schedule.vue:138", "加载时间设置失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -162,7 +169,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/schedule.vue:228", "保存时间设置失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/schedule.vue:224", "保存时间设置失败:", error);
         common_vendor.index.showToast({ title: "保存失败，请稍后再试", icon: "none" });
       } finally {
         this.saving = false;
@@ -170,37 +177,28 @@ const _sfc_main = {
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: common_vendor.f($data.weekSchedule, (day, k0, i0) => {
       return {
         a: common_vendor.t(day.name),
-        b: common_vendor.t($options.dayDescription(day.dayIndex)),
-        c: common_vendor.f(day.slots, (slot, k1, i1) => {
+        b: common_vendor.t($options.dayOpenText(day) || "全关"),
+        c: !$options.dayOpenText(day) ? 1 : "",
+        d: common_vendor.f(day.slots, (slot, k1, i1) => {
           return {
-            a: common_vendor.t(slot.start),
-            b: common_vendor.t(slot.end),
-            c: common_vendor.t(slot.is_available ? "开放预约" : "暂不开放"),
-            d: slot.id,
-            e: common_vendor.n(slot.is_available ? "main-bg-color text-white" : "bg-light-secondary"),
-            f: common_vendor.o(($event) => $options.toggleSlot(day.dayIndex, slot.id), slot.id)
+            a: common_vendor.t($options.formatSlot(slot)),
+            b: slot.id,
+            c: slot.is_available ? 1 : "",
+            d: common_vendor.o(($event) => $options.toggleSlot(day.dayIndex, slot.id), slot.id)
           };
         }),
-        d: day.dayIndex,
-        e: day.dayIndex === $data.weekSchedule[$data.weekSchedule.length - 1].dayIndex ? 1 : ""
+        e: day.dayIndex
       };
     }),
-    b: common_vendor.p({
-      headTitle: "每周时间安排"
-    }),
-    c: common_vendor.o((...args) => $options.handleBlockedDateChange && $options.handleBlockedDateChange(...args)),
-    d: $data.blockedDates.length
+    b: common_vendor.o((...args) => $options.handleBlockedDateChange && $options.handleBlockedDateChange(...args)),
+    c: $data.blockedDates.length
   }, $data.blockedDates.length ? {
-    e: common_vendor.f($data.blockedDates, (date, idx, i0) => {
+    d: common_vendor.f($data.blockedDates, (date, idx, i0) => {
       return {
         a: common_vendor.t(date),
         b: common_vendor.o(($event) => $options.removeBlockedDate(idx), date),
@@ -208,11 +206,8 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       };
     })
   } : {}, {
-    f: common_vendor.p({
-      headTitle: "不可预约日期"
-    }),
-    g: $data.saving,
-    h: common_vendor.o((...args) => $options.saveSchedule && $options.saveSchedule(...args))
+    e: $data.saving,
+    f: common_vendor.o((...args) => $options.saveSchedule && $options.saveSchedule(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-fdc0b670"]]);

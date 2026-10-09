@@ -1,12 +1,8 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
-const card = () => "../../components/common/card.js";
 const TRIAL_PARENT_REFUND_RATE = 0.3;
 const _sfc_main = {
   name: "OrderRefund",
-  components: {
-    card
-  },
   data() {
     return {
       orderId: "",
@@ -21,7 +17,8 @@ const _sfc_main = {
       reasonOptions: ["试课不满意", "教师爽约/未按时上课", "时间冲突需要调整", "其他原因"],
       reasonIndex: -1,
       isSubmitting: false,
-      isLoading: false
+      isLoading: false,
+      blockedByConfirm: false
     };
   },
   computed: {
@@ -36,6 +33,15 @@ const _sfc_main = {
         return Math.round(this.order.amount * TRIAL_PARENT_REFUND_RATE * 100) / 100;
       }
       return this.order.amount;
+    },
+    teacherLabel() {
+      const info = this.order.appointment_info || {};
+      const name = info.teacher_name || "教师";
+      if (info.course_type === "trial")
+        return `${name} · 试课`;
+      if (info.course_type === "regular" || info.course_type === "formal")
+        return `${name} · 正式课`;
+      return name;
     }
   },
   async onLoad(options) {
@@ -46,6 +52,8 @@ const _sfc_main = {
       return;
     }
     await this.loadOrder();
+    if (this.blockedByConfirm)
+      return;
     await this.loadRefundDetail();
   },
   methods: {
@@ -69,31 +77,37 @@ const _sfc_main = {
       });
     },
     async loadOrder() {
-      var _a, _b, _c, _d;
+      var _a, _b;
       if (this.isLoading)
         return;
       this.isLoading = true;
       try {
         const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
-        const res = await paymentCreate.getOrderList({ status: "all", page: 1, pageSize: 1, order_id: this.orderId });
-        let orderData;
-        if (res.code === 0 && ((_b = (_a = res.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length)) {
-          orderData = res.data.list.find((item) => item._id === this.orderId || item.order_no === this.orderId) || res.data.list[0];
-        }
-        if (!orderData) {
+        const res = await paymentCreate.getOrderDetail({ order_id: this.orderId });
+        if (res.code !== 0 || !res.data) {
           throw new Error(res.message || "获取订单失败");
         }
+        const orderData = res.data;
         this.order = {
           _id: orderData._id,
           order_no: orderData.order_no,
           amount: Number(orderData.amount || orderData.total_amount || 0),
           appointment_info: orderData.appointment_info ? {
             course_type: orderData.appointment_info.course_type,
-            teacher_name: ((_c = orderData.appointment_info.teacher_info) == null ? void 0 : _c.display_name) || ((_d = orderData.appointment_info.teacher_info) == null ? void 0 : _d.name)
+            status: orderData.appointment_info.status,
+            has_review: !!orderData.appointment_info.has_review,
+            teacher_name: ((_a = orderData.appointment_info.teacher_info) == null ? void 0 : _a.display_name) || ((_b = orderData.appointment_info.teacher_info) == null ? void 0 : _b.name)
           } : null
         };
+        const apt = this.order.appointment_info || {};
+        if (apt.status === "completed" || apt.has_review) {
+          this.blockedByConfirm = true;
+          common_vendor.index.showToast({ title: "已确认上课结果，不可再申请退款", icon: "none" });
+          setTimeout(() => this.safeLeave(), 1500);
+          return;
+        }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/order/refund.vue:183", "[退款申请] 加载订单失败:", error);
+        common_vendor.index.__f__("error", "at pages/order/refund.vue:172", "[退款申请] 加载订单失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载订单失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -114,7 +128,9 @@ const _sfc_main = {
       }
     },
     onReasonChange(e) {
-      const index = Number(e.detail.value);
+      this.selectReason(Number(e.detail.value));
+    },
+    selectReason(index) {
       this.reasonIndex = index;
       this.form.reason = this.reasonOptions[index];
     },
@@ -127,6 +143,11 @@ const _sfc_main = {
     async submitRefund() {
       if (this.isSubmitting)
         return;
+      const apt = this.order.appointment_info || {};
+      if (apt.status === "completed" || apt.has_review) {
+        common_vendor.index.showToast({ title: "已确认上课结果，不可再申请退款", icon: "none" });
+        return;
+      }
       const msg = this.validateForm();
       if (msg) {
         common_vendor.index.showToast({ title: msg, icon: "none" });
@@ -168,7 +189,7 @@ const _sfc_main = {
           throw new Error(res.message || "提交失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/order/refund.vue:259", "[退款申请] 提交退款异常:", error);
+        common_vendor.index.__f__("error", "at pages/order/refund.vue:255", "[退款申请] 提交退款异常:", error);
         common_vendor.index.showModal({
           title: "提交失败",
           content: (error.message || error.errMsg || "提交退款失败") + "\n\n请稍后重试。如问题持续，请联系客服。",
@@ -180,43 +201,34 @@ const _sfc_main = {
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.t($data.order.order_no || "-"),
-    b: common_vendor.t($data.order.amount.toFixed(2)),
+    a: common_vendor.t($options.isTrialOrder ? "仅可在确认上课结果前申请。试课退款预计退 30%，70% 给教师。" : "仅可在确认上课结果前申请，提交后由平台审核。"),
+    b: common_vendor.t($data.order.order_no || "-"),
     c: $data.order.appointment_info
   }, $data.order.appointment_info ? {
-    d: common_vendor.t($data.order.appointment_info.teacher_name || "教师")
+    d: common_vendor.t($options.teacherLabel)
   } : {}, {
-    e: common_vendor.p({
-      headTitle: "订单信息"
-    }),
+    e: common_vendor.t(Number($data.order.amount || 0).toFixed(2)),
     f: common_vendor.t($options.refundAmount.toFixed(2)),
     g: $options.isTrialOrder
   }, $options.isTrialOrder ? {} : {}, {
-    h: common_vendor.p({
-      headTitle: "退款说明"
+    h: common_vendor.f($data.reasonOptions, (item, index, i0) => {
+      return {
+        a: common_vendor.t(item),
+        b: item,
+        c: $data.reasonIndex === index ? 1 : "",
+        d: common_vendor.o(($event) => $options.selectReason(index), item)
+      };
     }),
-    i: common_vendor.t($data.form.reason || "请选择退款原因"),
-    j: common_vendor.n($data.form.reason ? "" : "text-light-muted"),
-    k: $data.reasonOptions,
-    l: $data.reasonIndex,
-    m: common_vendor.o((...args) => $options.onReasonChange && $options.onReasonChange(...args)),
-    n: $data.form.description,
-    o: common_vendor.o(common_vendor.m(($event) => $data.form.description = $event.detail.value, {
+    i: $data.form.description,
+    j: common_vendor.o(common_vendor.m(($event) => $data.form.description = $event.detail.value, {
       trim: true
     })),
-    p: common_vendor.t($data.form.description.length),
-    q: common_vendor.p({
-      headTitle: "退款原因"
-    }),
-    r: common_vendor.t($data.isSubmitting ? "提交中..." : $options.isTrialOrder ? "提交退款申请（退30%）" : "提交退款申请"),
-    s: $data.isSubmitting,
-    t: common_vendor.o((...args) => $options.submitRefund && $options.submitRefund(...args))
+    k: common_vendor.t($data.form.description.length),
+    l: common_vendor.t($data.isSubmitting ? "提交中..." : $options.isTrialOrder ? "提交退款申请（退30%）" : "提交退款申请"),
+    m: $data.isSubmitting,
+    n: common_vendor.o((...args) => $options.submitRefund && $options.submitRefund(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-397736d7"]]);

@@ -1,0 +1,9 @@
+{
+  "name": "chat-notice",
+  "version": "1.0.0",
+  "description": "向双方聊天会话写入打卡/评价等系统卡片",
+  "main": "index.js",
+  "dependencies": {
+    "notify-push": "file:../notify-push"
+  }
+}

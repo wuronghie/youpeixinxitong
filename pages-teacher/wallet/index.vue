@@ -1,91 +1,81 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部：钱包提现暂时停用，课酬统一打微信零钱 -->
-		<view class="main-bg-color py-4 px-3 text-white">
-			<view class="d-flex flex-column mb-3">
-				<text class="font-sm d-block mb-2" style="opacity: 0.85;">课酬到账方式</text>
-				<text class="font-xl font-weight d-block mb-2">微信零钱</text>
-				<text class="font-xs d-block" style="opacity: 0.75;">钱包提现已暂时停用；课程收入/试课课酬将直接打入微信零钱。若微信提示确认收款，请在下方处理。</text>
+	<view class="page">
+		<view class="wallet-band">
+			<text class="wallet-label">课酬到账方式</text>
+			<text class="wallet-title">微信零钱</text>
+			<text class="wallet-desc">课酬结算后直接打入微信零钱。若微信提示确认收款，请在下方处理。</text>
+		</view>
+
+		<view v-if="pendingConfirms.length" class="section-card pending-card">
+			<text class="section-title">待确认收款（{{ pendingConfirms.length }}）</text>
+			<text class="section-tip">微信要求确认后才能到账，请点击按钮完成收款</text>
+			<view
+				v-for="item in pendingConfirms"
+				:key="item._id"
+				class="pending-row"
+			>
+				<view class="pending-main">
+					<text class="pending-amount">¥{{ formatCurrency(item.amount) }}</text>
+					<text class="pending-time">{{ formatTime(item.create_time) }}</text>
+				</view>
+				<button
+					class="confirm-btn"
+					:loading="confirmingId === item._id"
+					@click="confirmReceive(item)"
+				>确认收款</button>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 待确认收款 -->
-				<view v-if="pendingConfirms.length" class="bg-white rounded px-3 py-3 mb-3">
-					<text class="font-sm font-weight d-block mb-2">待确认收款（{{ pendingConfirms.length }}）</text>
-					<text class="font-xs text-light-muted d-block mb-3">微信要求确认后才能到账，请点击下方按钮完成收款</text>
-					<view
-						v-for="item in pendingConfirms"
-						:key="item._id"
-						class="d-flex a-center j-sb py-2 border-bottom"
-					>
-						<view class="flex-1">
-							<text class="font-sm font-weight d-block">¥{{ formatCurrency(item.amount) }}</text>
-							<text class="font-xs text-light-muted">{{ formatTime(item.create_time) }}</text>
-						</view>
-						<button
-							class="main-bg-color text-white rounded px-3 py-1 font-xs"
-							size="mini"
-							:loading="confirmingId === item._id"
-							@click="confirmReceive(item)"
-						>确认收款</button>
-					</view>
-				</view>
-
-				<!-- 统计卡片 -->
-				<view class="d-flex mb-3">
-					<view class="flex-1 bg-white rounded px-3 py-3 mr-2 border-left" style="border-left-width: 6rpx; border-left-color: #667eea;">
-						<text class="font-xs text-light-muted d-block mb-1">累计收入</text>
-						<text class="font-md font-weight">¥{{ formatCurrency(wallet.total_income) }}</text>
-					</view>
-					<view class="flex-1 bg-white rounded px-3 py-3 mr-2 border-left" style="border-left-width: 6rpx; border-left-color: #2ecc71;">
-						<text class="font-xs text-light-muted d-block mb-1">累计到账</text>
-						<text class="font-md font-weight">¥{{ formatCurrency(wallet.total_withdraw) }}</text>
-					</view>
-					<view class="flex-1 bg-white rounded px-3 py-3 border-left" style="border-left-width: 6rpx; border-left-color: #ffba5a;">
-						<text class="font-xs text-light-muted d-block mb-1">冻结金额</text>
-						<text class="font-md font-weight">¥{{ formatCurrency(wallet.frozen_amount) }}</text>
-					</view>
-				</view>
-
-				<!-- 最近交易 -->
-				<card headTitle="最近交易" class="mb-3">
-					<view slot="right" class="main-text-color font-sm d-flex a-center" @click="goToIncome">查看全部<text class="iconfont icon-you ml-1"></text></view>
-					<view v-if="recentTransactions.length" class="d-flex flex-column">
-						<view v-for="item in recentTransactions" :key="item._id" class="d-flex a-center j-sb py-3 border-bottom">
-							<view class="flex-1">
-								<text class="font-sm font-weight d-block mb-1">{{ item.title }}</text>
-								<text class="font-xs text-light-muted d-block">{{ item.description || defaultDescription(item.type) }}</text>
-							</view>
-							<view class="d-flex flex-column a-end">
-								<text class="font-sm font-weight mb-1" :class="amountClass(item.amount)">
-									{{ item.amount > 0 ? '+' : '' }}¥{{ formatCurrency(item.amount) }}
-								</text>
-								<text class="font-xs text-light-muted">{{ formatTime(item.create_time) }}</text>
-							</view>
-						</view>
-					</view>
-					<view v-else class="d-flex flex-column a-center j-center py-5">
-						<view class="icon-empty" style="color: #ddd;"></view>
-						<text class="text-light-muted font-md mt-3">暂无收支记录</text>
-					</view>
-				</card>
+		<view class="stats-row" :class="{ 'stats-alone': !pendingConfirms.length }">
+			<view class="stat-card">
+				<text class="stat-value">¥{{ formatCurrency(wallet.total_income) }}</text>
+				<text class="stat-label">累计收入</text>
 			</view>
-		</scroll-view>
+		</view>
+
+		<view class="section-card">
+			<view class="section-head">
+				<text class="section-title">课酬流水</text>
+				<text class="section-more" @click="goToIncome">查看全部 ›</text>
+			</view>
+			<view v-if="recentTransactions.length">
+				<view
+					v-for="item in recentTransactions"
+					:key="item._id"
+					class="tx-row"
+				>
+					<view class="tx-main">
+						<view class="tx-title-row">
+							<text class="tx-title">{{ displayTitle(item) }}</text>
+							<text
+								v-if="item.arrive_label"
+								class="arrive-tag"
+								:class="arriveClass(item.arrive_status)"
+							>{{ item.arrive_label }}</text>
+						</view>
+						<text class="tx-desc">{{ item.description || defaultDescription(item.type) }}</text>
+					</view>
+					<view class="tx-side">
+						<text class="tx-amount" :class="amountClass(item.amount)">
+							{{ item.amount > 0 ? '+' : '' }}¥{{ formatCurrency(item.amount) }}
+						</text>
+						<text class="tx-time">{{ formatTime(item.create_time) }}</text>
+					</view>
+				</view>
+			</view>
+			<view v-else class="empty">
+				<text class="empty-title">暂无流水记录</text>
+			</view>
+		</view>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 
 export default {
 	name: 'TeacherWalletIndex',
-	components: {
-		card
-	},
 	mixins: [pullRefreshMixin],
 	data() {
 		return {
@@ -99,7 +89,8 @@ export default {
 			pendingConfirms: [],
 			confirmingId: '',
 			useMock: false,
-			loading: false
+			loading: false,
+			_walletReloadQueued: false
 		}
 	},
 	onLoad() {
@@ -108,6 +99,7 @@ export default {
 	},
 	onShow() {
 		if (!this.useMock) {
+			this.loadWallet()
 			this.loadPendingConfirms()
 		}
 	},
@@ -170,32 +162,40 @@ export default {
 			}
 		},
 		async loadWallet() {
-			if (this.loading) return
+			if (this.loading) {
+				this._walletReloadQueued = true
+				return
+			}
 			this.loading = true
+			this._walletReloadQueued = false
 			try {
 				if (this.useMock) {
 					await new Promise(resolve => setTimeout(resolve, 200))
 					this.wallet = {
-						balance: 1280,
+						balance: 0,
 						total_income: 5000,
-						total_withdraw: 3720,
-						frozen_amount: 300
+						total_withdraw: 0,
+						frozen_amount: 0
 					}
 					this.recentTransactions = [
 						{
 							_id: 'mock1',
 							title: '课程收入',
-							description: '2025-01-02 数学课程',
+							description: '家长 张三 · 课程',
 							amount: 300,
 							type: 'income',
+							arrive_status: 'arrived',
+							arrive_label: '已到账',
 							create_time: Date.now() - 86400000
 						},
 						{
 							_id: 'mock2',
-							title: '提现申请',
-							description: '微信零钱提现',
-							amount: -500,
-							type: 'withdraw',
+							title: '试课收入',
+							description: '家长 李四 · 试课',
+							amount: 200,
+							type: 'income',
+							arrive_status: 'wait_confirm',
+							arrive_label: '待确认收款',
 							create_time: Date.now() - 172800000
 						}
 					]
@@ -221,6 +221,10 @@ export default {
 				uni.showToast({ title: '获取钱包信息失败，请稍后再试', icon: 'none' })
 			} finally {
 				this.loading = false
+				if (this._walletReloadQueued) {
+					this._walletReloadQueued = false
+					this.loadWallet()
+				}
 			}
 		},
 		formatCurrency(value) {
@@ -236,15 +240,23 @@ export default {
 			return `${month}-${day} ${hour}:${minute}`
 		},
 		amountClass(amount) {
-			return amount >= 0 ? 'text-success' : 'text-danger'
+			return amount >= 0 ? 'amt-plus' : 'amt-minus'
+		},
+		arriveClass(status) {
+			if (status === 'arrived') return 'arrive-ok'
+			if (status === 'wait_confirm' || status === 'pending_review') return 'arrive-warn'
+			if (status === 'failed') return 'arrive-fail'
+			return 'arrive-muted'
+		},
+		displayTitle(item) {
+			if (!item) return '流水'
+			if (item.type === 'withdraw') return item.title || '微信到账'
+			return item.title || '课程收入'
 		},
 		defaultDescription(type) {
-			if (type === 'withdraw') return '资金提现'
 			if (type === 'refund') return '退款处理'
+			if (type === 'withdraw') return '课酬转入微信零钱'
 			return '课程收入'
-		},
-		goToWithdraw() {
-			uni.navigateTo({ url: '/pages-teacher/wallet/withdraw' })
 		},
 		goToIncome() {
 			uni.navigateTo({ url: '/pages-teacher/wallet/income' })
@@ -254,42 +266,263 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
-	flex: 1;
-	height: calc(100vh - 300rpx);
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+	padding-bottom: 48rpx;
 }
 
-/* CSS图标样式 */
-.icon-empty {
-	width: 240rpx;
-	height: 240rpx;
-	position: relative;
-	display: inline-block;
-	border: 4rpx dashed #ddd;
-	border-radius: 20rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
+.wallet-band {
+	background: linear-gradient(160deg, #1D4ED8 0%, #2563EB 58%, #4F7DF3 100%);
+	padding: 24rpx 32rpx 72rpx;
+	color: #FFFFFF;
 }
-.icon-empty::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -60%);
-	width: 60rpx;
-	height: 60rpx;
-	border: 4rpx solid #ddd;
-	border-radius: 50%;
+
+.wallet-label {
+	display: block;
+	font-size: 24rpx;
+	opacity: 0.82;
 }
-.icon-empty::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -30%);
-	width: 80rpx;
-	height: 4rpx;
-	background: #ddd;
+
+.wallet-title {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 48rpx;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+.wallet-desc {
+	display: block;
+	margin-top: 16rpx;
+	font-size: 24rpx;
+	line-height: 1.5;
+	opacity: 0.82;
+}
+
+.section-card,
+.stat-card {
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.section-card {
+	margin: 0 32rpx 24rpx;
+	padding: 28rpx 32rpx;
+}
+
+.pending-card {
+	margin-top: -48rpx;
+}
+
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8rpx;
+}
+
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.section-tip {
+	display: block;
+	margin: 8rpx 0 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	line-height: 1.4;
+}
+
+.section-more {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.pending-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20rpx;
+	padding: 20rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+	min-height: 88rpx;
+}
+
+.pending-row:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.pending-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.pending-amount {
+	display: block;
+	font-size: 34rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.pending-time {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.confirm-btn {
+	margin: 0;
+	padding: 0 28rpx;
+	height: 64rpx;
+	line-height: 64rpx;
+	border-radius: 32rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 26rpx;
+	font-weight: 600;
+}
+
+.confirm-btn::after {
+	border: none;
+}
+
+.stats-row {
+	display: flex;
+	gap: 16rpx;
+	margin: 0 32rpx 24rpx;
+}
+
+.stats-alone {
+	margin-top: -48rpx;
+}
+
+.stat-card {
+	flex: 1;
+	padding: 28rpx 24rpx;
+	text-align: center;
+}
+
+.stat-value {
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.stat-label {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.tx-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20rpx;
+	padding: 24rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.tx-row:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.tx-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.tx-title-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 12rpx;
+}
+
+.tx-title {
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.arrive-tag {
+	padding: 2rpx 12rpx;
+	border-radius: 8rpx;
+	font-size: 20rpx;
+	line-height: 1.6;
+}
+
+.arrive-ok {
+	background: #E8F8EF;
+	color: #07C160;
+}
+
+.arrive-warn {
+	background: #FFF7E8;
+	color: #ED6A0C;
+}
+
+.arrive-fail {
+	background: #FDECEC;
+	color: #FA5151;
+}
+
+.arrive-muted {
+	background: #F4F6F9;
+	color: #8B919C;
+}
+
+.tx-desc {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	line-height: 1.4;
+}
+
+.tx-side {
+	text-align: right;
+	flex-shrink: 0;
+}
+
+.tx-amount {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+}
+
+.amt-plus {
+	color: #07C160;
+}
+
+.amt-minus {
+	color: #1F2329;
+}
+
+.tx-time {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 20rpx;
+	color: #8B919C;
+}
+
+.empty {
+	padding: 48rpx 0 24rpx;
+	text-align: center;
+}
+
+.empty-title {
+	font-size: 26rpx;
+	color: #8B919C;
 }
 </style>

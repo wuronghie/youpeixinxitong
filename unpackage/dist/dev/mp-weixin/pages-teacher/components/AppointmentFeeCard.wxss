@@ -1,0 +1,64 @@
+
+.fee-card.data-v-42689ff1 {
+  margin: 24rpx 32rpx 0;
+  background: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 28rpx 32rpx;
+  box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+.fee-card__title.data-v-42689ff1 {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #1F2329;
+  margin-bottom: 8rpx;
+  display: block;
+}
+.fee-card__row.data-v-42689ff1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #EBEDF0;
+}
+.fee-card__row.data-v-42689ff1:last-of-type {
+  border-bottom: none;
+}
+.fee-card__label.data-v-42689ff1 {
+  flex-shrink: 0;
+  font-size: 26rpx;
+  color: #8B919C;
+}
+.fee-card__amount.data-v-42689ff1 {
+  flex: 1;
+  font-size: 26rpx;
+  text-align: right;
+  font-weight: 600;
+  color: #1F2329;
+}
+.fee-card__amount--primary.data-v-42689ff1 {
+  font-size: 32rpx;
+  color: #1F2329;
+}
+.fee-card__amount--warning.data-v-42689ff1 {
+  color: #C47A12;
+}
+.fee-card__amount--success.data-v-42689ff1 {
+  color: #07C160;
+}
+.fee-card__notice.data-v-42689ff1 {
+  margin-top: 8rpx;
+  padding: 20rpx;
+  border-radius: 16rpx;
+}
+.fee-card__notice--warning.data-v-42689ff1 {
+  background: #FFF7ED;
+}
+.fee-card__notice--info.data-v-42689ff1 {
+  background: #EEF3FF;
+}
+.fee-card__notice-text.data-v-42689ff1 {
+  font-size: 24rpx;
+  color: #5C6370;
+  line-height: 1.6;
+}

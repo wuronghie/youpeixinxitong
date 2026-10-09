@@ -1,8 +1,6 @@
 {
-  "navigationBarTitleText": "聊天列表",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "navigationBarTitleText": "家长沟通",
   "usingComponents": {
-    "teacher-tab-bar": "../../components/TeacherTabBar"
+    "teacher-tab-bar": "../components/TeacherTabBar"
   }
 }

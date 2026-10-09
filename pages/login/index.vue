@@ -15,82 +15,74 @@
  *   - 添加登录方式：可以在角色选择下方添加更多登录方式按钮
 -->
 <template>
-	<view>
-		<view class="p-5">
-			<!-- Logo和品牌区域 -->
-			<view class="d-flex flex-column a-center mb-5 animated fadeIn faster">
-				<view class="logo-box mb-3">
+	<view class="login-page">
+		<view class="login-inner">
+			<view class="brand-block">
+				<view class="logo-box">
 					<image class="logo-image" :src="logoUrl" mode="aspectFit"></image>
 				</view>
-				<view class="font-big mb-2">优培信息通</view>
-				<view class="text-light-muted font">连接家长与专业教师的智能平台</view>
+				<text class="brand-name">优培信息通</text>
+				<text class="brand-sub">连接家长与专业教师</text>
 			</view>
-			
-			<!-- 角色选择标题 -->
-			<view class="font-big mb-4">请选择身份</view>
-			
-			<!-- 角色选择卡片 -->
-			<view class="mb-4">
-				<view
-					v-for="role in roleOptions"
-					:key="role.value"
-					class="role-card d-flex a-center mb-3 rounded"
-					:class="selectedRole === role.value ? 'main-bg-color' : 'bg-light'"
-					hover-class="main-bg-hover-color"
-					@click="selectRole(role.value)"
-				>
-					<image
-						:src="getRoleIconUrl(role.iconName)"
-						class="role-icon"
-						mode="aspectFit"
-						:style="{ width: '40rpx', height: '40rpx' }"
-					></image>
-					<view class="flex-1">
-						<view class="font-md font-weight mb-1" :class="selectedRole === role.value ? 'text-white' : 'text-dark'">
-							{{ role.label }}
-						</view>
-						<view class="font" :class="selectedRole === role.value ? 'text-white' : 'text-light-muted'">
-							{{ role.desc }}
-						</view>
-					</view>
-					<view v-if="selectedRole === role.value" class="iconfont icon-iconfontxuanzhong4 text-white font-lg"></view>
+
+			<view
+				v-for="role in roleOptions"
+				:key="role.value"
+				class="role-card"
+				:class="{ on: selectedRole === role.value }"
+				@click="selectRole(role.value)"
+			>
+				<image
+					:src="getRoleIconUrl(role.iconName)"
+					class="role-icon"
+					mode="aspectFit"
+				></image>
+				<view class="role-copy">
+					<text class="role-title">我是{{ role.label }}</text>
+					<text class="role-desc">{{ role.desc }}</text>
 				</view>
+				<view v-if="selectedRole === role.value" class="iconfont icon-iconfontxuanzhong4 role-check"></view>
 			</view>
-			
-			<!-- 登录按钮 -->
-			<view 
-				class="py-2 w-100 d-flex a-center j-center main-bg-color text-white rounded font-md mb-3" 
-				:class="!selectedRole || isLogging ? 'bg-light-secondary text-muted' : ''"
-				hover-class="main-bg-hover-color" 
+
+			<view
+				v-if="!canStartWxLogin"
+				class="btn-login"
+				:class="{ disabled: !selectedRole || isLogging }"
 				@click="handleLogin"
 			>
 				<text v-if="isLogging">登录中...</text>
 				<text v-else>微信一键登录</text>
 			</view>
+			<!-- #ifdef MP-WEIXIN -->
+			<button
+				v-if="canStartWxLogin"
+				class="btn-login"
+				open-type="getPhoneNumber"
+				@getphonenumber="onWxLoginPhone"
+			>微信一键登录</button>
+			<!-- #endif -->
 
-			<view class="skip-login-btn py-2 w-100 d-flex a-center j-center rounded font-md mb-3" @click="skipLogin">
+			<view class="btn-skip" @click="skipLogin">
 				<text>先逛逛，暂不登录</text>
 			</view>
 
-			<!-- 协议：需用户主动勾选同意 -->
 			<view class="agreement-row">
 				<checkbox-group @change="onAgreementChange">
-					<label class="checkbox d-flex a-center j-center">
-						<checkbox 
-							value="agree" 
-							:checked="hasAgreed" 
-							color="#07C160"
+					<label class="checkbox-wrap">
+						<checkbox
+							value="agree"
+							:checked="hasAgreed"
+							color="#2563EB"
 							style="transform:scale(0.7);margin-right:8rpx;"
 						/>
-						<text class="text-light-muted font">我已阅读并同意</text>
-						<text class="main-text-color font mx-1" @click.stop="openAgreement('service')">《用户协议》</text>
-						<text class="text-light-muted font">和</text>
-						<text class="main-text-color font mx-1" @click.stop="openAgreement('privacy')">《隐私政策》</text>
+						<text class="agree-text">我已阅读并同意</text>
+						<text class="agree-link" @click.stop="openAgreement('service')">《用户协议》</text>
+						<text class="agree-text">和</text>
+						<text class="agree-link" @click.stop="openAgreement('privacy')">《隐私政策》</text>
 					</label>
 				</checkbox-group>
 			</view>
-			
-			<!-- 备案信息 -->
+
 			<view class="icp-footer">
 				<text class="icp-text">蜀ICP备2026004236号-1X</text>
 			</view>
@@ -99,9 +91,11 @@
 </template>
 
 <script>
-import { setStoredUserInfo, redirectByRole, fetchRemoteUserInfo, checkProfileComplete } from '@/utils/auth.js'
+import { setStoredUserInfo, persistAuthToken, redirectByRole, fetchRemoteUserInfo, checkProfileComplete } from '@/utils/auth.js'
+import { persistIssuedCoupons, prefetchAvailableCoupons } from '@/utils/coupons.js'
 import { bindPushClientId } from '@/utils/chatPush.js'
 import { getLogoUrl, getIconUrl } from '@/utils/imageConfig.js'
+import { bindWeixinPhoneAndSync, bindWeixinPhoneByCode, refreshBoundPhone, persistPickedPhone } from '@/utils/wxPhone.js'
 
 export default {
 	name: 'Login',
@@ -131,6 +125,16 @@ export default {
 					iconName: 'teacher-large'
 				}
 			]
+		}
+	},
+
+	computed: {
+		canStartWxLogin() {
+			let mp = false
+			// #ifdef MP-WEIXIN
+			mp = true
+			// #endif
+			return mp && !uni.getStorageSync('pending_wx_phone_code') && !!this.selectedRole && this.hasAgreed && !this.isLogging
 		}
 	},
 
@@ -199,7 +203,32 @@ export default {
 		 *   - 可以添加登录前的验证逻辑（如协议同意检查）
 		 *   - 可以添加登录统计、埋点等
 		 */
-		async handleLogin() {
+		async onWxLoginPhone(e) {
+			await this.handleLogin(e)
+		},
+		async bindLoginPhone(phoneEvent) {
+			const eventCode = phoneEvent && phoneEvent.detail && phoneEvent.detail.code
+			const pendingCode = uni.getStorageSync('pending_wx_phone_code')
+			const code = eventCode || pendingCode
+			if (!code) return ''
+			try {
+				if (eventCode) {
+					const phone = await bindWeixinPhoneAndSync(phoneEvent)
+					if (pendingCode) uni.removeStorageSync('pending_wx_phone_code')
+					return phone
+				}
+				await bindWeixinPhoneByCode(pendingCode)
+				uni.removeStorageSync('pending_wx_phone_code')
+				const phone = await refreshBoundPhone()
+				if (phone) persistPickedPhone(phone)
+				return phone
+			} catch (error) {
+				console.warn('[login] 绑定手机号失败:', error)
+				uni.showToast({ title: (error && error.message) || '手机号授权失败，可稍后在资料里补齐', icon: 'none' })
+				return ''
+			}
+		},
+		async handleLogin(phoneEvent) {
 			if (this.isLogging) {
 				return
 			}
@@ -225,17 +254,34 @@ export default {
 				console.log('[login] 云函数返回:', res)
 
 				if (res.code === 0) {
-					let { token, userInfo } = res.data
-					if (token) {
-						uni.setStorageSync('uni_id_token', token)
-						uni.setStorageSync('token', token)
-					}
+					let { token, tokenExpired, userInfo, issuedCount, issuedCoupons } = res.data
+					persistAuthToken(token, tokenExpired)
 					if (userInfo) {
 						setStoredUserInfo(userInfo)
 					}
+					const boundPhone = await this.bindLoginPhone(phoneEvent)
+					if (boundPhone) {
+						userInfo = { ...(userInfo || {}), phone: boundPhone, mobile: boundPhone }
+						setStoredUserInfo(userInfo)
+					}
 					uni.setStorageSync('last_role', this.selectedRole)
+					if (issuedCount > 0) {
+						persistIssuedCoupons({
+							count: issuedCount,
+							names: issuedCoupons || [],
+							role: (userInfo && userInfo.role) || this.selectedRole
+						})
+					}
 					bindPushClientId()
-					uni.showToast({ title: '登录成功', icon: 'success' })
+					if (issuedCount > 0) {
+						uni.showToast({
+							title: `登录成功，已发放${issuedCount}张优惠券`,
+							icon: 'none',
+							duration: 2500
+						})
+					} else {
+						uni.showToast({ title: '登录成功', icon: 'success' })
+					}
 					try {
 						// 优先获取最新的角色信息
 						const freshInfo = await fetchRemoteUserInfo({ token })
@@ -245,13 +291,18 @@ export default {
 					}
 					if (userInfo && userInfo.role) {
 						// 如有待处理的邀请码，并且当前为家长角色，则尝试绑定邀请关系
-						if (userInfo.role === 'parent') {
+						if (userInfo.role === 'parent' || userInfo.role === 'teacher') {
 							const pendingCode = uni.getStorageSync('pending_invite_code')
 							if (pendingCode) {
 								try {
 									const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
 									await inviteCenter.acceptInvite({ invite_code: pendingCode })
 									uni.removeStorageSync('pending_invite_code')
+									persistIssuedCoupons({
+										count: (issuedCount || 0) + 1,
+										names: issuedCoupons || [],
+										role: userInfo.role
+									})
 								} catch (inviteErr) {
 									console.error('[login] 处理邀请关系失败:', inviteErr)
 								}
@@ -264,6 +315,7 @@ export default {
 						
 						// 无论信息是否完善，都先跳转到对应角色的首页
 						// 首页会显示信息完善提示卡片
+						prefetchAvailableCoupons(userInfo.role)
 						redirectByRole(userInfo.role)
 						
 						// 如果信息不完善，延迟显示提示（让页面先加载）
@@ -313,40 +365,162 @@ export default {
 </script>
 
 <style scoped>
+.login-page {
+	min-height: 100vh;
+	background: linear-gradient(180deg, #EAF1FF 0%, #F4F6F9 38%, #F4F6F9 100%);
+}
+
+.login-inner {
+	padding: 144rpx 48rpx 56rpx;
+}
+
+.brand-block {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 56rpx;
+}
+
 .logo-box {
-	width: 160upx;
-	height: 160upx;
+	width: 128rpx;
+	height: 128rpx;
+	border-radius: 36rpx;
+	background: #EEF3FF;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 32rpx;
+	overflow: hidden;
+}
+
+.logo-image {
+	width: 128rpx;
+	height: 128rpx;
+}
+
+.brand-name {
+	font-size: 48rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.3;
+}
+
+.brand-sub {
+	margin-top: 16rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+}
+
+.role-card {
+	display: flex;
+	align-items: center;
+	padding: 28rpx;
+	margin-bottom: 20rpx;
+	background: #FFFFFF;
+	border: 3rpx solid #EBEDF0;
+	border-radius: 24rpx;
+}
+
+.role-card.on {
+	border-color: #2563EB;
+	background: #EEF3FF;
+}
+
+.role-icon {
+	width: 80rpx;
+	height: 80rpx;
+	margin-right: 24rpx;
+	flex-shrink: 0;
+}
+
+.role-copy {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.role-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.4;
+}
+
+.role-desc {
+	margin-top: 4rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.role-check {
+	color: #2563EB;
+	font-size: 40rpx;
+	margin-left: 12rpx;
+}
+
+.btn-login {
+	margin-top: 36rpx;
+	height: 88rpx;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.logo-image {
-	width: 160upx;
-	height: 160upx;
+.btn-login::after {
+	border: none;
 }
 
-.role-card {
-	padding: 30upx;
-	transition: all 0.3s ease;
+.btn-login.disabled {
+	background: #D7DEEA;
+	color: #8B919C;
 }
 
-.role-icon {
-	margin-right: 20upx;
+.btn-skip {
+	margin-top: 20rpx;
+	height: 88rpx;
+	border-radius: 20rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 32rpx;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .agreement-row {
-	margin-top: 16rpx;
+	margin-top: 32rpx;
 }
 
-.skip-login-btn {
-	background: #f5f7fb;
-	color: #4f7bff;
-	border: 2rpx solid #dce7ff;
+.checkbox-wrap {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.agree-text {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.agree-link {
+	font-size: 24rpx;
+	color: #2563EB;
+	margin: 0 4rpx;
 }
 
 .icp-footer {
-	margin-top: 24rpx;
+	margin-top: 36rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -354,6 +528,6 @@ export default {
 
 .icp-text {
 	font-size: 22rpx;
-	color: #aaaaaa;
+	color: #B0B4BA;
 }
 </style>

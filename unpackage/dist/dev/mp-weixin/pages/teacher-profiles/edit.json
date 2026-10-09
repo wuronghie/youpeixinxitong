@@ -1,8 +1,6 @@
 {
   "navigationBarTitleText": "编辑",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
     "card": "../../components/common/card"
   }

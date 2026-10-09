@@ -46,6 +46,10 @@
       "bsonType": "string",
       "description": "年级"
     },
+    "student_name": {
+      "bsonType": "string",
+      "description": "学生姓名，后台展示为「某某家长」"
+    },
     "student_gender": {
       "bsonType": "string",
       "enum": [
@@ -98,7 +102,7 @@
     },
     "budget_min": {
       "bsonType": "number",
-      "description": "预算下限(元/小时)"
+      "description": "预算下限(元/小时)，最低 120；招募信息费按该下限×2 收取"
     },
     "budget_max": {
       "bsonType": "number",

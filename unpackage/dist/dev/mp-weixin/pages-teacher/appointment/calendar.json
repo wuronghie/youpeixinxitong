@@ -1,8 +1,4 @@
 {
   "navigationBarTitleText": "课程日历",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
-  "usingComponents": {
-    "card": "../../components/common/card"
-  }
+  "usingComponents": {}
 }

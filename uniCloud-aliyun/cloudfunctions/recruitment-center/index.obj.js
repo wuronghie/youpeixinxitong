@@ -3,6 +3,7 @@
  */
 const uniID = require('uni-id-common')
 const { assertStaffAccess, PERMISSION } = require('admin-auth')
+const { notifySystemMessage } = require('notify-push')
 
 function success(data = null, message = 'success') {
   return { code: 0, message, data, timestamp: Date.now() }
@@ -47,6 +48,11 @@ function maskDisplayName(nickname, uid) {
     return tail ? `家长${tail}` : '家长'
   }
   return `${n.charAt(0)}**家长`
+}
+
+function parentLabelFromStudentName(studentName) {
+  const name = String(studentName || '').trim()
+  return name ? `${name}家长` : '家长'
 }
 
 function hasRole(userDoc, roleName) {
@@ -99,34 +105,34 @@ async function assertParentProfileComplete(db, userDoc) {
 async function fillRecruitmentStudentGender(db, rows = []) {
   if (!Array.isArray(rows) || rows.length === 0) return rows
   const parentIds = Array.from(
-    new Set(
-      rows
-        .filter((row) => row && row.parent_id && !normalizeGenderValue(row.student_gender))
-        .map((row) => row.parent_id)
-    )
+    new Set(rows.filter((row) => row && row.parent_id).map((row) => row.parent_id))
   )
-  if (!parentIds.length) {
-    return rows.map((row) => ({
-      ...row,
-      student_gender: normalizeGenderValue(row.student_gender)
-    }))
+  const infoMap = {}
+  if (parentIds.length) {
+    const userRes = await db
+      .collection('uni-id-users')
+      .where({ _id: db.command.in(parentIds) })
+      .field({ _id: true, parent_info: true })
+      .get()
+    ;(userRes.data || []).forEach((user) => {
+      const parentInfo = user.parent_info || {}
+      infoMap[user._id] = {
+        student_gender: normalizeGenderValue(parentInfo.student_gender),
+        student_name: String(parentInfo.student_name || '').trim()
+      }
+    })
   }
 
-  const userRes = await db
-    .collection('uni-id-users')
-    .where({ _id: db.command.in(parentIds) })
-    .field({ _id: true, parent_info: true })
-    .get()
-
-  const genderMap = {}
-  ;(userRes.data || []).forEach((user) => {
-    genderMap[user._id] = normalizeGenderValue(user.parent_info && user.parent_info.student_gender)
+  return rows.map((row) => {
+    const info = infoMap[row.parent_id] || {}
+    const student_name = String(row.student_name || info.student_name || '').trim()
+    return {
+      ...row,
+      student_gender: normalizeGenderValue(row.student_gender) || info.student_gender || '',
+      student_name,
+      parent_label: parentLabelFromStudentName(student_name)
+    }
   })
-
-  return rows.map((row) => ({
-    ...row,
-    student_gender: normalizeGenderValue(row.student_gender) || genderMap[row.parent_id] || ''
-  }))
 }
 
 async function assertTeacherProfileComplete(db, teacher_id) {
@@ -171,8 +177,33 @@ async function teacherPaidDepositForParent(db, teacher_id, parent_id) {
 /**
  * 创建试课邀请预约 + 会话（与 appointment-create.inviteTrial 对齐）
  */
-/** 暂时取消 120 限制，恢复时改回 120 */
+/** 招募最低课时费（元/小时），信息费按该下限 × 2 收取 */
+const RECRUITMENT_MIN_HOURLY_RATE = 120
+/** 暂时取消普通试课 120 限制，恢复时改回 120 */
 const MIN_HOURLY_RATE = 0
+
+function parseRecruitmentBudget({ budget_min, budget_max } = {}, existing = {}) {
+  const rawMin = budget_min !== undefined ? budget_min : existing.budget_min
+  const min = Number(rawMin)
+  if (!Number.isFinite(min) || min < RECRUITMENT_MIN_HOURLY_RATE) {
+    throw new Error(`最低预算不能低于${RECRUITMENT_MIN_HOURLY_RATE}元/小时`)
+  }
+  const rawMax = budget_max !== undefined ? budget_max : existing.budget_max
+  let max = null
+  if (rawMax !== undefined && rawMax !== null && rawMax !== '') {
+    max = Number(rawMax)
+    if (!Number.isFinite(max) || max < min) {
+      throw new Error('最高预算不能低于最低预算')
+    }
+  }
+  return { budget_min: min, budget_max: max }
+}
+
+function recruitmentHourlyRate(rec) {
+  const min = Number(rec && rec.budget_min)
+  if (Number.isFinite(min) && min >= RECRUITMENT_MIN_HOURLY_RATE) return min
+  return RECRUITMENT_MIN_HOURLY_RATE
+}
 
 async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
   const teacherProfileDoc = await db
@@ -206,10 +237,6 @@ async function createTrialInviteCore(db, teacher_id, parent_id, extras = {}) {
     trial_invite_hourly_rate: hourlyRate,
     total_amount: trialAmount,
     duration: 2,
-    class_started_at: null,
-    class_started_location: null,
-    class_ended_at: null,
-    class_ended_location: null,
     parent_paid: false,
     create_time: now,
     update_time: now,
@@ -278,6 +305,13 @@ async function notifyParentRecruitmentInvite(db, parent_id, recruitment_id) {
       action_url: '/pages/chat/list',
       is_read: false
     })
+    await notifySystemMessage({
+      userId: parent_id,
+      title: '有老师响应您的招募',
+      content: '一位老师向您发起了试课邀请，请前往「消息」或聊天查看并填写预约。',
+      messageType: 'recruitment',
+      relatedId: recruitment_id
+    })
   } catch (e) {
     console.error('[recruitment-center] 系统消息写入失败', e)
   }
@@ -343,12 +377,20 @@ module.exports = {
       return error('线下请填写大致地区')
     }
 
+    let budget
+    try {
+      budget = parseRecruitmentBudget({ budget_min, budget_max })
+    } catch (e) {
+      return error(e.message || '请填写有效预算')
+    }
+
     const days = [7, 14, 30].includes(Number(valid_days)) ? Number(valid_days) : 14
     const now = Date.now()
     const expire_at = now + days * 24 * 60 * 60 * 1000
     const nick = userDoc.data[0].nickname || userDoc.data[0].wx_nickname || ''
     const parentInfo = userDoc.data[0].parent_info || {}
     const student_gender = normalizeGenderValue(parentInfo.student_gender)
+    const student_name = String(parentInfo.student_name || '').trim()
     const display_name = maskDisplayName(nick, parent_id)
 
     const doc = {
@@ -359,13 +401,14 @@ module.exports = {
       display_name,
       subject: String(subject).trim(),
       student_grade: String(student_grade).trim(),
+      student_name,
       student_gender,
       lesson_mode,
       region: region || {},
       location: location || {},
       goal: goal ? String(goal).trim() : '',
-      budget_min: budget_min != null ? Number(budget_min) : null,
-      budget_max: budget_max != null ? Number(budget_max) : null,
+      budget_min: budget.budget_min,
+      budget_max: budget.budget_max,
       time_note: time_note ? String(time_note).trim() : '',
       remark: remark ? String(remark).trim() : '',
       expire_at,
@@ -422,8 +465,16 @@ module.exports = {
     for (const k of allow) {
       if (rest[k] !== undefined) patch[k] = rest[k]
     }
+    try {
+      const budget = parseRecruitmentBudget(rest, row)
+      patch.budget_min = budget.budget_min
+      patch.budget_max = budget.budget_max
+    } catch (e) {
+      return error(e.message || '请填写有效预算')
+    }
     const parentInfo = userDoc.data[0].parent_info || {}
     patch.student_gender = normalizeGenderValue(parentInfo.student_gender)
+    patch.student_name = String(parentInfo.student_name || '').trim()
     if (rest.valid_days) {
       const days = [7, 14, 30].includes(Number(rest.valid_days)) ? Number(rest.valid_days) : 14
       patch.expire_at = now + days * 24 * 60 * 60 * 1000
@@ -697,7 +748,8 @@ module.exports = {
     const depositPaid = await teacherPaidDepositForParent(db, teacher_id, rec.parent_id)
     const trial = await createTrialInviteCore(db, teacher_id, rec.parent_id, {
       recruitment_id,
-      invited_via: 'recruitment'
+      invited_via: 'recruitment',
+      trial_hourly_rate: recruitmentHourlyRate(rec)
     })
 
     const need_deposit = !depositPaid
@@ -791,7 +843,8 @@ module.exports = {
               { username: queryRe },
               { wx_nickname: queryRe },
               { mobile: queryRe },
-              { 'parent_info.real_name': queryRe }
+              { 'parent_info.real_name': queryRe },
+              { 'parent_info.student_name': queryRe }
             ]))
             .field({ _id: true })
             .limit(100)

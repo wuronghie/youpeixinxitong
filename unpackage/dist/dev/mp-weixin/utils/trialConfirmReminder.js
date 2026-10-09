@@ -2,6 +2,7 @@
 const common_vendor = require("../common/vendor.js");
 let checking = false;
 let lastPromptAt = 0;
+let checkedThisSession = false;
 function canPromptNow() {
   const now = Date.now();
   if (checking)
@@ -13,7 +14,7 @@ function canPromptNow() {
 function isAlreadyOnAppointmentDetail(appointmentId) {
   const pages = getCurrentPages();
   const page = pages.length ? pages[pages.length - 1] : null;
-  if (!page || page.route !== "pages/appointment/detail")
+  if (!page || page.route !== "pages-biz/appointment/detail" && page.route !== "pages/appointment/detail")
     return false;
   const options = page.options || {};
   return options.id === appointmentId;
@@ -24,7 +25,7 @@ function goAppointmentDetail(appointmentId) {
   if (isAlreadyOnAppointmentDetail(appointmentId))
     return;
   common_vendor.index.navigateTo({
-    url: `/pages/appointment/detail?id=${appointmentId}`
+    url: `/pages-biz/appointment/detail?id=${appointmentId}`
   });
 }
 function promptTrialConfirm(item) {
@@ -49,7 +50,9 @@ function promptTrialConfirm(item) {
     }
   });
 }
-async function checkPendingTrialConfirmReminder() {
+async function checkPendingTrialConfirmReminder({ force = false } = {}) {
+  if (!force && checkedThisSession)
+    return;
   if (!canPromptNow())
     return;
   const token = common_vendor.index.getStorageSync("uni_id_token");
@@ -66,12 +69,13 @@ async function checkPendingTrialConfirmReminder() {
   try {
     const appointmentQuery = common_vendor.tr.importObject("appointment-query", { customUI: true });
     const res = await appointmentQuery.listPendingTrialConfirmations();
+    checkedThisSession = true;
     if (res.code !== 0 || !res.data || !res.data.list || !res.data.list.length) {
       return;
     }
     promptTrialConfirm(res.data.list[0]);
   } catch (e) {
-    common_vendor.index.__f__("warn", "at utils/trialConfirmReminder.js:79", "[trialConfirmReminder] 检查待确认试课失败:", e);
+    common_vendor.index.__f__("warn", "at utils/trialConfirmReminder.js:82", "[trialConfirmReminder] 检查待确认试课失败:", e);
   } finally {
     checking = false;
   }

@@ -1,37 +1,143 @@
 
+.login-page.data-v-d08ef7d4 {
+	min-height: 100vh;
+	background: linear-gradient(180deg, #EAF1FF 0%, #F4F6F9 38%, #F4F6F9 100%);
+}
+.login-inner.data-v-d08ef7d4 {
+	padding: 144rpx 48rpx 56rpx;
+}
+.brand-block.data-v-d08ef7d4 {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 56rpx;
+}
 .logo-box.data-v-d08ef7d4 {
-	width: 160rpx;
-	height: 160rpx;
+	width: 128rpx;
+	height: 128rpx;
+	border-radius: 36rpx;
+	background: #EEF3FF;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 32rpx;
+	overflow: hidden;
+}
+.logo-image.data-v-d08ef7d4 {
+	width: 128rpx;
+	height: 128rpx;
+}
+.brand-name.data-v-d08ef7d4 {
+	font-size: 48rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.3;
+}
+.brand-sub.data-v-d08ef7d4 {
+	margin-top: 16rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+}
+.role-card.data-v-d08ef7d4 {
+	display: flex;
+	align-items: center;
+	padding: 28rpx;
+	margin-bottom: 20rpx;
+	background: #FFFFFF;
+	border: 3rpx solid #EBEDF0;
+	border-radius: 24rpx;
+}
+.role-card.on.data-v-d08ef7d4 {
+	border-color: #2563EB;
+	background: #EEF3FF;
+}
+.role-icon.data-v-d08ef7d4 {
+	width: 80rpx;
+	height: 80rpx;
+	margin-right: 24rpx;
+	flex-shrink: 0;
+}
+.role-copy.data-v-d08ef7d4 {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+.role-title.data-v-d08ef7d4 {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.4;
+}
+.role-desc.data-v-d08ef7d4 {
+	margin-top: 4rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+.role-check.data-v-d08ef7d4 {
+	color: #2563EB;
+	font-size: 40rpx;
+	margin-left: 12rpx;
+}
+.btn-login.data-v-d08ef7d4 {
+	margin-top: 36rpx;
+	height: 88rpx;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
-.logo-image.data-v-d08ef7d4 {
-	width: 160rpx;
-	height: 160rpx;
+.btn-login.data-v-d08ef7d4::after {
+	border: none;
 }
-.role-card.data-v-d08ef7d4 {
-	padding: 30rpx;
-	transition: all 0.3s ease;
+.btn-login.disabled.data-v-d08ef7d4 {
+	background: #D7DEEA;
+	color: #8B919C;
 }
-.role-icon.data-v-d08ef7d4 {
-	margin-right: 20rpx;
+.btn-skip.data-v-d08ef7d4 {
+	margin-top: 20rpx;
+	height: 88rpx;
+	border-radius: 20rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 32rpx;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 .agreement-row.data-v-d08ef7d4 {
-	margin-top: 16rpx;
+	margin-top: 32rpx;
 }
-.skip-login-btn.data-v-d08ef7d4 {
-	background: #f5f7fb;
-	color: #4f7bff;
-	border: 2rpx solid #dce7ff;
+.checkbox-wrap.data-v-d08ef7d4 {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+.agree-text.data-v-d08ef7d4 {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+.agree-link.data-v-d08ef7d4 {
+	font-size: 24rpx;
+	color: #2563EB;
+	margin: 0 4rpx;
 }
 .icp-footer.data-v-d08ef7d4 {
-	margin-top: 24rpx;
+	margin-top: 36rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 .icp-text.data-v-d08ef7d4 {
 	font-size: 22rpx;
-	color: #aaaaaa;
+	color: #B0B4BA;
 }

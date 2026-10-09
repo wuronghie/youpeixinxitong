@@ -1,13 +1,7 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
-const card = () => "../../components/common/card.js";
-const divider = () => "../../components/common/divider.js";
 const _sfc_main = {
   name: "OrderDetail",
-  components: {
-    card,
-    divider
-  },
   data() {
     return {
       orderId: "",
@@ -16,7 +10,8 @@ const _sfc_main = {
       isLoading: false,
       isRefreshing: false,
       scrollTop: 0,
-      canRefresh: true
+      canRefresh: true,
+      adminWechat: "chen18148503231"
     };
   },
   onLoad(options) {
@@ -38,10 +33,64 @@ const _sfc_main = {
         refunding: "退款申请处理中，请耐心等待",
         refunded: "订单已退款，资金将在 1-3 个工作日内退回"
       };
+      if (this.isResultConfirmed && ["paid", "success"].includes(this.order.status)) {
+        return "已确认上课结果，不可再申请退款";
+      }
       return map[this.order.status] || "";
     },
+    statusTone() {
+      const map = {
+        unpaid: "tone-pay",
+        pending: "tone-pay",
+        paid: "tone-done",
+        success: "tone-done",
+        refunding: "tone-wait",
+        refunded: "tone-muted"
+      };
+      return map[this.order.status] || "";
+    },
+    teacherName() {
+      var _a, _b;
+      const info = this.order.appointment_info || {};
+      return ((_a = info.teacher_info) == null ? void 0 : _a.display_name) || ((_b = info.teacher_info) == null ? void 0 : _b.name) || info.teacher_name || "";
+    },
+    courseLabel() {
+      var _a;
+      const info = this.order.appointment_info || {};
+      const subjects = (_a = info.teacher_info) == null ? void 0 : _a.subjects;
+      const subject = Array.isArray(subjects) ? subjects[0] || "" : typeof subjects === "string" ? subjects : "";
+      const typeMap = {
+        trial: "试课",
+        regular: "正式课",
+        formal: "正式课",
+        deposit: "信息费",
+        refund: "退款"
+      };
+      const type = typeMap[info.course_type || this.order.order_type] || this.formatOrderType(this.order.order_type);
+      return subject ? `${subject} · ${type}` : type;
+    },
+    hasCoupon() {
+      return Number(this.order.discount_amount || 0) > 0 || !!this.order.user_coupon_id;
+    },
+    couponText() {
+      const discount = Number(this.order.discount_amount || 0);
+      if (discount > 0)
+        return `已减 ¥${discount.toFixed(2)}`;
+      if (this.order.user_coupon_id)
+        return "已使用";
+      return "未使用";
+    },
+    isResultConfirmed() {
+      var _a;
+      const appointment = ((_a = this.order) == null ? void 0 : _a.appointment_info) || {};
+      return appointment.status === "completed" || appointment.has_review === true || this.order.has_review === true;
+    },
     canApplyRefund() {
-      return ["paid", "success"].includes(this.order.status) && !this.refundInfo;
+      if (!["paid", "success"].includes(this.order.status) || this.refundInfo)
+        return false;
+      if (this.isResultConfirmed)
+        return false;
+      return true;
     },
     canReview() {
       var _a;
@@ -132,7 +181,7 @@ const _sfc_main = {
         }
         await this.loadRefundDetail();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/order/detail.vue:300", "获取订单详情失败:", error);
+        common_vendor.index.__f__("error", "at pages/order/detail.vue:303", "获取订单详情失败:", error);
         common_vendor.index.showToast({ title: error.message || "获取订单失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -209,9 +258,13 @@ const _sfc_main = {
     goAppointment(appointmentId) {
       if (!appointmentId)
         return;
-      common_vendor.index.navigateTo({ url: `/pages/appointment/detail?id=${appointmentId}` });
+      common_vendor.index.navigateTo({ url: `/pages-biz/appointment/detail?id=${appointmentId}` });
     },
     goRefund() {
+      if (!this.canApplyRefund) {
+        common_vendor.index.showToast({ title: "已确认上课结果，不可再申请退款", icon: "none" });
+        return;
+      }
       common_vendor.index.navigateTo({ url: `/pages/order/refund?id=${this.orderId}` });
     },
     gotoPay() {
@@ -251,124 +304,133 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "确认失败", icon: "none" });
             }
           } catch (error) {
-            common_vendor.index.__f__("error", "at pages/order/detail.vue:414", "确认课程完成失败:", error);
+            common_vendor.index.__f__("error", "at pages/order/detail.vue:421", "确认课程完成失败:", error);
             common_vendor.index.showToast({ title: "确认失败，请稍后重试", icon: "none" });
           }
         }
       });
     },
     contactService() {
-      common_vendor.index.showToast({ title: "请联系平台客服协助处理", icon: "none" });
+      const wechat = this.adminWechat;
+      if (!wechat) {
+        common_vendor.index.showToast({ title: "暂无客服微信", icon: "none" });
+        return;
+      }
+      common_vendor.index.setClipboardData({
+        data: wechat,
+        success: () => {
+          common_vendor.index.showToast({ title: "微信号已复制", icon: "success" });
+        },
+        fail: () => {
+          common_vendor.index.showToast({ title: "复制失败", icon: "none" });
+        }
+      });
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  const _component_divider = common_vendor.resolveComponent("divider");
-  (_component_card + _component_divider)();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   var _a, _b;
   return common_vendor.e({
-    a: common_vendor.t($options.formatStatus($data.order.status)),
-    b: common_vendor.t($options.statusTip),
+    a: $options.statusTip
+  }, $options.statusTip ? {
+    b: common_vendor.t($options.statusTip)
+  } : {}, {
     c: common_vendor.t($data.order.order_no || "-"),
-    d: common_vendor.t($options.formatOrderType($data.order.order_type)),
-    e: common_vendor.t($options.formatTime($data.order.create_time)),
-    f: $data.order.pay_time
-  }, $data.order.pay_time ? {
-    g: common_vendor.t($options.formatTime($data.order.pay_time))
+    d: common_vendor.t($options.formatStatus($data.order.status)),
+    e: common_vendor.n($options.statusTone),
+    f: $options.teacherName
+  }, $options.teacherName ? {
+    g: common_vendor.t($options.teacherName)
   } : {}, {
-    h: $data.order.refund_time
-  }, $data.order.refund_time ? {
-    i: common_vendor.t($options.formatTime($data.order.refund_time))
-  } : {}, {
-    j: common_vendor.p({
-      headTitle: "订单信息"
-    }),
-    k: common_vendor.t(($data.order.amount || 0).toFixed(2)),
-    l: $data.order.platform_fee
-  }, $data.order.platform_fee ? {
-    m: common_vendor.t($data.order.platform_fee.toFixed(2))
-  } : {}, {
-    n: $data.order.teacher_income
-  }, $data.order.teacher_income ? {
-    o: common_vendor.t($data.order.teacher_income.toFixed(2))
-  } : {}, {
-    p: $data.order.refund_amount
-  }, $data.order.refund_amount ? {
-    q: common_vendor.t($data.order.refund_amount.toFixed(2))
-  } : {}, {
-    r: common_vendor.p({
-      headTitle: "费用明细"
-    }),
-    s: $data.order.appointment_info
+    h: common_vendor.t($options.courseLabel),
+    i: $data.order.appointment_info
   }, $data.order.appointment_info ? {
-    t: common_vendor.t($data.order.appointment_info.appointment_no || "-"),
-    v: common_vendor.t($data.order.appointment_info.teacher_name || "教师"),
-    w: common_vendor.t($data.order.appointment_info.date),
-    x: common_vendor.t($data.order.appointment_info.time),
-    y: common_vendor.o(($event) => $options.goAppointment($data.order.appointment_info._id)),
-    z: common_vendor.p({
-      headTitle: "关联预约"
-    })
+    j: common_vendor.t($data.order.appointment_info.date),
+    k: common_vendor.t($data.order.appointment_info.time)
   } : {}, {
-    A: $data.order.pay_channel
+    l: common_vendor.t($options.formatTime($data.order.create_time)),
+    m: $data.order.pay_time
+  }, $data.order.pay_time ? {
+    n: common_vendor.t($options.formatTime($data.order.pay_time))
+  } : {}, {
+    o: $data.order.refund_time
+  }, $data.order.refund_time ? {
+    p: common_vendor.t($options.formatTime($data.order.refund_time))
+  } : {}, {
+    q: common_vendor.t(Number($data.order.amount || 0).toFixed(2)),
+    r: !$data.order.appointment_info && !$data.order.refund_amount ? 1 : "",
+    s: $data.order.refund_amount
+  }, $data.order.refund_amount ? {
+    t: common_vendor.t(Number($data.order.refund_amount || 0).toFixed(2)),
+    v: !$data.order.appointment_info ? 1 : ""
+  } : {}, {
+    w: $data.order.appointment_info
+  }, $data.order.appointment_info ? {
+    x: common_vendor.o(($event) => $options.goAppointment($data.order.appointment_info._id))
+  } : {}, {
+    y: $data.order.pay_channel || $options.hasCoupon || $data.order.platform_fee || $data.order.teacher_income
+  }, $data.order.pay_channel || $options.hasCoupon || $data.order.platform_fee || $data.order.teacher_income ? common_vendor.e({
+    z: $data.order.pay_channel
   }, $data.order.pay_channel ? {
-    B: common_vendor.t($options.formatPayChannel($data.order.pay_channel)),
-    C: common_vendor.t($data.order.transaction_id || "-"),
-    D: common_vendor.p({
-      headTitle: "支付信息"
-    })
+    A: common_vendor.t($options.formatPayChannel($data.order.pay_channel))
   } : {}, {
-    E: $data.order.refund_info || $data.refundInfo
+    B: $data.order.transaction_id
+  }, $data.order.transaction_id ? {
+    C: common_vendor.t($data.order.transaction_id)
+  } : {}, {
+    D: common_vendor.t($options.couponText),
+    E: !$data.order.platform_fee && !$data.order.teacher_income ? 1 : "",
+    F: $data.order.platform_fee
+  }, $data.order.platform_fee ? {
+    G: common_vendor.t(Number($data.order.platform_fee || 0).toFixed(2)),
+    H: !$data.order.teacher_income ? 1 : ""
+  } : {}, {
+    I: $data.order.teacher_income
+  }, $data.order.teacher_income ? {
+    J: common_vendor.t(Number($data.order.teacher_income || 0).toFixed(2))
+  } : {}) : {}, {
+    K: $data.order.refund_info || $data.refundInfo
   }, $data.order.refund_info || $data.refundInfo ? common_vendor.e({
-    F: common_vendor.f($options.refundSteps, (step, k0, i0) => {
+    L: common_vendor.f($options.refundSteps, (step, index, i0) => {
       return {
-        a: common_vendor.n(step.active ? "main-bg-color" : "bg-light-secondary"),
+        a: step.active ? 1 : "",
         b: common_vendor.t(step.title),
         c: common_vendor.t(step.time || "待处理"),
         d: step.key,
-        e: step !== $options.refundSteps[$options.refundSteps.length - 1] ? 1 : ""
+        e: index === $options.refundSteps.length - 1 ? 1 : ""
       };
     }),
-    G: ((_a = $data.refundInfo) == null ? void 0 : _a.status) === "pending"
+    M: ((_a = $data.refundInfo) == null ? void 0 : _a.status) === "pending"
   }, ((_b = $data.refundInfo) == null ? void 0 : _b.status) === "pending" ? {
-    H: common_vendor.o((...args) => $options.contactService && $options.contactService(...args))
-  } : {}, {
-    I: common_vendor.p({
-      headTitle: "退款进度"
-    })
-  }) : {}, {
-    J: $options.canConfirmCompletion || $options.canReview || $options.canApplyRefund || $options.primaryAction
-  }, $options.canConfirmCompletion || $options.canReview || $options.canApplyRefund || $options.primaryAction ? {} : {}, {
-    K: $options.canConfirmCompletion || $options.canReview || $options.canApplyRefund || $options.primaryAction
+    N: common_vendor.o((...args) => $options.contactService && $options.contactService(...args))
+  } : {}) : {}, {
+    O: $options.canConfirmCompletion || $options.canReview || $options.canApplyRefund || $options.primaryAction
   }, $options.canConfirmCompletion || $options.canReview || $options.canApplyRefund || $options.primaryAction ? common_vendor.e({
-    L: $options.canConfirmCompletion
-  }, $options.canConfirmCompletion ? {
-    M: common_vendor.o((...args) => $options.confirmCompletion && $options.confirmCompletion(...args))
-  } : {}, {
-    N: $options.canReview
-  }, $options.canReview ? {
-    O: common_vendor.o((...args) => $options.goReview && $options.goReview(...args))
-  } : {}, {
-    P: $options.canApplyRefund
-  }, $options.canApplyRefund ? {
-    Q: common_vendor.o((...args) => $options.goRefund && $options.goRefund(...args))
-  } : {}, {
-    R: $options.primaryAction === "pay"
+    P: $options.primaryAction === "pay"
   }, $options.primaryAction === "pay" ? {
-    S: common_vendor.o((...args) => $options.gotoPay && $options.gotoPay(...args))
+    Q: common_vendor.o((...args) => $options.gotoPay && $options.gotoPay(...args))
   } : {}, {
-    T: $options.primaryAction === "contact"
+    R: $options.canConfirmCompletion
+  }, $options.canConfirmCompletion ? {
+    S: common_vendor.o((...args) => $options.confirmCompletion && $options.confirmCompletion(...args))
+  } : {}, {
+    T: $options.canReview
+  }, $options.canReview ? {
+    U: common_vendor.o((...args) => $options.goReview && $options.goReview(...args))
+  } : {}, {
+    V: $options.canApplyRefund
+  }, $options.canApplyRefund ? {
+    W: common_vendor.o((...args) => $options.goRefund && $options.goRefund(...args))
+  } : {}, {
+    X: $options.primaryAction === "contact"
   }, $options.primaryAction === "contact" ? {
-    U: common_vendor.o((...args) => $options.contactService && $options.contactService(...args))
+    Y: common_vendor.o((...args) => $options.contactService && $options.contactService(...args))
   } : {}, {
-    V: $options.primaryAction === "refunded"
+    Z: $options.primaryAction === "refunded"
   }, $options.primaryAction === "refunded" ? {} : {}, {
-    W: $options.primaryAction === "refunding"
+    aa: $options.primaryAction === "refunding"
   }, $options.primaryAction === "refunding" ? {} : {}) : {});
 }
-const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render]]);
+const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-6b23c96c"]]);
 wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/order/detail.js.map

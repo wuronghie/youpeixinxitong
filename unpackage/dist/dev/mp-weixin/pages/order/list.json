@@ -1,6 +1,4 @@
 {
-  "navigationBarTitleText": "订单列表",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "navigationBarTitleText": "课程订单",
   "usingComponents": {}
 }

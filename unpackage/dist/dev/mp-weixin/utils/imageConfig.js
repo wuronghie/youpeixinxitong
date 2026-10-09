@@ -21,7 +21,15 @@ function getDefaultAvatarUrl() {
 function getIconUrl(iconName) {
   return getStaticImageUrl(`/static/icons/${iconName}`);
 }
+function getRecruitmentIconUrl() {
+  return getIconUrl("add.png");
+}
+function getInviteIconUrl() {
+  return getIconUrl("yaoqing.png");
+}
 exports.getDefaultAvatarUrl = getDefaultAvatarUrl;
 exports.getIconUrl = getIconUrl;
+exports.getInviteIconUrl = getInviteIconUrl;
 exports.getLogoUrl = getLogoUrl;
+exports.getRecruitmentIconUrl = getRecruitmentIconUrl;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/utils/imageConfig.js.map

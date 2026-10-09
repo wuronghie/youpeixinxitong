@@ -39,7 +39,7 @@
 </template>
 
 <script>
-import { getIconUrl } from '@/utils/imageConfig.js'
+import { getIconUrl, getRecruitmentIconUrl } from '@/utils/imageConfig.js'
 import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
 import { onChatPush, offChatPush, onChatBadge, offChatBadge, getCachedUnreadCount } from '@/utils/chatPush.js'
 
@@ -71,8 +71,8 @@ export default {
 					{
 						key: 'recruitment',
 						label: '招募',
-						icon: getIconUrl('chat.png'),
-						activeIcon: getIconUrl('chat-active.png'),
+						icon: getRecruitmentIconUrl(),
+						activeIcon: getRecruitmentIconUrl(),
 						path: '/pages/recruitment/list',
 						center: true
 					},
@@ -104,9 +104,12 @@ export default {
   },
   mounted() {
     this.unreadChatCount = getCachedUnreadCount()
-    this.loadUnreadChat()
-    this.startBadgePolling()
     this.bindChatPush()
+    // 有 uni-push：角标只在进入小程序（App.onShow）和收到推送时拉一次，不再定时轮询
+    if (CHAT_POLL_ENABLED) {
+      this.loadUnreadChat()
+      this.startBadgePolling()
+    }
   },
   beforeUnmount() {
     this.stopBadgePolling()
@@ -314,8 +317,8 @@ export default {
 }
 
 .center-icon {
-  width: 34rpx !important;
-  height: 34rpx !important;
+  width: 64rpx !important;
+  height: 64rpx !important;
   margin-bottom: 0 !important;
 }
 

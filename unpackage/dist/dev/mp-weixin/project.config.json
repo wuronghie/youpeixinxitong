@@ -9,8 +9,7 @@
     "postcss": true,
     "minified": true,
     "newFeature": true,
-    "bigPackageSizeSupport": true,
-    "condition": true
+    "bigPackageSizeSupport": true
   },
   "compileType": "miniprogram",
   "libVersion": "",
@@ -33,9 +32,5 @@
       "current": -1,
       "list": []
     }
-  },
-  "projectArchitecture": "multiPlatform",
-  "simulatorPluginLibVersion": {
-    "wxext14566970e7e9f62": "2.27.3"
   }
 }

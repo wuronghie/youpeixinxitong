@@ -260,16 +260,28 @@ async function bindSubscribe(oaOpenid) {
 }
 
 async function unbindUnsubscribe(oaOpenid) {
-  const users = await db
-    .collection('uni-id-users')
-    .where({ 'wx_openid.h5': oaOpenid })
-    .field({ _id: true, wx_openid: true })
-    .limit(20)
-    .get()
-  const list = users.data || []
+  const keys = ['wx_openid.h5', 'wx_openid.oa', 'wx_openid.official']
+  const seen = {}
+  const list = []
+  for (let i = 0; i < keys.length; i++) {
+    const users = await db
+      .collection('uni-id-users')
+      .where({ [keys[i]]: oaOpenid })
+      .field({ _id: true, wx_openid: true })
+      .limit(20)
+      .get()
+    const rows = users.data || []
+    for (const u of rows) {
+      if (seen[u._id]) continue
+      seen[u._id] = true
+      list.push(u)
+    }
+  }
   for (const u of list) {
     const wx_openid = Object.assign({}, u.wx_openid || {})
     delete wx_openid.h5
+    delete wx_openid.oa
+    delete wx_openid.official
     await db.collection('uni-id-users').doc(u._id).update({ wx_openid })
   }
   try {

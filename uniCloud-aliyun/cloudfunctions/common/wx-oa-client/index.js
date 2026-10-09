@@ -89,6 +89,70 @@ async function getAccessToken() {
   return data.access_token
 }
 
+async function clearAccessTokenCache() {
+  try {
+    await uniCloud.database().collection('opendb-tempdata').doc('wx_oa_access_token').remove()
+  } catch (e) {}
+}
+
+async function fetchOaUserInfo(oaOpenid) {
+  if (!oaOpenid) return { subscribe: 0 }
+  const urlBase = 'https://api.weixin.qq.com/cgi-bin/user/info?lang=zh_CN&openid=' + encodeURIComponent(oaOpenid)
+  let token = await getAccessToken()
+  let data = await requestWeixin('GET', urlBase + '&access_token=' + encodeURIComponent(token))
+  if (data && (Number(data.errcode) === 40001 || Number(data.errcode) === 42001)) {
+    await clearAccessTokenCache()
+    token = await getAccessToken()
+    data = await requestWeixin('GET', urlBase + '&access_token=' + encodeURIComponent(token))
+  }
+  return data || {}
+}
+
+/** true=仍关注 / false=已取关 / null=接口失败，勿清绑定 */
+async function isOaSubscribed(oaOpenid) {
+  try {
+    const info = await fetchOaUserInfo(oaOpenid)
+    if (info.errcode) {
+      const code = Number(info.errcode)
+      if (code === 40003 || code === 43004) return false
+      console.warn('[wx-oa-client] user/info fail', info.errcode, info.errmsg)
+      return null
+    }
+    if (!Object.prototype.hasOwnProperty.call(info, 'subscribe')) {
+      console.warn('[wx-oa-client] user/info missing subscribe')
+      return null
+    }
+    return Number(info.subscribe) === 1
+  } catch (e) {
+    console.warn('[wx-oa-client] isOaSubscribed error', e && (e.message || e))
+    return null
+  }
+}
+
+async function clearUserOaBind(userId, oaOpenid) {
+  const db = uniCloud.database()
+  if (userId) {
+    try {
+      const doc = await db.collection('uni-id-users').doc(userId).field({ wx_openid: true }).get()
+      const user = doc.data && doc.data[0]
+      if (user) {
+        const wx_openid = Object.assign({}, user.wx_openid || {})
+        delete wx_openid.h5
+        delete wx_openid.oa
+        delete wx_openid.official
+        await db.collection('uni-id-users').doc(userId).update({ wx_openid })
+      }
+    } catch (e) {
+      console.warn('[wx-oa-client] clear user oa bind fail', e && (e.message || e))
+    }
+  }
+  if (oaOpenid) {
+    try {
+      await db.collection('wx-oa-pending-bind').doc(oaOpenid).remove()
+    } catch (e) {}
+  }
+}
+
 /**
  * 取用户服务号 openid；若尚未写入 h5，尝试用 unionid 从 wx-oa-pending-bind 补绑
  * （解决：已登录用户后关注服务号 / 关注后未重新登录 导致发不出通知）
@@ -123,6 +187,15 @@ async function getUserOaOpenid(userId) {
     for (const p of pendingList) {
       const oaOpenid = p.oa_openid || p._id
       if (!oaOpenid) continue
+      const subscribed = await isOaSubscribed(oaOpenid)
+      if (subscribed !== true) {
+        if (subscribed === false) {
+          try {
+            await db.collection('wx-oa-pending-bind').doc(p._id).remove()
+          } catch (e) {}
+        }
+        continue
+      }
       const wx_openid = Object.assign({}, openidMap, { h5: oaOpenid })
       await db.collection('uni-id-users').doc(userId).update({ wx_openid })
       try {
@@ -142,24 +215,58 @@ async function getUserOaOpenid(userId) {
 }
 
 /**
- * 主动补绑：供登录后 / 小程序启动时调用
+ * 主动补绑：供登录后 / 小程序启动时调用。会向微信核对是否仍关注，取关则清绑定。
  * @returns {{ ok: boolean, oa_openid: string, reason?: string }}
  */
 async function syncUserOaBind(userId) {
   if (!userId) return { ok: false, oa_openid: '', reason: 'no_user' }
-  const oaOpenid = await getUserOaOpenid(userId)
-  if (oaOpenid) {
-    return { ok: true, oa_openid: oaOpenid, reason: 'bound' }
-  }
   const db = uniCloud.database()
   const doc = await db.collection('uni-id-users')
     .doc(userId)
-    .field({ wx_unionid: true })
+    .field({ wx_openid: true, wx_unionid: true })
     .get()
   const user = doc.data && doc.data[0]
-  if (!user || !user.wx_unionid) {
-    return { ok: false, oa_openid: '', reason: 'no_unionid' }
+  if (!user) return { ok: false, oa_openid: '', reason: 'no_user' }
+
+  const openidMap = user.wx_openid && typeof user.wx_openid === 'object' ? user.wx_openid : {}
+  let oaOpenid = openidMap.h5 || openidMap.oa || openidMap.official || ''
+
+  if (!oaOpenid && user.wx_unionid) {
+    try {
+      const pendingRes = await db.collection('wx-oa-pending-bind')
+        .where({ unionid: String(user.wx_unionid).trim() })
+        .limit(5)
+        .get()
+      const pending = (pendingRes.data || [])[0]
+      if (pending) oaOpenid = pending.oa_openid || pending._id || ''
+    } catch (e) {}
   }
+
+  if (!oaOpenid) {
+    if (!user.wx_unionid) return { ok: false, oa_openid: '', reason: 'no_unionid' }
+    return { ok: false, oa_openid: '', reason: 'not_followed_or_pending' }
+  }
+
+  const subscribed = await isOaSubscribed(oaOpenid)
+  if (subscribed === false) {
+    await clearUserOaBind(userId, oaOpenid)
+    console.log('[wx-oa-client] sync: unsubscribed, cleared bind', {
+      userId,
+      oaOpenidTail: String(oaOpenid).slice(-6)
+    })
+    return { ok: false, oa_openid: '', reason: 'unsubscribed' }
+  }
+  if (subscribed === true) {
+    if (!openidMap.h5) {
+      await db.collection('uni-id-users').doc(userId).update({
+        wx_openid: Object.assign({}, openidMap, { h5: oaOpenid })
+      })
+    }
+    return { ok: true, oa_openid: oaOpenid, reason: 'bound' }
+  }
+
+  if (openidMap.h5) return { ok: true, oa_openid: oaOpenid, reason: 'bound_cached' }
+  if (!user.wx_unionid) return { ok: false, oa_openid: '', reason: 'no_unionid' }
   return { ok: false, oa_openid: '', reason: 'not_followed_or_pending' }
 }
 
@@ -167,6 +274,68 @@ function clip(val, max) {
   const s = val == null ? '' : String(val)
   if (!max || s.length <= max) return s
   return s.slice(0, max)
+}
+
+const PLACEHOLDER_NAMES = new Set([
+  '老师',
+  '家长',
+  '用户',
+  '微信用户',
+  '未命名教师',
+  '未命名'
+])
+
+function pickPersonName(...candidates) {
+  for (const item of candidates) {
+    const name = String(item || '').trim()
+    if (!name || PLACEHOLDER_NAMES.has(name)) continue
+    return clip(name, 20)
+  }
+  return ''
+}
+
+/**
+ * 解析公众号通知里的人名：教师用资料 display_name，家长用 parent_info.real_name
+ * @param {object} db uniCloud.database()
+ * @param {string} userId
+ * @param {string} [role] teacher|parent
+ */
+async function resolveNotifyPersonName(db, userId, role) {
+  const fallback = role === 'teacher' ? '老师' : '家长'
+  if (!db || !userId) return fallback
+
+  try {
+    const userDoc = await db.collection('uni-id-users')
+      .doc(userId)
+      .field({ nickname: true, username: true, parent_info: true })
+      .get()
+    const user = (userDoc.data && userDoc.data[0]) || {}
+    const parentInfo = user.parent_info || {}
+
+    let teacherName = ''
+    if (role !== 'parent') {
+      try {
+        const teacherRes = await db.collection('teacher-profiles')
+          .where({ teacher_id: userId })
+          .field({ display_name: true })
+          .limit(1)
+          .get()
+        const teacher = teacherRes.data && teacherRes.data[0]
+        if (teacher) teacherName = teacher.display_name
+      } catch (e) {}
+    }
+
+    if (role === 'teacher') {
+      return pickPersonName(teacherName, user.nickname, user.username) || fallback
+    }
+    return pickPersonName(
+      parentInfo.real_name,
+      user.nickname,
+      user.username
+    ) || fallback
+  } catch (e) {
+    return fallback
+  }
 }
 
 function buildTemplateData(map, values) {
@@ -191,6 +360,12 @@ function buildTemplateData(map, values) {
       const n = Number(String(v).replace(/[^\d.-]/g, ''))
       const num = Number.isFinite(n) ? n.toFixed(2) : '0.00'
       v = /^[¥￥]|元$/.test(String(values[srcKey] || '')) ? String(values[srcKey]) : ('¥' + num)
+    }
+    if (/^phone_number/i.test(wxKey)) {
+      let digits = v.replace(/\D/g, '')
+      if (digits.length === 13 && digits.startsWith('86')) digits = digits.slice(2)
+      v = digits.slice(0, 17)
+      if (!v) return
     }
     data[wxKey] = { value: v }
   })
@@ -377,6 +552,46 @@ async function sendAppointmentSuccess(params = {}) {
   })
 }
 
+/**
+ * 上课前提醒（预约到场通知 44710）
+ * thing9 访客姓名 / thing16 服务项目 / time11 签到时间
+ * phone_number10 访客电话：发给家长填教师号，发给教师填家长号
+ */
+async function sendClassRemind(params = {}) {
+  return sendByScene('class_remind', {
+    user_id: params.user_id,
+    pagepath: params.pagepath || 'pages/appointment/detail',
+    client_msg_id: params.client_msg_id || ('class_soon_' + (params.appointment_id || '') + '_' + (params.user_id || '')),
+    values: {
+      visitor_name: params.visitor_name || '学员',
+      service: params.service || '家教课程',
+      time: params.time || formatNow(),
+      phone: params.phone || '',
+      _rawData: params.data
+    }
+  })
+}
+
+/**
+ * 评价超时提醒（复用「来访预约消息通知」字段）
+ * thing2 访客姓名 / thing4 事由(≤20字) / time5 访问时间 / time16 发送时间
+ */
+async function sendReviewRemind(params = {}) {
+  const timeText = params.time || formatNow()
+  return sendByScene('review_remind', {
+    user_id: params.user_id,
+    pagepath: params.pagepath || 'pages/review/create',
+    client_msg_id: params.client_msg_id || ('review_soon_' + (params.appointment_id || '') + '_' + (params.user_id || '')),
+    values: {
+      visitor_name: params.visitor_name || '评价提醒',
+      reason: params.reason || '3小时后将默认好评',
+      visit_time: params.visit_time || timeText,
+      send_time: timeText,
+      _rawData: params.data
+    }
+  })
+}
+
 function formatNow(ts) {
   const d = ts != null ? new Date(ts) : new Date()
   if (Number.isNaN(d.getTime())) {
@@ -394,6 +609,7 @@ module.exports = {
   getAccessToken,
   getUserOaOpenid,
   syncUserOaBind,
+  isOaSubscribed,
   sendSubscribeMessage,
   sendTemplateMessage,
   sendNotifyMessage,
@@ -401,5 +617,8 @@ module.exports = {
   sendCheckIn,
   sendNewChat,
   sendAppointmentSuccess,
-  formatNow
+  sendClassRemind,
+  sendReviewRemind,
+  formatNow,
+  resolveNotifyPersonName
 }

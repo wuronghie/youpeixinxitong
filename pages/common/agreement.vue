@@ -1,12 +1,12 @@
 <template>
-	<view class="agreement-page">
+	<view class="page">
 		<scroll-view scroll-y class="scroll-view">
-			<view class="content">
-				<view class="title">{{ agreementTitle }}</view>
-				<view class="update-time">更新时间：{{ updateTime }}</view>
+			<view class="section-card">
+				<text class="section-title">优培信息通{{ agreementTitle }}</text>
+				<text class="update-time">更新时间：{{ updateTime }}</text>
 				<view class="text-content">
-				<rich-text :nodes="agreementContent"></rich-text>
-			</view>
+					<rich-text :nodes="agreementContent"></rich-text>
+				</view>
 			</view>
 		</scroll-view>
 	</view>
@@ -79,7 +79,7 @@ export default {
 				<p>6.1 家长应当如实填写学生信息、学习需求等信息，以便教师提供合适的教学服务。</p>
 				<p>6.2 家长应当按时支付课程费用，不得恶意拖欠或拒付。</p>
 				<p>6.3 家长应当尊重教师，配合教学工作，不得提出不合理要求。</p>
-				<p>6.4 家长在课程完成后应当及时确认并评价，以便其他用户参考。</p>
+				<p>6.4 家长在课程完成后应当及时确认并评价，以便其他用户参考。评价可只打星、文字选填；教师下课打卡后满 24 小时仍未评价的，平台将按默认好评处理。</p>
 				
 				<h3>七、费用与支付</h3>
 				<p>7.1 课程费用由家长与教师协商确定，本平台不参与定价。</p>
@@ -96,7 +96,7 @@ export default {
 				<p style="padding-left: 24rpx;">（1）上课打卡：教师可在任意时间完成「上课打卡」，并上传定位（微信小程序需家长/教师授权 scope.userLocation）；系统会记录打卡时间与位置，便于查询与留证。未完成上课打卡，预约将不会进入「上课中」状态。</p>
 				<p style="padding-left: 24rpx;">（2）下课打卡：教师在完成上课打卡后，可在任意时间完成「下课打卡」，同样需上传定位；系统记录时间与位置，不限制与排课结束时间的先后关系。</p>
 				<p style="padding-left: 24rpx;">（3）打卡的时间与定位将作为课程履约凭证留存于平台；如对老师的打卡定位有异议，可通过「异常情况申请退款」入口提交申诉，由平台管理员审核。</p>
-				<p>8.5 结果确认与评价合并为一步：教师完成下课打卡后，家长在预约详情页点击「去评价并确认结果」（试课）或「去评价并确认完成」（正式课），在评价页中同时选择本次结果（满意 / 不满意）、填写评分与评价并提交。提交时平台会先完成结算（70/30 分账、信息费按规则处理），随后写入评价，整个动作仅需操作一次。</p>
+				<p>8.5 结果确认与评价合并为一步：教师完成下课打卡后，家长在预约详情页点击「去评价并确认结果」（试课）或「去评价并确认完成」（正式课），在评价页中同时选择本次结果（满意 / 不满意）、填写评分并提交（文字评价选填，可只打星）。提交时平台会先完成结算，随后写入评价。教师下课打卡满 21 小时仍未评价的，平台将通过服务号提醒家长：3 小时后将默认好评；满 24 小时仍未评价的，平台按默认好评（5 星）处理，试课按成功结算。</p>
 				<p>8.6 在教师未完成下课打卡之前，家长无法进入评价与确认入口；如教师超时未打卡，家长可通过「异常情况申请退款」由管理员介入处理。家长一旦提交「评价 + 确认结果」，订单进入「已完成」状态，将不可再申请退款。</p>
 				<p>8.7 试课成功后，家长可以继续预约正式课程；正式课同样遵循上课/下课打卡 + 评价合并的流程。</p>
 				
@@ -163,56 +163,60 @@ export default {
 </script>
 
 <style scoped>
-.agreement-page {
+.page {
 	height: 100vh;
-	background: #FFFFFF;
+	background: #F4F6F9;
 }
 
 .scroll-view {
 	height: 100%;
 }
 
-.content {
-	padding: 40rpx 32rpx;
-	padding-bottom: 80rpx;
+.section-card {
+	margin: 24rpx 32rpx 48rpx;
+	padding: 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
-.title {
-	font-size: 44rpx;
-	font-weight: bold;
-	color: #333333;
-	text-align: center;
-	margin-bottom: 20rpx;
+.section-title {
+	display: block;
+	font-size: 34rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.35;
 }
 
 .update-time {
+	display: block;
+	margin-top: 12rpx;
+	margin-bottom: 24rpx;
 	font-size: 24rpx;
-	color: #999999;
-	text-align: center;
-	margin-bottom: 40rpx;
+	color: #8B919C;
 }
 
 .text-content {
 	font-size: 28rpx;
 	line-height: 1.8;
-	color: #333333;
+	color: #5C6370;
 }
 
 .text-content h3 {
-	font-size: 32rpx;
-	font-weight: bold;
-	color: #333333;
-	margin-top: 40rpx;
-	margin-bottom: 20rpx;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+	margin-top: 32rpx;
+	margin-bottom: 16rpx;
 }
 
 .text-content p {
-	margin-bottom: 20rpx;
+	margin-bottom: 16rpx;
 	text-align: justify;
 }
 
 .text-content ul {
-	margin-bottom: 20rpx;
+	margin-bottom: 16rpx;
 	padding-left: 40rpx;
 }
 

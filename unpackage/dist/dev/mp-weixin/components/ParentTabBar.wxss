@@ -96,8 +96,8 @@
   justify-content: center;
 }
 .center-icon.data-v-8fb1af6f {
-  width: 34rpx !important;
-  height: 34rpx !important;
+  width: 64rpx !important;
+  height: 64rpx !important;
   margin-bottom: 0 !important;
 }
 .center-label.data-v-8fb1af6f {

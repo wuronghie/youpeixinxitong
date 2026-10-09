@@ -74,6 +74,14 @@ const _sfc_main = {
         return "女孩";
       return "";
     },
+    formatTime(t) {
+      if (!t)
+        return "--";
+      const d = new Date(t);
+      if (Number.isNaN(d.getTime()))
+        return "--";
+      return `${d.getMonth() + 1}月${d.getDate()}日`;
+    },
     goChat(conversationId, appointmentId) {
       if (!conversationId) {
         common_vendor.index.showToast({ title: "未找到会话", icon: "none" });
@@ -130,31 +138,31 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: $data.detail
   }, $data.detail ? common_vendor.e({
-    b: common_vendor.t($data.detail.display_name),
-    c: common_vendor.t($data.detail.subject),
-    d: common_vendor.t($data.detail.student_grade),
-    e: $options.studentGenderText($data.detail.student_gender)
-  }, $options.studentGenderText($data.detail.student_gender) ? {
-    f: common_vendor.t($options.studentGenderText($data.detail.student_gender))
-  } : {}, {
-    g: common_vendor.t($data.detail.lesson_mode === "online" ? "线上" : "线下"),
-    h: common_vendor.t($data.detail.already_responded ? "已响应" : "可邀请"),
-    i: common_vendor.t($data.detail.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
-    j: $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写"
+    b: common_vendor.t($data.detail.subject),
+    c: common_vendor.t($data.detail.student_grade),
+    d: common_vendor.t($data.detail.display_name),
+    e: common_vendor.t($data.detail.already_responded ? "已响应" : "可邀请"),
+    f: common_vendor.t($data.detail.lesson_mode === "online" ? "线上" : "线下"),
+    g: $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写"
   }, $data.detail.lesson_mode === "offline" && $options.locationText($data.detail) !== "未填写" ? {
-    k: common_vendor.t($options.locationText($data.detail))
+    h: common_vendor.t($options.locationText($data.detail))
   } : {}, {
+    i: $options.studentGenderText($data.detail.student_gender)
+  }, $options.studentGenderText($data.detail.student_gender) ? {
+    j: common_vendor.t($options.studentGenderText($data.detail.student_gender))
+  } : {}, {
+    k: common_vendor.t($data.detail.goal || $data.detail.remark || "家长暂未填写更多说明"),
     l: common_vendor.t($options.budgetText($data.detail)),
-    m: common_vendor.t($options.locationText($data.detail)),
-    n: common_vendor.t($data.detail.time_note || "暂未指定，可进一步沟通"),
-    o: common_vendor.t($options.studentGenderText($data.detail.student_gender) || "未填写"),
-    p: common_vendor.t($data.detail.goal || "家长暂未填写"),
-    q: common_vendor.t($data.detail.remark || "暂无补充说明")
+    m: common_vendor.t($options.formatTime($data.detail.create_time)),
+    n: common_vendor.t($options.locationText($data.detail)),
+    o: common_vendor.t($data.detail.time_note || "暂未指定，可进一步沟通"),
+    p: common_vendor.t($options.studentGenderText($data.detail.student_gender) || "未填写"),
+    q: common_vendor.t($data.detail.goal || "家长暂未填写"),
+    r: common_vendor.t($data.detail.remark || "暂无补充说明")
   }) : {}, {
-    r: $data.detail
+    s: $data.detail
   }, $data.detail ? common_vendor.e({
-    s: common_vendor.t($data.detail.already_responded ? "继续跟进此需求" : "先建立联系，再进入聊天发送试课邀请"),
-    t: common_vendor.t($data.detail.need_deposit ? "若你还未向该家长支付信息费，需要先完成支付后才能进入聊天。" : $data.detail.already_responded ? "如果之前已经发过试课邀请，聊天页不会重复发送。" : "首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。"),
+    t: common_vendor.t($data.detail.need_deposit ? "未付信息费时点此进入聊天，在聊天页确认并支付；已付过则直接进入聊天。" : $data.detail.already_responded ? "如果之前已经发过试课邀请，聊天页不会重复发送。" : "首次进入会自动建立会话，试课邀请在聊天页发送。"),
     v: !$data.detail.already_responded
   }, !$data.detail.already_responded ? {
     w: common_vendor.t($data.busy ? "处理中..." : $data.detail.need_deposit ? "支付信息费并进入聊天" : "进入聊天"),

@@ -1,19 +1,27 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_auth = require("../../utils/auth.js");
+const utils_coupons = require("../../utils/coupons.js");
 const _sfc_main = {
   name: "MyCoupons",
   data() {
     return {
       coupons: [],
       loading: false,
-      refresherTriggered: false
+      refresherTriggered: false,
+      waitingIssue: false,
+      _loadSeq: 0
     };
   },
   onShow() {
     if (!utils_auth.ensureLoggedIn("parent")) {
       return;
     }
+    const cached = utils_coupons.getCachedAvailableCoupons("parent");
+    if (cached.length) {
+      this.coupons = cached;
+    }
+    this.waitingIssue = !!utils_coupons.getPendingIssuedCoupons();
     this.loadCoupons();
   },
   methods: {
@@ -27,33 +35,33 @@ const _sfc_main = {
       common_vendor.index.stopPullDownRefresh();
     },
     async loadCoupons() {
-      if (this.loading)
-        return;
+      const seq = ++this._loadSeq;
       this.loading = true;
       try {
-        const couponCenter = common_vendor.tr.importObject("coupon-center", { customUI: true });
-        const res = await couponCenter.getAvailableCoupons({ role: "parent" });
-        common_vendor.index.__f__("log", "at pages/coupon/list.vue:80", "[coupon-list] getAvailableCoupons 返回:", res);
-        if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
-          this.coupons = res.data.list;
-        } else {
-          this.coupons = [];
-          if (res && res.message) {
-            common_vendor.index.showToast({
-              title: res.message,
-              icon: "none"
-            });
-          }
+        const { list, message, waiting } = await utils_coupons.fetchAvailableCoupons("parent");
+        if (seq !== this._loadSeq)
+          return;
+        this.coupons = list;
+        this.waitingIssue = waiting && list.length === 0;
+        if (!list.length && message) {
+          common_vendor.index.showToast({
+            title: message,
+            icon: "none"
+          });
         }
       } catch (err) {
-        common_vendor.index.__f__("error", "at pages/coupon/list.vue:93", "加载优惠券失败:", err);
+        common_vendor.index.__f__("error", "at pages/coupon/list.vue:89", "加载优惠券失败:", err);
+        if (seq !== this._loadSeq)
+          return;
         this.coupons = [];
         common_vendor.index.showToast({
           title: "加载优惠券失败",
           icon: "none"
         });
       } finally {
-        this.loading = false;
+        if (seq === this._loadSeq) {
+          this.loading = false;
+        }
       }
     },
     formatAmount(n) {
@@ -93,8 +101,11 @@ const _sfc_main = {
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: !$data.loading && $data.coupons.length === 0
-  }, !$data.loading && $data.coupons.length === 0 ? {} : {
-    b: common_vendor.f($data.coupons, (item, k0, i0) => {
+  }, !$data.loading && $data.coupons.length === 0 ? {
+    b: common_vendor.t($data.waitingIssue ? "优惠券正在到账" : "暂无可用优惠券"),
+    c: common_vendor.t($data.waitingIssue ? "请稍候或下拉刷新" : "可以通过好友邀请、活动发放等方式获得优惠券")
+  } : {}, {
+    d: common_vendor.f($data.coupons, (item, k0, i0) => {
       return common_vendor.e({
         a: item.type === "amount"
       }, item.type === "amount" ? {
@@ -102,17 +113,16 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       } : {
         c: common_vendor.t($options.formatDiscount(item.discount))
       }, {
-        d: common_vendor.t(item.name || "优惠券"),
-        e: common_vendor.t(item.description || $options.defaultDesc(item)),
-        f: common_vendor.t(item.min_spend && item.min_spend > 0 ? `满¥${$options.formatAmount(item.min_spend)}可用` : "无门槛"),
-        g: common_vendor.t($options.formatDate(item.valid_from)),
+        d: common_vendor.t(item.type === "amount" ? "满减" : "折扣"),
+        e: common_vendor.t(item.name || "优惠券"),
+        f: common_vendor.t(item.min_spend && item.min_spend > 0 ? `满 ¥${$options.formatAmount(item.min_spend)} 可用` : "无门槛"),
+        g: common_vendor.t(item.description ? ` · ${item.description}` : ""),
         h: common_vendor.t($options.formatDate(item.valid_to)),
         i: item._id
       });
-    })
-  }, {
-    c: common_vendor.o((...args) => _ctx.onPullDownRefresh && _ctx.onPullDownRefresh(...args)),
-    d: $data.refresherTriggered
+    }),
+    e: $data.refresherTriggered,
+    f: common_vendor.o((...args) => $options.onPullDownRefreshInternal && $options.onPullDownRefreshInternal(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-019d569f"]]);

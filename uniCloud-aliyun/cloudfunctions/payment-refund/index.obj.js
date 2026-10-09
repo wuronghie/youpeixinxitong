@@ -1,5 +1,6 @@
 const uniID = require('uni-id-common')
 const { assertStaffAccess, PERMISSION } = require('admin-auth')
+const { notifyAppointmentPeers } = require('notify-push')
 
 /** 后台退款权限：超管或持有 AUDIT_REFUND（不再信任客户端 isAdmin 入参） */
 async function requireRefundStaff(ctx) {
@@ -22,6 +23,25 @@ function error(message = 'error', code = -1, data = null) {
     data,
     timestamp: Date.now()
   }
+}
+
+function isMerchantFundShortage(text, code) {
+  const s = `${text || ''} ${code || ''}`
+  return /NOT_ENOUGH|NOTENOUGH|NO_ENOUGH|FUND_NOT_ENOUGH|ACCOUNT_NOT_ENOUGH|余额不足|账户余额|商户余额|资金不足|没钱|not enough/i.test(s)
+}
+
+function toPublicPayMessage(raw) {
+  if (isMerchantFundShortage(raw)) return '待商家审核'
+  return String(raw || '').trim() || '打款未完成'
+}
+
+function teacherPayFailMessage(raw, forAdmin) {
+  const reason = String(raw || '未知原因')
+  if (forAdmin) {
+    if (isMerchantFundShortage(reason)) return `教师打款失败：商户账户余额不足（${reason}）`
+    return `教师打款失败：${reason}`
+  }
+  return toPublicPayMessage(reason)
 }
 
 async function resolveUserId(context) {
@@ -405,7 +425,10 @@ module.exports = {
               ? '退款已到账；教师 70% 已发起转账，需微信确认收款'
               : '退款已到账；已为教师补打款 70% 至微信零钱')
           }
-          return error(`教师打款失败：${settleRes.fail_reason || settleRes.message || '未知原因'}`)
+          return error(teacherPayFailMessage(settleRes.fail_reason || settleRes.message, isAdmin), -1, {
+            fail_reason: settleRes.fail_reason || settleRes.message || '',
+            merchant_fund_short: isMerchantFundShortage(settleRes.fail_reason || settleRes.message)
+          })
         }
         return error('该订单已退款完成')
       }
@@ -462,6 +485,17 @@ module.exports = {
           refund_status: 'pending',
           update_time: now
         })
+        try {
+          await notifyAppointmentPeers(appointment, {
+            status: appointment.status,
+            title: '退款申请',
+            content: isTrial ? '家长提交了退款申请，请及时查看' : '家长提交了退款申请，请及时查看',
+            extra: { action: 'refund_apply' },
+            excludeUserId: user_id
+          })
+        } catch (pushErr) {
+          console.warn('[payment-refund.apply] push 失败:', pushErr)
+        }
       }
 
       console.log('[payment-refund] ========== 退款申请已提交待审 ==========', {
@@ -619,7 +653,10 @@ module.exports = {
         teacher_pay_fail_reason: settleRes.fail_reason || settleRes.message || '打款失败',
         update_time: now
       })
-      return error(`教师打款失败：${settleRes.fail_reason || settleRes.message || '未知原因'}`)
+      return error(teacherPayFailMessage(settleRes.fail_reason || settleRes.message, isAdmin), -1, {
+        fail_reason: settleRes.fail_reason || settleRes.message || '打款失败',
+        merchant_fund_short: isMerchantFundShortage(settleRes.fail_reason || settleRes.message)
+      })
     } catch (e) {
       console.error(logPrefix, '异常', e)
       return error(e.message || '补打款失败')
@@ -1020,6 +1057,17 @@ module.exports = {
             aptUpdate.trial_fail_reason = refund.reason || refund.description || '家长申请退款'
           }
           await db.collection('appointments').doc(refund.appointment_id).update(aptUpdate)
+          try {
+            const aptForPush = appointmentForSettle || { _id: refund.appointment_id }
+            await notifyAppointmentPeers(aptForPush, {
+              status: aptUpdate.status,
+              title: refundResult ? '退款已完成' : '退款处理中',
+              content: refundResult ? '退款已处理完成，请打开查看' : '退款正在处理中',
+              extra: { action: 'refund_reviewed' }
+            })
+          } catch (pushErr) {
+            console.warn('[payment-refund.review] push 失败:', pushErr)
+          }
         }
 
         // 更新退款记录
@@ -1046,13 +1094,17 @@ module.exports = {
           teacherIncome > 0 &&
           !teacherSettle.settled
         )
+        const teacherFailRaw = teacherSettle.fail_reason || teacherSettle.message || '未知原因'
+        const teacherFailAdmin = isMerchantFundShortage(teacherFailRaw)
+          ? `商户账户余额不足（${teacherFailRaw}）。请充值后再用「补打教师课酬」。`
+          : `${teacherFailRaw}。请使用「补打教师课酬」重试`
         const message = refundResult
           ? (teacherIncome > 0
             ? (teacherSettle.settled
               ? (teacherSettle.need_confirm
                 ? '退款已成功；教师70%已发起转账，需微信确认收款'
                 : '退款已成功，教师70%已打入微信零钱')
-              : `家长退款已成功，但教师打款失败：${teacherSettle.fail_reason || teacherSettle.message || '未知原因'}。请使用「补打教师课酬」重试`)
+              : `家长退款已成功，但教师打款失败：${teacherFailAdmin}`)
             : '退款审核通过，退款已成功处理')
           : '退款审核通过，但退款处理失败，请手动处理'
         

@@ -3,11 +3,13 @@
  * 功能：创建支付订单（试课费、正式课程费、信息费）
  * - course_fee：家长支付试课费/正式课程费
  * - deposit  ：旧字段名，语义已改为"教师信息费"（= hourly_rate × 2，一节试课费用，2 小时）
+ *              招募场景按家长预算下限计算，不按老师定价
  *              无论试课成功/失败，信息费均归平台收取，不退回
  * 使用 uni-id-common 进行 token 验证
  */
 
 const uniID = require('uni-id-common')
+const { notifyChatNew, notifyAppointmentPeers } = require('notify-push')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -32,6 +34,41 @@ function generateOrderNo(prefix = 'ORD') {
   const timestamp = Date.now()
   const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
   return `${prefix}${timestamp}${random}`
+}
+
+async function resolveDepositInfoFee(db, appointment) {
+  const isRecruitment = !!(appointment.recruitment_id || appointment.invited_via === 'recruitment')
+  if (isRecruitment) {
+    let rate = Number(appointment.hourly_rate || appointment.trial_invite_hourly_rate || 0)
+    if (!(rate > 0) && appointment.recruitment_id) {
+      try {
+        const recDoc = await db.collection('parent-recruitments').doc(appointment.recruitment_id).get()
+        const rec = recDoc.data && recDoc.data[0]
+        rate = Number(rec && rec.budget_min) || 0
+      } catch (e) {
+        console.warn('[payment-create] 读取招募预算失败:', e && e.message)
+      }
+    }
+    if (!(rate > 0)) rate = 120
+    return Number((rate * 2).toFixed(2))
+  }
+
+  const teacherProfileDoc = await db.collection('teacher-profiles')
+    .where({ teacher_id: appointment.teacher_id })
+    .field({ hourly_rate: true })
+    .limit(1)
+    .get()
+  const hourlyRate = Number(
+    teacherProfileDoc.data && teacherProfileDoc.data[0] && teacherProfileDoc.data[0].hourly_rate
+  ) || 0
+  let expectedInfoFee = hourlyRate > 0 ? Number((hourlyRate * 2).toFixed(2)) : 0
+  if (expectedInfoFee <= 0) {
+    const configDoc = await db.collection('system-config')
+      .where({ config_key: 'teacher_deposit_amount' })
+      .get()
+    expectedInfoFee = Number(configDoc.data && configDoc.data[0] && configDoc.data[0].config_value) || 1
+  }
+  return parseFloat(expectedInfoFee.toFixed(2))
 }
 
 /**
@@ -106,18 +143,11 @@ async function appendPaymentChatNotice(db, {
   // 老师停在聊天页时，靠 push 立刻刷新（轮询作兜底）
   if (appointment.teacher_id) {
     try {
-      const uniPush = uniCloud.getPushManager({ appId: '__UNI__863DB44' })
-      await uniPush.sendMessage({
-        user_id: appointment.teacher_id,
-        check_token: false,
-        platform: ['mp-weixin'],
-        title: '新消息',
-        content: String(content).substring(0, 50),
-        payload: {
-          type: 'chat_new',
-          conversation_id: conversation._id,
-          send_time: now
-        }
+      await notifyChatNew({
+        receiverId: appointment.teacher_id,
+        conversationId: conversation._id,
+        content,
+        sendTime: now
       })
     } catch (e) {
       console.warn('[payment-create] 支付提醒 push 失败:', e && (e.message || e))
@@ -230,7 +260,10 @@ async function validateCouponForPayment(db, {
     throw new Error('该优惠券活动已结束')
   }
   if (coupon.target_role && ![role, 'all'].includes(coupon.target_role)) {
-    throw new Error('该优惠券仅限指定角色使用')
+    // 邀请奖励按领取人角色入账后允许使用，避免家长券模板卡住教师端
+    if (userCoupon.role !== role && userCoupon.source !== 'invite') {
+      throw new Error('该优惠券仅限指定角色使用')
+    }
   }
   if (!isCouponInDate(coupon, nowTs)) {
     throw new Error(nowTs < new Date(coupon.valid_from).getTime() ? '该优惠券尚未生效' : '该优惠券已过期')
@@ -379,6 +412,23 @@ async function handlePaySuccess(db, order, options = {}) {
     } catch (noticeErr) {
       console.warn('[payment-create][handlePaySuccess] 写入支付聊天提醒失败:', noticeErr)
     }
+
+    try {
+      await notifyAppointmentPeers(
+        { ...appointment, _id: order.appointment_id, status: nextStatus },
+        {
+          status: nextStatus,
+          title: isTeacherInvitedTrial ? '试课已确认' : '家长已支付',
+          content: isTeacherInvitedTrial
+            ? '家长已支付试课费，试课已确认'
+            : (appointment.course_type === 'trial' ? '家长已支付试课费，等待老师确认' : '家长已支付课程费'),
+          extra: { action: 'course_fee_paid' },
+          excludeUserId: appointment.parent_id
+        }
+      )
+    } catch (pushErr) {
+      console.warn('[payment-create][handlePaySuccess] appointment push 失败:', pushErr)
+    }
     
     return { appointment_status: nextStatus }
   }
@@ -438,6 +488,21 @@ async function handlePaySuccess(db, order, options = {}) {
       })
     } catch (respErr) {
       console.warn('[payment-create][handlePaySuccess] 更新招募响应记录失败:', respErr)
+    }
+
+    try {
+      await notifyAppointmentPeers(
+        { ...appointment, _id: order.appointment_id, status: nextStatus },
+        {
+          status: nextStatus,
+          title: '信息费已支付',
+          content: '老师已支付信息费，聊天已开启',
+          extra: { action: 'deposit_paid' },
+          excludeUserId: appointment.teacher_id
+        }
+      )
+    } catch (pushErr) {
+      console.warn('[payment-create][handlePaySuccess] deposit appointment push 失败:', pushErr)
     }
 
     return { appointment_status: nextStatus }
@@ -590,26 +655,9 @@ module.exports = {
           return error('当前预约状态不允许支付信息费')
         }
         
-        // 新规则：信息费 = 教师 hourly_rate × 2（一节试课费用，2 小时）
-        // 金额以服务端实际查询的 hourly_rate 为准，前端展示仅做提示
-        const teacherProfileDoc = await db.collection('teacher-profiles')
-          .where({ teacher_id: appointment.teacher_id })
-          .field({ hourly_rate: true })
-          .limit(1)
-          .get()
-        const hourlyRate = Number(
-          teacherProfileDoc.data && teacherProfileDoc.data[0] && teacherProfileDoc.data[0].hourly_rate
-        ) || 0
-        // 若老师未设置 hourly_rate，则回退到 system-config 里的历史 teacher_deposit_amount（默认 1 元），避免阻塞
-        let expectedInfoFee = hourlyRate > 0 ? Number((hourlyRate * 2).toFixed(2)) : 0
-        if (expectedInfoFee <= 0) {
-          const configDoc = await db.collection('system-config')
-            .where({ config_key: 'teacher_deposit_amount' })
-            .get()
-          expectedInfoFee = Number(configDoc.data && configDoc.data[0] && configDoc.data[0].config_value) || 1
-        }
-        
-        originalAmount = parseFloat(expectedInfoFee.toFixed(2))
+        // 招募：信息费 = 家长预算下限 × 2；普通预约：信息费 = 教师 hourly_rate × 2
+        const expectedInfoFee = await resolveDepositInfoFee(db, appointment)
+        originalAmount = parseFloat(Number(expectedInfoFee).toFixed(2))
 
         if (user_coupon_id) {
           const couponResult = await validateCouponForPayment(db, {
@@ -629,7 +677,7 @@ module.exports = {
           console.warn('[payment-create] 信息费金额校验失败:', {
             appointment_id,
             teacher_id: appointment.teacher_id,
-            hourlyRate,
+            recruitment_id: appointment.recruitment_id || '',
             expectedInfoFee,
             discountAmount,
             expectedPayable,

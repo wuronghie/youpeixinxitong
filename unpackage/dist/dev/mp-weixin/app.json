@@ -2,36 +2,37 @@
   "pages": [
     "pages/index/index",
     "pages/login/index",
-    "pages/common/register",
-    "pages/common/agreement",
-    "pages/common/webview",
-    "pages/common/follow-oa",
     "pages/teacher/list",
     "pages/teacher/detail",
     "pages/appointment/create",
     "pages/appointment/list",
     "pages/appointment/detail",
-    "pages/recruitment/list",
-    "pages/recruitment/edit",
-    "pages/order/list",
-    "pages/order/detail",
-    "pages/order/refund",
-    "pages/review/create",
     "pages/chat/list",
     "pages/chat/conversation",
-    "pages/user/index",
-    "pages/user/profile",
-    "pages/user/collection",
-    "pages/user/messages",
-    "pages/coupon/list",
-    "pages/teacher-profiles/add",
-    "pages/teacher-profiles/edit",
-    "pages/teacher-profiles/list",
-    "pages/payment/result",
-    "uni_modules/uni-pay/pages/success/success",
-    "uni_modules/uni-pay/pages/pay-desk/pay-desk"
+    "pages/user/index"
   ],
   "subPackages": [
+    {
+      "root": "pages-biz",
+      "pages": [
+        "teacher/detail",
+        "appointment/create",
+        "appointment/detail",
+        "chat/conversation",
+        "user/profile",
+        "user/collection",
+        "user/messages"
+      ]
+    },
+    {
+      "root": "pages/common",
+      "pages": [
+        "register",
+        "agreement",
+        "webview",
+        "follow-oa"
+      ]
+    },
     {
       "root": "pages-teacher",
       "pages": [
@@ -54,6 +55,54 @@
         "user/index",
         "user/messages"
       ]
+    },
+    {
+      "root": "pages/order",
+      "pages": [
+        "list",
+        "detail",
+        "refund"
+      ]
+    },
+    {
+      "root": "pages/recruitment",
+      "pages": [
+        "list",
+        "edit"
+      ]
+    },
+    {
+      "root": "pages/coupon",
+      "pages": [
+        "list"
+      ]
+    },
+    {
+      "root": "pages/review",
+      "pages": [
+        "create"
+      ]
+    },
+    {
+      "root": "pages/payment",
+      "pages": [
+        "result"
+      ]
+    },
+    {
+      "root": "uni_modules/uni-pay/pages",
+      "pages": [
+        "success/success",
+        "pay-desk/pay-desk"
+      ]
+    },
+    {
+      "root": "pages/teacher-profiles",
+      "pages": [
+        "add",
+        "edit",
+        "list"
+      ]
     }
   ],
   "window": {
@@ -63,6 +112,33 @@
     "backgroundColor": "#F8F8F8",
     "enablePullDownRefresh": true,
     "backgroundTextStyle": "dark"
+  },
+  "preloadRule": {
+    "pages/teacher/list": {
+      "network": "wifi",
+      "packages": [
+        "pages-biz"
+      ]
+    },
+    "pages/appointment/list": {
+      "network": "wifi",
+      "packages": [
+        "pages-biz"
+      ]
+    },
+    "pages/chat/list": {
+      "network": "wifi",
+      "packages": [
+        "pages-biz"
+      ]
+    },
+    "pages/user/index": {
+      "network": "wifi",
+      "packages": [
+        "pages-biz",
+        "pages/common"
+      ]
+    }
   },
   "permission": {
     "scope.userLocation": {

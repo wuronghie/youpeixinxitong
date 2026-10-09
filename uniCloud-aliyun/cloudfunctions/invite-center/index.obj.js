@@ -6,6 +6,14 @@
  */
 
 const uniID = require('uni-id-common')
+const {
+  loadUserOpenid,
+  recordOpenidClaim,
+  countUserActivityTaken,
+  loadActiveActivities,
+  getCouponMap,
+  sendCouponMessage
+} = require('coupon-issue')
 
 function success(data = null, message = 'success') {
   return {
@@ -32,6 +40,56 @@ function generateInviteCode(length = 6) {
     code += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return code
+}
+
+function resolveBizRole(raw) {
+  if (Array.isArray(raw)) {
+    if (raw.includes('parent')) return 'parent'
+    if (raw.includes('teacher')) return 'teacher'
+    return raw[0] || 'parent'
+  }
+  if (raw === 'teacher' || raw === 'parent') return raw
+  return 'parent'
+}
+
+function firstInviterId(inviterUid) {
+  if (Array.isArray(inviterUid) && inviterUid.length > 0) return inviterUid[0]
+  return typeof inviterUid === 'string' ? inviterUid : ''
+}
+
+function unwrapDoc(res) {
+  const data = res && res.data
+  if (!data) return null
+  if (Array.isArray(data)) return data[0] || null
+  if (typeof data === 'object') return data
+  return null
+}
+
+async function safeWriteInvitedCode(users, uid, code) {
+  if (!uid || !code) return
+  try {
+    await users.doc(uid).update({
+      invited_code: String(code).toUpperCase()
+    })
+  } catch (e) {
+    console.warn('[invite-center] 回写 invited_code 失败:', e && e.message)
+  }
+}
+
+function pickInviteActivity(activities, role) {
+  const list = activities || []
+  return list.find((item) => item.target_role === role)
+    || list.find((item) => !item.target_role || item.target_role === 'all')
+    || list[0]
+    || null
+}
+
+async function resolveBoundInviteCode(users, self = {}) {
+  if (self.invited_code) return String(self.invited_code).toUpperCase()
+  const inviterId = firstInviterId(self.inviter_uid)
+  if (!inviterId) return ''
+  const inviter = unwrapDoc(await users.doc(inviterId).get()) || {}
+  return inviter.my_invite_code ? String(inviter.my_invite_code).toUpperCase() : ''
 }
 
 function decodeSimpleTokenUid(token = '') {
@@ -81,48 +139,116 @@ async function issueInviteRewards({
   uid,
   role,
   inviterId,
-  couponId,
-  activityId,
-  now
+  inviterRole
 }) {
   const userCouponsCol = db.collection('user-coupons')
   const issuedRecords = []
   const invitePairKey = `${inviterId}_${uid}`
+  const inviteeOpenid = await loadUserOpenid(db, uid)
+  const inviterOpenid = await loadUserOpenid(db, inviterId)
+  const now = Date.now()
+  let activities = await loadActiveActivities(db, {
+    types: ['invite_reward'],
+    now
+  })
+  // 兼容后台只打开优惠券模板「邀请奖励自动发放」，未建 invite_reward 活动
+  if (!activities.length) {
+    const tplRes = await db.collection('coupons')
+      .where({
+        is_invite_reward: true,
+        status: 'active'
+      })
+      .limit(20)
+      .get()
+    activities = (tplRes.data || []).map((coupon) => ({
+      _id: '',
+      coupon_id: coupon._id,
+      target_role: coupon.target_role || 'all'
+    }))
+  }
+  const couponMap = await getCouponMap(db, activities.map((item) => item.coupon_id))
 
-  const rewardTargets = [
-    {
-      user_id: uid,
-      role,
-      coupon_id: couponId,
-      source: 'invite',
-      status: 'unused',
-      issue_time: now,
-      activity_id: activityId || null,
-      invite_pair_key: invitePairKey,
-      remark: '活动：邀请送券-受邀新用户'
-    },
-    {
-      user_id: inviterId,
-      role: 'parent',
-      coupon_id: couponId,
-      source: 'invite',
-      status: 'unused',
-      issue_time: now,
-      activity_id: activityId || null,
-      invite_pair_key: invitePairKey,
-      remark: '活动：邀请送券-邀请人'
+  const inviteeActivity = pickInviteActivity(activities, role)
+  const inviterActivity = pickInviteActivity(activities, inviterRole)
+
+  const rewardTargets = []
+  if (inviteeActivity && inviteeActivity.coupon_id) {
+    let skipInvitee = false
+    if (inviteeActivity._id && inviteeOpenid) {
+      const taken = await countUserActivityTaken(db, {
+        uid,
+        activityId: inviteeActivity._id,
+        openid: inviteeOpenid
+      })
+      skipInvitee = taken > 0
+      if (skipInvitee) {
+        console.log('[invite-center.acceptInvite] 受邀微信号已领取过该活动券，跳过受邀人:', {
+          uid,
+          inviteeOpenid,
+          activityId: inviteeActivity._id
+        })
+      }
     }
-  ]
+    if (!skipInvitee) {
+      rewardTargets.push({
+        user_id: uid,
+        role,
+        coupon_id: inviteeActivity.coupon_id,
+        source: 'invite',
+        status: 'unused',
+        activity_id: inviteeActivity._id || null,
+        invite_pair_key: invitePairKey,
+        remark: '活动：邀请送券-受邀新用户',
+        wx_openid: inviteeOpenid || undefined,
+        claimOpenid: inviteeOpenid,
+        couponName: (couponMap[inviteeActivity.coupon_id] && couponMap[inviteeActivity.coupon_id].name) || '优惠券'
+      })
+    }
+  }
+
+  if (inviterActivity && inviterActivity.coupon_id) {
+    rewardTargets.push({
+      user_id: inviterId,
+      role: inviterRole,
+      coupon_id: inviterActivity.coupon_id,
+      source: 'invite',
+      status: 'unused',
+      activity_id: inviterActivity._id || null,
+      invite_pair_key: invitePairKey,
+      remark: '活动：邀请送券-邀请人',
+      wx_openid: inviterOpenid || undefined,
+      claimOpenid: '',
+      couponName: (couponMap[inviterActivity.coupon_id] && couponMap[inviterActivity.coupon_id].name) || '优惠券'
+    })
+  }
+
+  if (!rewardTargets.length) {
+    console.warn('[invite-center.acceptInvite] 未找到有效的邀请送券活动，本次仅绑定关系不发券', {
+      uid,
+      inviterId,
+      inviteeRole: role,
+      inviterRole,
+      activityCount: activities.length
+    })
+    return issuedRecords
+  }
 
   for (const record of rewardTargets) {
+    const claimOpenid = record.claimOpenid
+    const couponName = record.couponName
+    delete record.claimOpenid
+    delete record.couponName
+    if (!record.wx_openid) delete record.wx_openid
+    if (!record.activity_id) delete record.activity_id
+
     const where = {
       user_id: record.user_id,
       coupon_id: record.coupon_id,
       source: 'invite',
       invite_pair_key: invitePairKey
     }
-    if (activityId) {
-      where.activity_id = activityId
+    if (record.activity_id) {
+      where.activity_id = record.activity_id
     }
 
     const existed = await userCouponsCol.where(where).limit(1).get()
@@ -130,7 +256,7 @@ async function issueInviteRewards({
       console.log('[invite-center.acceptInvite] 邀请奖励已存在，跳过重复发放:', {
         user_id: record.user_id,
         coupon_id: record.coupon_id,
-        activity_id: activityId || null,
+        activity_id: record.activity_id || null,
         invite_pair_key: invitePairKey,
         existed: existed.data[0]
       })
@@ -138,10 +264,24 @@ async function issueInviteRewards({
     }
 
     const addRes = await userCouponsCol.add(record)
+    if (claimOpenid && record.activity_id) {
+      await recordOpenidClaim(db, {
+        openid: claimOpenid,
+        activityId: record.activity_id,
+        couponId: record.coupon_id,
+        uid: record.user_id
+      })
+    }
+    await sendCouponMessage(db, {
+      uid: record.user_id,
+      role: record.role,
+      couponName
+    })
     issuedRecords.push({
       user_id: record.user_id,
+      role: record.role,
       coupon_id: record.coupon_id,
-      activity_id: activityId || null,
+      activity_id: record.activity_id || null,
       invite_pair_key: invitePairKey,
       addResult: addRes
     })
@@ -160,7 +300,7 @@ module.exports = {
 
   /**
    * 获取或生成当前用户的邀请码
-   * 返回：{ invite_code }
+   * 返回：{ invite_code, bound_invite_code, bound }
    */
   async getMyInviteCode() {
     try {
@@ -180,52 +320,75 @@ module.exports = {
 
       const users = db.collection('uni-id-users')
 
-      // 先查已有的邀请码
-      const doc = await users
-        .doc(uid)
-        .field({
-          my_invite_code: true
-        })
-        .get()
-
-      if (doc.data && doc.data.length > 0 && doc.data[0].my_invite_code) {
-        return success(
-          {
-            invite_code: doc.data[0].my_invite_code
-          },
-          '获取成功'
-        )
-      }
-
-      // 生成新的邀请码并确保唯一
-      let inviteCode = ''
-      const maxTry = 5
-      for (let i = 0; i < maxTry; i++) {
-        inviteCode = generateInviteCode(6)
-        const exist = await users
-          .where({
-            my_invite_code: inviteCode
-          })
-          .count()
-        if (!exist.total) break
-        inviteCode = ''
-      }
+      const doc = await users.doc(uid).get()
+      const self = unwrapDoc(doc) || {}
+      let inviteCode = self.my_invite_code || ''
 
       if (!inviteCode) {
-        return error('生成邀请码失败，请稍后重试')
+        const maxTry = 5
+        for (let i = 0; i < maxTry; i++) {
+          inviteCode = generateInviteCode(6)
+          const exist = await users
+            .where({
+              my_invite_code: inviteCode
+            })
+            .count()
+          if (!exist.total) break
+          inviteCode = ''
+        }
+
+        if (!inviteCode) {
+          return error('生成邀请码失败，请稍后重试')
+        }
+
+        await users
+          .doc(uid)
+          .update({
+            my_invite_code: inviteCode
+          })
       }
 
-      await users
-        .doc(uid)
-        .update({
-          my_invite_code: inviteCode
-        })
+      const boundInviterId = firstInviterId(self.inviter_uid)
+      let boundInviteCode = await resolveBoundInviteCode(users, self)
+      const bound = !!(boundInviterId || boundInviteCode || self.invited_code)
+      if (bound && boundInviteCode && !self.invited_code) {
+        await safeWriteInvitedCode(users, uid, boundInviteCode)
+      }
+
+      let issuedCount = 0
+      if (bound && boundInviterId) {
+        try {
+          const existed = await db.collection('user-coupons')
+            .where({
+              user_id: uid,
+              source: 'invite'
+            })
+            .limit(1)
+            .get()
+          if (!existed.data || !existed.data.length) {
+            const inviter = unwrapDoc(await users.doc(boundInviterId).get()) || {}
+            const addRes = await issueInviteRewards({
+              db,
+              uid,
+              role: resolveBizRole(self.role),
+              inviterId: boundInviterId,
+              inviterRole: resolveBizRole(inviter.role)
+            })
+            issuedCount = addRes.length
+          }
+        } catch (issueErr) {
+          console.warn('[invite-center.getMyInviteCode] 补发邀请券失败:', issueErr && issueErr.message)
+        }
+      }
 
       return success(
         {
-          invite_code: inviteCode
+          invite_code: inviteCode,
+          bound_invite_code: boundInviteCode,
+          bound,
+          issued_count: issuedCount
         },
-        '生成成功'
+        inviteCode === self.my_invite_code ? '获取成功' : '生成成功'
       )
     } catch (e) {
       console.error('[invite-center] 获取邀请码失败:', e)
@@ -239,10 +402,9 @@ module.exports = {
    * @param {String} params.invite_code 邀请码
    */
   async acceptInvite(params = {}) {
-    const { invite_code } = params
+    const invite_code = String((params && params.invite_code) || '').trim().toUpperCase()
     try {
       const db = uniCloud.database()
-      const dbCmd = db.command
 
       const token = this.getUniIdToken()
       if (!token) {
@@ -267,64 +429,69 @@ module.exports = {
 
       const users = db.collection('uni-id-users')
 
-      // 查询当前用户信息，确认是家长且尚未绑定邀请人
-      const selfDoc = await users
-        .doc(uid)
-        .field({
-          role: true,
-          inviter_uid: true,
-          my_invite_code: true,
-          nickname: true
-        })
-        .get()
+      const selfDoc = await users.doc(uid).get()
+      const self = unwrapDoc(selfDoc)
 
       console.log('[invite-center.acceptInvite] 当前用户查询结果:', {
         uid,
-        selfDocCount: selfDoc.data ? selfDoc.data.length : 0,
-        selfDoc: selfDoc.data && selfDoc.data.length > 0 ? selfDoc.data[0] : null
+        self
       })
 
-      if (!selfDoc.data || selfDoc.data.length === 0) {
+      if (!self) {
         return error('用户信息不存在')
       }
 
-      const self = selfDoc.data[0]
-      let role = 'parent'
-      if (Array.isArray(self.role)) {
-        if (self.role.includes('parent')) {
-          role = 'parent'
-        } else if (self.role.includes('teacher')) {
-          role = 'teacher'
-        } else if (self.role.length > 0) {
-          role = self.role[0]
-        }
-      } else if (typeof self.role === 'string' && self.role) {
-        role = self.role
-      }
+      const role = resolveBizRole(self.role)
 
       console.log('[invite-center.acceptInvite] 当前用户角色解析结果:', {
         uid,
         rawRole: self.role,
         resolvedRole: role,
         inviter_uid: self.inviter_uid,
+        invited_code: self.invited_code,
         my_invite_code: self.my_invite_code
       })
 
-      if (role !== 'parent') {
-        // 目前只对家长生效
-        return success(null, '仅家长角色参与邀请活动')
+      if (role !== 'parent' && role !== 'teacher') {
+        return error('当前角色不能参与邀请活动')
       }
 
-      const boundInviterId = self.inviter_uid && Array.isArray(self.inviter_uid) && self.inviter_uid.length > 0
-        ? self.inviter_uid[0]
-        : ''
+      const boundInviterId = firstInviterId(self.inviter_uid)
+      let boundInviteCode = await resolveBoundInviteCode(users, self)
 
-      // 防止自己邀请自己
-      if (self.my_invite_code && self.my_invite_code === invite_code) {
-        return success(null, '不能使用自己的邀请码')
+      // 已绑定：展示已填码、禁止改绑，仅在从未发过邀请券时补发
+      if (boundInviterId || self.invited_code) {
+        if (!boundInviteCode && boundInviterId) {
+          const inviter = unwrapDoc(await users.doc(boundInviterId).get()) || {}
+          boundInviteCode = inviter.my_invite_code ? String(inviter.my_invite_code).toUpperCase() : ''
+        }
+        if (boundInviteCode && !self.invited_code) {
+          await safeWriteInvitedCode(users, uid, boundInviteCode)
+        }
+        let issuedCount = 0
+        if (boundInviterId) {
+          const inviter = unwrapDoc(await users.doc(boundInviterId).get()) || {}
+          const addRes = await issueInviteRewards({
+            db,
+            uid,
+            role,
+            inviterId: boundInviterId,
+            inviterRole: resolveBizRole(inviter.role)
+          })
+          issuedCount = addRes.length
+        }
+        return success({
+          bound_invite_code: boundInviteCode,
+          bound: true,
+          already_bound: true,
+          issued_count: issuedCount
+        }, issuedCount ? '邀请奖励已补发' : '已填写邀请码')
       }
 
-      // 查找邀请码对应的邀请人
+      if (self.my_invite_code && String(self.my_invite_code).toUpperCase() === invite_code) {
+        return error('不能使用自己的邀请码')
+      }
+
       let inviterDoc = await users
         .where({
           my_invite_code: invite_code
@@ -344,112 +511,47 @@ module.exports = {
       })
 
       if (!inviterDoc.data || inviterDoc.data.length === 0) {
-        // 如果已绑定过邀请人，允许走“补发奖励”逻辑
-        if (!boundInviterId) {
-          return error('邀请码无效或邀请人不存在')
-        }
+        return error('邀请码无效或邀请人不存在')
       }
 
-      let inviterId = inviterDoc.data && inviterDoc.data.length > 0 ? inviterDoc.data[0]._id : ''
-      if (boundInviterId) {
-        console.log('[invite-center.acceptInvite] 当前账号已绑定邀请人，进入补发检查逻辑:', {
-          uid,
-          boundInviterId,
-          inputInviteOwner: inviterId || null
-        })
-        // 如果已绑定且本次输入的邀请码对应的是另一个邀请人，直接返回，避免错误改绑
-        if (inviterId && inviterId !== boundInviterId) {
-          return success(null, '已绑定其他邀请人')
-        }
-        inviterId = boundInviterId
-      }
+      const inviterId = inviterDoc.data[0]._id
+      const inviterRole = resolveBizRole(inviterDoc.data[0].role)
 
       if (inviterId === uid) {
-        return success(null, '不能使用自己的邀请码')
+        return error('不能使用自己的邀请码')
       }
 
-      // 仅首次绑定时写入 inviter_uid；已绑定时只做补发奖励检查
-      if (!boundInviterId) {
-        await users
-          .doc(uid)
-          .update({
-            inviter_uid: [inviterId],
-            invite_time: Date.now()
-          })
-
-        console.log('[invite-center.acceptInvite] 邀请关系绑定成功:', {
-          uid,
-          inviterId,
-          invite_code
+      await users
+        .doc(uid)
+        .update({
+          inviter_uid: [inviterId],
+          invite_time: Date.now()
         })
-      }
+      await safeWriteInvitedCode(users, uid, invite_code)
 
-      // 为邀请双方发放优惠券（仅通过后台活动配置）
-      const now = Date.now()
+      console.log('[invite-center.acceptInvite] 邀请关系绑定成功:', {
+        uid,
+        inviterId,
+        invite_code
+      })
 
-      const activitiesCol = db.collection('coupon-activities')
+      const addRes = await issueInviteRewards({
+        db,
+        uid,
+        role,
+        inviterId,
+        inviterRole
+      })
+      console.log('[invite-center.acceptInvite] 优惠券发放完成:', {
+        issuedCount: addRes.length,
+        addResult: addRes
+      })
 
-      // 仅使用邀请送券活动配置（后台 coupon-activities 表），不再根据优惠券模板 is_invite_reward 发放
-      let couponId = null
-      let activityId = null
-      try {
-        const actRes = await activitiesCol
-          .where({
-            type: 'invite_reward',
-            status: 'active',
-            target_role: dbCmd.in(['parent', 'all']),
-            start_time: dbCmd.lte(now),
-            end_time: dbCmd.gte(now)
-          })
-          .limit(1)
-          .get()
-
-        console.log('[invite-center.acceptInvite] 邀请送券活动查询结果:', {
-          now,
-          activityCount: actRes.data ? actRes.data.length : 0,
-          activity: actRes.data && actRes.data.length > 0 ? actRes.data[0] : null
-        })
-
-        if (actRes.data && actRes.data.length > 0) {
-          const activity = actRes.data[0]
-          couponId = activity.coupon_id
-          activityId = activity._id
-        }
-      } catch (e) {
-        console.error('[invite-center] 查询邀请活动失败:', e)
-      }
-
-      if (couponId) {
-        console.log('[invite-center.acceptInvite] 准备发放邀请奖励优惠券:', {
-          uid,
-          inviterId,
-          couponId,
-          activityId
-        })
-        const addRes = await issueInviteRewards({
-          db,
-          uid,
-          role,
-          inviterId,
-          couponId,
-          activityId,
-          now
-        })
-        console.log('[invite-center.acceptInvite] 优惠券发放完成:', {
-          couponId,
-          activityId,
-          addResult: addRes
-        })
-      } else {
-        console.warn('[invite-center.acceptInvite] 未找到有效的邀请送券活动，本次仅绑定关系不发券', {
-          uid,
-          inviterId,
-          invite_code,
-          now
-        })
-      }
-
-      return success(null, boundInviterId ? '已绑定邀请人，已检查邀请奖励' : '邀请关系已绑定')
+      return success({
+        bound_invite_code: invite_code,
+        bound: true,
+        issued_count: addRes.length
+      }, addRes.length ? '邀请码填写成功，优惠券已到账' : '邀请码填写成功')
     } catch (e) {
       console.error('[invite-center] 接受邀请失败:', e)
       return error(e.message || '接受邀请失败')

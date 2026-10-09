@@ -3,7 +3,7 @@
  * 失败不影响发消息主流程
  */
 
-const { sendNewChat, formatNow } = require('wx-oa-client')
+const { sendNewChat, formatNow, resolveNotifyPersonName } = require('wx-oa-client')
 
 function previewReason(content, messageType) {
   const type = String(messageType || 'text')
@@ -21,21 +21,6 @@ function previewReason(content, messageType) {
   }
   text = String(text).replace(/\s+/g, ' ').trim()
   return text.slice(0, 20) || '您有一条新消息'
-}
-
-async function loadVisitorName(db, senderId, senderRole) {
-  if (!senderId) return senderRole === 'teacher' ? '老师' : '家长'
-  try {
-    const doc = await db.collection('uni-id-users')
-      .doc(senderId)
-      .field({ nickname: true, username: true })
-      .get()
-    const user = doc.data && doc.data[0]
-    if (user && (user.nickname || user.username)) {
-      return String(user.nickname || user.username).slice(0, 20)
-    }
-  } catch (e) {}
-  return senderRole === 'teacher' ? '老师' : '家长'
 }
 
 /**
@@ -65,7 +50,7 @@ async function notifyChatNewMessageOa({
 } = {}) {
   if (!receiverId || !conversationId) return { skipped: true, reason: 'missing_args' }
 
-  const visitorName = await loadVisitorName(db, senderId, senderRole)
+  const visitorName = await resolveNotifyPersonName(db, senderId, senderRole)
   const reason = previewReason(content, messageType)
   const timeText = formatNow(sendTime || Date.now())
   const pagepath = receiverRole === 'teacher'

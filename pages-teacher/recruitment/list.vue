@@ -1,87 +1,87 @@
 <template>
-	<view class="square-page">
+	<view class="page">
+		<view class="search-wrap">
+			<view class="wx-search">
+				<input
+					class="wx-search-input"
+					v-model.trim="filters.subject"
+					placeholder="科目，如数学 / 英语"
+					confirm-type="search"
+					@confirm="reload"
+				/>
+			</view>
+			<view class="wx-search">
+				<input
+					class="wx-search-input"
+					v-model.trim="filters.city"
+					placeholder="线下城市，如成都"
+					confirm-type="search"
+					@confirm="reload"
+				/>
+			</view>
+		</view>
+
+		<scroll-view scroll-x class="filters" :show-scrollbar="false">
+			<view class="filters-inner">
+				<picker mode="selector" :range="gradeOptions" range-key="label" @change="onGradePick">
+					<view class="filter" :class="{ on: !!filters.student_grade }">年级{{ gradeLabel }} ▾</view>
+				</picker>
+				<text
+					class="filter"
+					:class="{ on: filters.lesson_mode === '' }"
+					@click="filters.lesson_mode = ''; reload()"
+				>全部</text>
+				<text
+					class="filter"
+					:class="{ on: filters.lesson_mode === 'online' }"
+					@click="filters.lesson_mode = 'online'; reload()"
+				>线上</text>
+				<text
+					class="filter"
+					:class="{ on: filters.lesson_mode === 'offline' }"
+					@click="filters.lesson_mode = 'offline'; reload()"
+				>线下</text>
+			</view>
+		</scroll-view>
+
 		<scroll-view scroll-y class="list-scroll" @scrolltolower="loadMore">
-			<view class="page-body">
-				<view class="filter-card">
-					<text class="panel-title">招募广场</text>
-					<text class="panel-desc">优先浏览已通过审核的家长需求，筛选后可直接发起试课邀请。</text>
-
-					<view class="search-box">
-						<input class="search-input" v-model.trim="filters.subject" placeholder="筛选科目，如数学 / 英语" @confirm="reload" />
-					</view>
-					<view class="search-box city-box">
-						<input class="search-input" v-model.trim="filters.city" placeholder="线下城市，如成都" @confirm="reload" />
-					</view>
-
-					<view class="toolbar-row">
-						<picker mode="selector" :range="gradeOptions" range-key="label" @change="onGradePick">
-							<view class="filter-pill">{{ gradeLabel }}</view>
-						</picker>
-						<view class="mode-tabs">
-							<text
-								class="mode-tab"
-								:class="{ active: filters.lesson_mode === '' }"
-								@click="filters.lesson_mode = ''; reload()"
-							>全部</text>
-							<text
-								class="mode-tab"
-								:class="{ active: filters.lesson_mode === 'online' }"
-								@click="filters.lesson_mode = 'online'; reload()"
-							>线上</text>
-							<text
-								class="mode-tab"
-								:class="{ active: filters.lesson_mode === 'offline' }"
-								@click="filters.lesson_mode = 'offline'; reload()"
-							>线下</text>
-						</view>
-					</view>
-				</view>
-
-				<view v-if="!list.length && !loading" class="empty-card">
+			<view class="list-body">
+				<view v-if="!list.length && !loading" class="empty">
 					<text class="empty-title">当前没有匹配的招募</text>
-					<text class="empty-desc">试试更换科目、年级或授课方式筛选条件。</text>
+					<text class="empty-sub">试试更换科目、年级或授课方式</text>
 				</view>
 
 				<view
 					v-for="item in list"
 					:key="item._id"
-					class="square-card"
+					class="a-card"
 					@click="goDetail(item._id)"
 				>
-					<view class="square-head">
-						<view class="user-info">
-							<text class="display-name">{{ item.display_name }}</text>
-							<text class="publish-time">{{ formatTime(item.create_time) }}</text>
+					<view class="a-head">
+						<view class="a-head-main">
+							<text class="a-name">{{ item.subject }} / {{ item.student_grade }}</text>
+							<text class="a-time">{{ metaLine(item) }}</text>
 						</view>
-						<text class="response-badge">{{ item.response_count || 0 }} 位老师响应</text>
+						<text class="status">{{ item.response_count || 0 }} 人已响应</text>
 					</view>
-
-					<view class="chip-row">
-						<text class="chip subject-chip">{{ item.subject }}</text>
-						<text class="chip">{{ item.student_grade }}</text>
-						<text v-if="studentGenderText(item.student_gender)" class="chip gender-chip">{{ studentGenderText(item.student_gender) }}</text>
-						<text class="chip">{{ item.lesson_mode === 'online' ? '线上' : '线下' }}</text>
-						<text v-if="item.lesson_mode === 'offline' && addressText(item)" class="chip address-chip">{{ addressText(item) }}</text>
-					</view>
-
-					<text class="summary-text line-clamp-2">{{ item.goal || item.remark || '家长暂未填写更多说明' }}</text>
-
-					<view class="card-bottom">
-						<text class="budget-text">{{ budgetText(item) }}</text>
-						<text class="detail-link">查看详情</text>
+					<text class="a-desc">{{ item.goal || item.remark || '家长暂未填写更多说明' }}</text>
+					<view class="a-ops">
+						<text class="budget">{{ budgetText(item) }}</text>
+						<text class="mini">查看详情</text>
 					</view>
 				</view>
 
-				<view v-if="loading" class="loading-text">加载中...</view>
+				<view v-if="loading" class="list-tip">加载中...</view>
 			</view>
 		</scroll-view>
+
 		<view class="tabbar-spacer"></view>
 		<TeacherTabBar current="recruitment" />
 	</view>
 </template>
 
 <script>
-import TeacherTabBar from '@/components/TeacherTabBar.vue'
+import TeacherTabBar from '@/pages-teacher/components/TeacherTabBar.vue'
 
 export default {
 	components: {
@@ -150,6 +150,18 @@ export default {
 			if (gender === 'female' || gender === 2 || gender === '2') return '女孩'
 			return ''
 		},
+		metaLine(item) {
+			const parts = []
+			if (item.lesson_mode === 'offline') {
+				parts.push(this.addressText(item) || '线下')
+			} else {
+				parts.push('线上')
+			}
+			const gender = this.studentGenderText(item.student_gender)
+			if (gender) parts.push(gender)
+			if (item.time_note) parts.push(item.time_note)
+			return parts.join(' · ')
+		},
 		reload() {
 			this.page = 1
 			this.list = []
@@ -191,216 +203,180 @@ export default {
 </script>
 
 <style scoped>
-.square-page {
+.page {
+	background: #F4F6F9;
 	min-height: 100vh;
-	background: #f5f7fb;
 }
-.list-scroll {
-	height: 100vh;
+
+.search-wrap {
+	padding: 16rpx 32rpx 8rpx;
+	background: #F4F6F9;
 }
-.page-body {
-	padding: 24rpx;
-	padding-bottom: 160rpx;
-}
-.filter-card,
-.square-card,
-.empty-card {
-	background: #fff;
-	border-radius: 28rpx;
-	box-shadow: 0 10rpx 30rpx rgba(31, 42, 68, 0.06);
-}
-.filter-card {
-	padding: 28rpx;
-	margin-bottom: 24rpx;
-}
-.panel-title {
-	display: block;
-	font-size: 38rpx;
-	font-weight: 700;
-	color: #1f2a44;
-}
-.panel-desc {
-	display: block;
-	margin-top: 12rpx;
-	font-size: 24rpx;
-	line-height: 1.7;
-	color: #7c879d;
-}
-.search-box {
-	margin-top: 22rpx;
+
+.wx-search {
+	height: 72rpx;
 	padding: 0 24rpx;
-	height: 84rpx;
-	border-radius: 22rpx;
-	background: #f3f6fb;
+	background: #FFFFFF;
+	border-radius: 16rpx;
 	display: flex;
 	align-items: center;
 }
-.city-box {
-	margin-top: 16rpx;
+
+.wx-search + .wx-search {
+	margin-top: 12rpx;
 }
-.search-input {
+
+.wx-search-input {
 	width: 100%;
-	height: 84rpx;
-	line-height: 84rpx;
-	font-size: 26rpx;
-	color: #1f2a44;
+	height: 72rpx;
+	font-size: 28rpx;
+	color: #1F2329;
 }
-.toolbar-row {
-	margin-top: 20rpx;
+
+.filters {
+	background: #F4F6F9;
+	white-space: nowrap;
+}
+
+.filters-inner {
 	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 18rpx;
-}
-.filter-pill {
-	padding: 16rpx 24rpx;
-	border-radius: 999rpx;
-	background: #eef3fb;
-	font-size: 24rpx;
-	line-height: 1.4;
-	color: #4b5870;
-}
-.mode-tabs {
-	flex: 1;
-	display: flex;
-	justify-content: flex-end;
+	padding: 8rpx 32rpx 16rpx;
 	gap: 12rpx;
 }
-.mode-tab {
-	padding: 16rpx 24rpx;
-	border-radius: 999rpx;
+
+.filter {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 12rpx;
+	background: #FFFFFF;
+	color: #5C6370;
 	font-size: 24rpx;
-	line-height: 1.4;
-	color: #72809a;
-	background: #f3f6fb;
+	line-height: 56rpx;
 }
-.mode-tab.active {
-	color: #fff;
-	background: #2f6df6;
-}
-.empty-card {
-	padding: 72rpx 40rpx;
-	text-align: center;
-	margin-bottom: 20rpx;
-}
-.empty-title {
-	display: block;
-	font-size: 34rpx;
+
+.filter.on {
+	background: #EEF3FF;
+	color: #2563EB;
 	font-weight: 600;
-	color: #1f2a44;
 }
-.empty-desc {
-	display: block;
-	margin-top: 12rpx;
-	font-size: 24rpx;
-	line-height: 1.7;
-	color: #8b95a8;
+
+.list-scroll {
+	height: calc(100vh - 360rpx);
 }
-.square-card {
+
+.list-body {
+	padding: 8rpx 0 24rpx;
+}
+
+.a-card {
+	margin: 0 32rpx 24rpx;
 	padding: 28rpx;
-	margin-bottom: 20rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
-.square-head {
+
+.a-head {
 	display: flex;
-	align-items: flex-start;
 	justify-content: space-between;
-	gap: 20rpx;
+	align-items: flex-start;
+	gap: 16rpx;
 }
-.user-info {
+
+.a-head-main {
 	flex: 1;
 	min-width: 0;
 }
-.display-name {
+
+.a-name {
 	display: block;
-	font-size: 30rpx;
-	font-weight: 700;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
 	line-height: 1.4;
-	color: #1f2a44;
 }
-.publish-time {
+
+.a-time {
 	display: block;
-	margin-top: 10rpx;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1.4;
+}
+
+.status {
+	flex-shrink: 0;
 	font-size: 22rpx;
-	line-height: 1.4;
-	color: #97a2b5;
-}
-.response-badge {
-	padding: 10rpx 18rpx;
+	padding: 4rpx 16rpx;
 	border-radius: 999rpx;
-	background: rgba(47, 109, 246, 0.08);
-	color: #2f6df6;
-	font-size: 22rpx;
 	line-height: 1.4;
-	white-space: nowrap;
+	background: #EEF3FF;
+	color: #2563EB;
 }
-.chip-row {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 12rpx;
-	margin-top: 20rpx;
-}
-.chip {
-	padding: 8rpx 16rpx;
-	border-radius: 999rpx;
-	font-size: 22rpx;
-	line-height: 1.4;
-	color: #60708c;
-	background: #f3f6fb;
-}
-.gender-chip {
-	color: #8a4fff;
-	background: rgba(138, 79, 255, 0.08);
-}
-.address-chip {
-	max-width: 100%;
-	white-space: normal;
-	word-break: break-all;
-}
-.subject-chip {
-	color: #2f6df6;
-	background: rgba(47, 109, 246, 0.08);
-}
-.summary-text {
-	display: block;
-	margin-top: 20rpx;
+
+.a-desc {
+	display: -webkit-box;
+	margin-top: 16rpx;
 	font-size: 26rpx;
-	line-height: 1.75;
-	color: #4a566d;
+	line-height: 1.5;
+	color: #5C6370;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
 }
-.card-bottom {
-	margin-top: 22rpx;
+
+.a-ops {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 20rpx;
+	gap: 16rpx;
+	margin-top: 24rpx;
 }
-.budget-text {
-	font-size: 22rpx;
-	line-height: 1.5;
-	color: #99a3b6;
+
+.budget {
+	font-size: 24rpx;
+	color: #8B919C;
 }
-.detail-link {
+
+.mini {
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	background: #2563EB;
+	color: #FFFFFF;
 	font-size: 24rpx;
 	font-weight: 600;
-	line-height: 1.5;
-	color: #2f6df6;
+	line-height: 60rpx;
 }
-.line-clamp-2 {
-	display: -webkit-box;
-	line-clamp: 2;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
+
+.empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 32rpx;
 }
-.loading-text {
-	padding: 24rpx 0 8rpx;
-	text-align: center;
+
+.empty-title {
+	font-size: 30rpx;
+	color: #5C6370;
+}
+
+.empty-sub {
+	margin-top: 8rpx;
 	font-size: 24rpx;
-	color: #8a95a8;
+	color: #8B919C;
 }
+
+.list-tip {
+	text-align: center;
+	padding: 24rpx 0;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
 .tabbar-spacer {
-	height: 120rpx;
-	padding-bottom: constant(safe-area-inset-bottom);
-	padding-bottom: env(safe-area-inset-bottom);
+	height: 140rpx;
 }
 </style>

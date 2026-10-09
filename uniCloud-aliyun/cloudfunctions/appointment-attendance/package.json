@@ -9,6 +9,8 @@
     "concurrency": 10
   },
   "dependencies": {
+    "chat-notice": "file:../common/chat-notice",
+    "notify-push": "file:../common/notify-push",
     "uni-id-common": "file:../../../uni_modules/uni-id-common/uniCloud/cloudfunctions/common/uni-id-common",
     "wx-oa-client": "file:../common/wx-oa-client"
   },

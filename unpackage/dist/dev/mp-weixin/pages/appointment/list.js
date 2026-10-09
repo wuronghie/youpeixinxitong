@@ -1,10 +1,12 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
+const utils_appPushMixin = require("../../utils/appPushMixin.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const ParentTabBar = () => "../../components/ParentTabBar.js";
 const _sfc_main = {
   name: "AppointmentList",
-  mixins: [utils_pullRefreshMixin.pullRefreshMixin],
+  mixins: [utils_pullRefreshMixin.pullRefreshMixin, utils_appPushMixin.createAppPushMixin(utils_chatPush.APP_PUSH_TYPES.APPOINTMENT_UPDATE)],
   components: {
     ParentTabBar
   },
@@ -13,7 +15,7 @@ const _sfc_main = {
       // 状态选项卡配置
       // 修改提示：可以在这里添加更多状态，如"已取消"、"退款中"等
       statusTabs: [
-        { label: "全部预约", value: "all" },
+        { label: "全部", value: "all" },
         { label: "待支付", value: "pending_payment" },
         { label: "待确认", value: "pending_confirm" },
         { label: "已确认", value: "confirmed" },
@@ -73,8 +75,11 @@ const _sfc_main = {
      * 功能：重新加载第一页数据
      */
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/appointment/list.vue:204", "[appointment-list] 下拉刷新：重新加载列表");
+      common_vendor.index.__f__("log", "at pages/appointment/list.vue:188", "[appointment-list] 下拉刷新：重新加载列表");
       await this.loadAppointments(true);
+    },
+    onAppPushPayload() {
+      this.loadAppointments(true);
     },
     /**
      * 加载预约列表
@@ -138,7 +143,7 @@ const _sfc_main = {
           throw new Error(res.message || "获取预约失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/appointment/list.vue:269", "获取预约列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/appointment/list.vue:256", "获取预约列表失败:", error);
         common_vendor.index.showToast({ title: error.message || "获取预约失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -209,18 +214,18 @@ const _sfc_main = {
      */
     statusClass(status) {
       const map = {
-        pending_payment: "status-badge--warning",
-        pending_confirm: "status-badge--warning",
-        contact_request: "status-badge--warning",
-        confirmed: "status-badge--primary",
-        in_progress: "status-badge--primary",
-        completed: "status-badge--success",
-        rejected: "status-badge--muted",
-        cancelled: "status-badge--muted",
-        refunding: "status-badge--warning",
-        refunded: "status-badge--muted"
+        pending_payment: "s-pay",
+        pending_confirm: "s-wait",
+        contact_request: "s-wait",
+        confirmed: "s-ing",
+        in_progress: "s-ing",
+        completed: "s-done",
+        rejected: "s-muted",
+        cancelled: "s-muted",
+        refunding: "s-wait",
+        refunded: "s-muted"
       };
-      return map[status] || "status-badge--muted";
+      return map[status] || "s-muted";
     },
     /**
      * 格式化课程类型
@@ -228,7 +233,7 @@ const _sfc_main = {
      * @returns {String} 课程类型中文描述
      */
     formatCourseType(type) {
-      return type === "regular" ? "正式课程" : "试课体验";
+      return type === "regular" ? "正式课" : "试课";
     },
     /**
      * 判断是否可以支付
@@ -256,7 +261,7 @@ const _sfc_main = {
     goToDetail(id) {
       if (!id)
         return;
-      common_vendor.index.navigateTo({ url: `/pages/appointment/detail?id=${id}` });
+      common_vendor.index.navigateTo({ url: `/pages-biz/appointment/detail?id=${id}` });
     },
     /**
      * 跳转到支付页面
@@ -285,8 +290,8 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     a: common_vendor.f($data.statusTabs, (tab, index, i0) => {
       return {
         a: common_vendor.t(tab.label),
-        b: common_vendor.n($data.currentStatus === tab.value ? "status-tab--active" : "status-tab--inactive"),
-        c: index,
+        b: index,
+        c: $data.currentStatus === tab.value ? 1 : "",
         d: common_vendor.o(($event) => $options.switchStatus(tab.value), index)
       };
     }),
@@ -308,18 +313,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         f: common_vendor.n($options.statusClass(item.status)),
         g: common_vendor.t(item.subject || "未填写"),
         h: common_vendor.t(item.amount || 0),
-        i: $options.canPay(item)
+        i: item.course_type === "trial"
+      }, item.course_type === "trial" ? {} : {}, {
+        j: item.course_type === "trial" ? 1 : "",
+        k: $options.canPay(item)
       }, $options.canPay(item) ? {
-        j: common_vendor.o(($event) => $options.goToPayment(item), item._id)
+        l: common_vendor.o(($event) => $options.goToPayment(item), item._id)
       } : {}, {
-        k: item.status === "pending_confirm"
+        m: item.status === "pending_confirm"
       }, item.status === "pending_confirm" ? {
-        l: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
+        n: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
       } : {}, {
-        m: item.status === "completed"
-      }, item.status === "completed" ? {} : {}, {
-        n: item._id,
-        o: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
+        o: item._id,
+        p: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
       });
     }),
     e: !$data.appointmentList.length && !$data.isLoading

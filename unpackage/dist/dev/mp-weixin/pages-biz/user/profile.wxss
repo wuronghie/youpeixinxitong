@@ -1,0 +1,115 @@
+
+.page.data-v-66cd72dd {
+	min-height: 100vh;
+	background: #F4F6F9;
+}
+.scroll.data-v-66cd72dd {
+	height: calc(100vh - 132rpx);
+}
+.form-tip.data-v-66cd72dd {
+	display: block;
+	padding: 20rpx 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+.form-card.data-v-66cd72dd {
+	margin: 0 32rpx 24rpx;
+	padding: 8rpx 32rpx 16rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+.form-row.data-v-66cd72dd {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	min-height: 96rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+.form-row.last.data-v-66cd72dd {
+	border-bottom: none;
+}
+.form-label.data-v-66cd72dd {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+.form-input.data-v-66cd72dd {
+	flex: 1;
+	min-width: 0;
+	text-align: right;
+	font-size: 28rpx;
+	color: #1F2329;
+}
+.form-em.data-v-66cd72dd {
+	font-size: 28rpx;
+	color: #8B919C;
+	text-align: right;
+}
+.form-em.filled.data-v-66cd72dd {
+	color: #1F2329;
+}
+.ph.data-v-66cd72dd {
+	color: #C5C8CE;
+}
+.avatar-side.data-v-66cd72dd {
+	display: flex;
+	align-items: center;
+	gap: 16rpx;
+}
+.avatar.data-v-66cd72dd {
+	width: 72rpx;
+	height: 72rpx;
+	border-radius: 50%;
+	background: #EEF3FF;
+}
+.chip-row.data-v-66cd72dd {
+	display: flex;
+	gap: 12rpx;
+}
+.chip.data-v-66cd72dd {
+	height: 56rpx;
+	padding: 0 24rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
+}
+.chip.on.data-v-66cd72dd {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+.scroll-spacer.data-v-66cd72dd {
+	height: 24rpx;
+}
+.action-bar.data-v-66cd72dd {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 20;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+.save-btn.data-v-66cd72dd {
+	width: 100%;
+	height: 88rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
+}
+.save-btn.data-v-66cd72dd::after {
+	border: none;
+}

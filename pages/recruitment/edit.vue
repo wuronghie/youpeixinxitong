@@ -1,136 +1,145 @@
+<!-- 家长端：发布/编辑招募。云对象 recruitment-center.create / update / myList -->
 <template>
-	<view class="edit-page">
+	<view class="page">
 		<scroll-view scroll-y class="scroll">
-			<view class="page-body">
-				<view class="hero-card">
-					<text class="hero-title">{{ recruitmentId ? '编辑招募' : '发布招募' }}</text>
-					<text class="hero-desc">用清晰、真实的需求帮助老师更快判断是否匹配，提交后会进入审核流程。</text>
+			<text class="form-tip">用清晰、真实的需求帮助老师判断是否匹配，提交后进入审核。最低预算不低于 120 元/小时，老师响应后按该下限缴纳信息费（下限 × 2 小时）。</text>
+
+			<view class="form-card">
+				<view class="form-row">
+					<text class="form-label">辅导科目</text>
+					<input
+						class="form-input"
+						v-model.trim="form.subject"
+						placeholder="例如：数学"
+						placeholder-class="ph"
+					/>
 				</view>
-
-				<view class="section-card">
-					<text class="section-title">基础信息</text>
-					<view class="field-block">
-						<text class="field-label">辅导科目</text>
-						<input class="field-input" v-model.trim="form.subject" placeholder="例如：数学、英语、物理" />
+				<picker mode="selector" :range="gradeOptions" :value="gradeIndex" @change="onGrade">
+					<view class="form-row">
+						<text class="form-label">学生年级</text>
+						<text class="form-em" :class="{ filled: !!form.student_grade }">{{ form.student_grade || '请选择' }}</text>
 					</view>
-
-					<view class="field-block">
-						<text class="field-label">学生年级</text>
-						<picker mode="selector" :range="gradeOptions" :value="gradeIndex" @change="onGrade">
-							<view class="select-row">
-								<text class="select-value" :class="{ placeholder: !form.student_grade }">{{ form.student_grade || '请选择年级' }}</text>
-								<text class="select-arrow">选择</text>
-							</view>
-						</picker>
-					</view>
-
-					<view class="field-block">
-						<text class="field-label">授课方式</text>
-						<view class="mode-grid">
-							<view
-								class="mode-card"
-								:class="{ active: form.lesson_mode === 'online' }"
-								@click="form.lesson_mode = 'online'"
-							>
-								<text class="mode-title">线上</text>
-								<text class="mode-desc">适合灵活排课</text>
-							</view>
-							<view
-								class="mode-card"
-								:class="{ active: form.lesson_mode === 'offline' }"
-								@click="form.lesson_mode = 'offline'"
-							>
-								<text class="mode-title">线下</text>
-								<text class="mode-desc">支持地图选点</text>
-							</view>
-						</view>
-					</view>
-
-					<view v-if="form.lesson_mode === 'offline'" class="field-block field-last">
-						<view class="location-head" @click="handleChooseLocation">
-							<view>
-								<text class="field-label">上课地点</text>
-								<text class="field-tip">仅展示大致位置，便于老师筛选</text>
-							</view>
-							<text class="select-arrow">选择</text>
-						</view>
-						<view v-if="addressPreviewLines.length" class="address-preview">
-							<text v-for="(line, idx) in addressPreviewLines" :key="idx" class="preview-line">{{ line }}</text>
-						</view>
-						<text v-else class="empty-location">请选择线下辅导的大致地址</text>
-						<map
-							v-if="hasMapPoint"
-							class="recruit-map-preview"
-							:latitude="mapCenterLat"
-							:longitude="mapCenterLng"
-							:markers="mapMarkers"
-							:scale="16"
-							:show-location="false"
-							:enable-scroll="false"
-							:enable-zoom="false"
-						/>
-						<text v-if="hasMapPoint" class="map-link" @click.stop="handleOpenLocation">在地图中打开</text>
-					</view>
-				</view>
-
-				<view class="section-card">
-					<text class="section-title">需求说明</text>
-					<view class="field-block">
-						<text class="field-label">辅导目标</text>
-						<textarea
-							class="textarea-field"
-							v-model.trim="form.goal"
-							placeholder="例如：提升成绩、补基础、备考冲刺等"
-						/>
-					</view>
-					<view class="field-block">
-						<text class="field-label">补充说明</text>
-						<textarea
-							class="textarea-field short"
-							v-model.trim="form.remark"
-							placeholder="可补充孩子情况、希望老师风格等"
-						/>
-					</view>
-					<view class="field-block field-last">
-						<text class="field-label">时间偏好</text>
-						<input class="field-input" v-model.trim="form.time_note" placeholder="例如：周末下午、工作日晚间" />
-					</view>
-				</view>
-
-				<view class="section-card">
-					<text class="section-title">预算与有效期</text>
-					<view class="budget-row">
-						<view class="budget-box">
-							<text class="field-label small">最低预算</text>
-							<input class="field-input" type="digit" v-model="form.budget_min" placeholder="元/小时" />
-						</view>
-						<view class="budget-divider">-</view>
-						<view class="budget-box">
-							<text class="field-label small">最高预算</text>
-							<input class="field-input" type="digit" v-model="form.budget_max" placeholder="元/小时" />
-						</view>
-					</view>
-
-					<view class="field-block field-last">
-						<text class="field-label">招募有效期</text>
-						<view class="valid-grid">
-							<view class="valid-chip" :class="{ active: validDays === 7 }" @click="validDays = 7">7 天</view>
-							<view class="valid-chip" :class="{ active: validDays === 14 }" @click="validDays = 14">14 天</view>
-							<view class="valid-chip" :class="{ active: validDays === 30 }" @click="validDays = 30">30 天</view>
-						</view>
-					</view>
+				</picker>
+				<view class="form-row last">
+					<text class="form-label">学生性别</text>
+					<text class="form-em" :class="{ filled: studentGenderText !== '与个人资料一致' }">{{ studentGenderText }}</text>
 				</view>
 			</view>
+
+			<view class="choice">
+				<view
+					class="choice-item"
+					:class="{ on: form.lesson_mode === 'online' }"
+					@click="form.lesson_mode = 'online'"
+				>
+					<text class="choice-title">线上</text>
+					<text class="choice-sub">灵活排课</text>
+				</view>
+				<view
+					class="choice-item"
+					:class="{ on: form.lesson_mode === 'offline' }"
+					@click="form.lesson_mode = 'offline'"
+				>
+					<text class="choice-title">线下</text>
+					<text class="choice-sub">支持地图选点</text>
+				</view>
+			</view>
+
+			<view v-if="form.lesson_mode === 'offline'" class="section-card">
+				<view class="section-head" @click="handleChooseLocation">
+					<text class="section-title">上课地点</text>
+					<text class="section-action">选择</text>
+				</view>
+				<text class="intro">{{ fullAddressDisplay || '仅展示大致位置，请选择线下辅导地址' }}</text>
+				<map
+					v-if="hasMapPoint"
+					class="recruit-map"
+					:latitude="mapCenterLat"
+					:longitude="mapCenterLng"
+					:markers="mapMarkers"
+					:scale="16"
+					:show-location="false"
+					:enable-scroll="false"
+					:enable-zoom="false"
+				/>
+				<text v-if="hasMapPoint" class="map-link" @click.stop="handleOpenLocation">在地图中打开</text>
+			</view>
+
+			<view class="section-card">
+				<text class="section-title">辅导目标</text>
+				<textarea
+					class="intro-input"
+					v-model.trim="form.goal"
+					placeholder="例如：函数专题补弱，期末前追上班级进度。"
+					:show-confirm-bar="false"
+					:cursor-spacing="24"
+					placeholder-class="ph"
+				/>
+				<text class="section-title extra">补充说明</text>
+				<textarea
+					class="intro-input short"
+					v-model.trim="form.remark"
+					placeholder="可补充孩子情况、希望老师风格等"
+					:show-confirm-bar="false"
+					:cursor-spacing="24"
+					placeholder-class="ph"
+				/>
+			</view>
+
+			<view class="form-card">
+				<view class="form-row">
+					<text class="form-label">时间偏好</text>
+					<input
+						class="form-input"
+						v-model.trim="form.time_note"
+						placeholder="周末下午优先"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="form-row">
+					<text class="form-label">最低预算</text>
+					<input
+						class="form-input"
+						type="digit"
+						v-model="form.budget_min"
+						placeholder="不低于 120 元/小时"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="form-row">
+					<text class="form-label">最高预算</text>
+					<input
+						class="form-input"
+						type="digit"
+						v-model="form.budget_max"
+						placeholder="选填，元/小时"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="form-row last">
+					<text class="form-label">有效期</text>
+					<text class="form-val">{{ validDays }} 天</text>
+				</view>
+			</view>
+
+			<view class="chips-wrap">
+				<text class="chip" :class="{ on: validDays === 7 }" @click="validDays = 7">7 天</text>
+				<text class="chip" :class="{ on: validDays === 14 }" @click="validDays = 14">14 天</text>
+				<text class="chip" :class="{ on: validDays === 30 }" @click="validDays = 30">30 天</text>
+			</view>
+
+			<view class="scroll-spacer"></view>
 		</scroll-view>
 
-		<view class="footer-bar">
-			<button class="submit-btn" :disabled="submitting" @click="submit">{{ submitting ? '提交中...' : (recruitmentId ? '保存并重新审核' : '提交审核') }}</button>
+		<view class="action-bar">
+			<button class="save-btn" :disabled="submitting" @click="submit">{{ submitting ? '提交中...' : (recruitmentId ? '保存并重新审核' : '提交审核') }}</button>
 		</view>
 	</view>
 </template>
 
 <script>
 import { chooseLocation, openLocation, requestLocationPermission, parseAddress } from '@/utils/location.js'
+import { getStoredUserInfo } from '@/utils/auth.js'
 
 export default {
 	data() {
@@ -139,6 +148,7 @@ export default {
 			gradeOptions: ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '初一', '初二', '初三', '高一', '高二', '高三'],
 			gradeIndex: -1,
 			validDays: 14,
+			studentGender: '',
 			/** 地图选点：与预约创建页一致 */
 			pickPoi: {
 				latitude: '',
@@ -163,6 +173,12 @@ export default {
 		}
 	},
 	computed: {
+		studentGenderText() {
+			const g = this.studentGender
+			if (g === 'male' || g === 1 || g === '1') return '男'
+			if (g === 'female' || g === 2 || g === '2') return '女'
+			return '与个人资料一致'
+		},
 		hasMapPoint() {
 			const p = this.pickPoi
 			return !!(p.latitude && p.longitude)
@@ -197,10 +213,6 @@ export default {
 			if (name) return name
 			return ''
 		},
-		addressPreviewLines() {
-			const s = (this.fullAddressDisplay || '').trim()
-			return s ? [s] : []
-		},
 		mapCenterLat() {
 			const v = parseFloat(this.pickPoi.latitude)
 			return Number.isNaN(v) ? 0 : v
@@ -228,12 +240,19 @@ export default {
 		}
 	},
 	onLoad(options) {
+		this.syncStudentGenderFromProfile()
 		if (options.id) {
 			this.recruitmentId = options.id
+			uni.setNavigationBarTitle({ title: '编辑招募' })
 			this.loadOne()
 		}
 	},
 	methods: {
+		syncStudentGenderFromProfile() {
+			const info = getStoredUserInfo()
+			const g = (info.parent_info && info.parent_info.student_gender) || ''
+			if (g) this.studentGender = g
+		},
 		onGrade(e) {
 			const i = Number(e.detail.value)
 			this.gradeIndex = i
@@ -338,6 +357,7 @@ export default {
 			this.form.time_note = row.time_note || ''
 			this.form.budget_min = row.budget_min != null ? String(row.budget_min) : ''
 			this.form.budget_max = row.budget_max != null ? String(row.budget_max) : ''
+			if (row.student_gender) this.studentGender = row.student_gender
 			const loc = row.location || {}
 			const r = row.region || {}
 			let dispName = (r.name || '').trim()
@@ -380,6 +400,18 @@ export default {
 				uni.showToast({ title: '请在地图上选择上课地点', icon: 'none' })
 				return
 			}
+			const budgetMin = Number(this.form.budget_min)
+			if (!Number.isFinite(budgetMin) || budgetMin < 120) {
+				uni.showToast({ title: '最低预算不能低于 120 元/小时', icon: 'none' })
+				return
+			}
+			if (this.form.budget_max !== '') {
+				const budgetMax = Number(this.form.budget_max)
+				if (!Number.isFinite(budgetMax) || budgetMax < budgetMin) {
+					uni.showToast({ title: '最高预算不能低于最低预算', icon: 'none' })
+					return
+				}
+			}
 			this.submitting = true
 			try {
 				const rc = uniCloud.importObject('recruitment-center', { customUI: true })
@@ -399,9 +431,9 @@ export default {
 					goal: this.form.goal,
 					remark: this.form.remark,
 					time_note: this.form.time_note,
-					valid_days: this.validDays
+					valid_days: this.validDays,
+					budget_min: budgetMin
 				}
-				if (this.form.budget_min !== '') payload.budget_min = Number(this.form.budget_min)
 				if (this.form.budget_max !== '') payload.budget_max = Number(this.form.budget_max)
 
 				let res
@@ -436,237 +468,245 @@ export default {
 </script>
 
 <style scoped>
-.edit-page {
+.page {
 	min-height: 100vh;
-	background: #f5f7fb;
+	background: #F4F6F9;
 }
+
 .scroll {
 	height: calc(100vh - 132rpx);
 }
-.page-body {
-	padding: 24rpx;
-	padding-bottom: 32rpx;
-}
-.hero-card,
-.section-card {
-	background: #fff;
-	border-radius: 28rpx;
-	box-shadow: 0 10rpx 30rpx rgba(31, 42, 68, 0.06);
-}
-.hero-card {
-	padding: 30rpx;
-	margin-bottom: 20rpx;
-	background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
-}
-.hero-title {
+
+.form-tip {
 	display: block;
-	font-size: 38rpx;
-	font-weight: 700;
-	color: #1f2a44;
-}
-.hero-desc {
-	display: block;
-	margin-top: 12rpx;
+	padding: 20rpx 32rpx 8rpx;
 	font-size: 24rpx;
-	line-height: 1.7;
-	color: #7c879d;
+	color: #8B919C;
+	line-height: 1.5;
 }
+
+.form-card,
 .section-card {
-	padding: 28rpx;
-	margin-bottom: 20rpx;
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
-.section-title {
-	display: block;
-	font-size: 30rpx;
-	font-weight: 700;
-	color: #1f2a44;
-	margin-bottom: 12rpx;
+
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
 }
-.field-block {
-	padding: 20rpx 0;
-	border-bottom: 1rpx solid #eef2f7;
+
+.section-card {
+	padding: 28rpx 32rpx;
 }
-.field-last {
-	border-bottom: none;
-	padding-bottom: 0;
-}
-.field-label {
-	display: block;
-	font-size: 24rpx;
-	font-weight: 600;
-	color: #60708c;
-	margin-bottom: 14rpx;
-}
-.field-label.small {
-	margin-bottom: 10rpx;
-}
-.field-tip {
-	display: block;
-	margin-top: 10rpx;
-	font-size: 22rpx;
-	line-height: 1.6;
-	color: #97a2b5;
-}
-.field-input,
-.textarea-field,
-.select-row {
-	width: 100%;
-	box-sizing: border-box;
-	background: #f6f8fc;
-	border-radius: 22rpx;
-	font-size: 28rpx;
-	color: #1f2a44;
-}
-.field-input {
-	height: 88rpx;
-	line-height: 88rpx;
-	padding: 0 24rpx;
-}
-.textarea-field {
-	min-height: 220rpx;
-	padding: 24rpx;
-	line-height: 1.7;
-}
-.textarea-field.short {
-	min-height: 160rpx;
-}
-.select-row {
+
+.section-head {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	min-height: 88rpx;
-	padding: 0 24rpx;
-}
-.select-value.placeholder {
-	color: #a3acbc;
-}
-.select-arrow {
-	font-size: 24rpx;
-	line-height: 1.2;
-	color: #8d98ad;
-}
-.mode-grid {
-	display: flex;
 	gap: 16rpx;
 }
-.mode-card {
+
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.section-title.extra {
+	margin-top: 24rpx;
+}
+
+.section-action {
+	font-size: 26rpx;
+	color: #2563EB;
+}
+
+.intro {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.6;
+}
+
+.form-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	min-height: 96rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.form-row.last {
+	border-bottom: none;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+
+.form-em {
 	flex: 1;
-	padding: 26rpx 22rpx;
+	min-width: 0;
+	font-size: 28rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.form-em.filled,
+.form-val {
+	flex: 1;
+	min-width: 0;
+	font-size: 28rpx;
+	color: #1F2329;
+	text-align: right;
+	font-weight: 500;
+}
+
+.form-input {
+	flex: 1;
+	min-width: 0;
+	text-align: right;
+	font-size: 28rpx;
+	color: #1F2329;
+}
+
+.ph {
+	color: #C5C8CE;
+}
+
+.choice {
+	display: flex;
+	gap: 16rpx;
+	margin: 0 32rpx 24rpx;
+}
+
+.choice-item {
+	flex: 1;
+	min-height: 128rpx;
+	padding: 20rpx 16rpx;
+	border: 2rpx solid #EBEDF0;
 	border-radius: 24rpx;
-	background: #f6f8fc;
-	border: 2rpx solid transparent;
+	background: #FFFFFF;
+	box-sizing: border-box;
 }
-.mode-card.active {
-	background: rgba(47, 109, 246, 0.08);
-	border-color: rgba(47, 109, 246, 0.18);
+
+.choice-item.on {
+	border-color: #2563EB;
+	background: #EEF3FF;
 }
-.mode-title {
+
+.choice-title {
 	display: block;
 	font-size: 28rpx;
-	font-weight: 700;
-	line-height: 1.4;
-	color: #1f2a44;
+	font-weight: 600;
+	color: #1F2329;
 }
-.mode-desc {
+
+.choice-sub {
 	display: block;
 	margin-top: 8rpx;
 	font-size: 22rpx;
-	line-height: 1.5;
-	color: #8894aa;
+	color: #8B919C;
 }
-.location-head {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 20rpx;
-}
-.address-preview {
-	background: #f7f9fc;
-	border-radius: 22rpx;
-	padding: 22rpx 24rpx;
-	margin-top: 18rpx;
-}
-.preview-line {
-	display: block;
-	color: #33415c;
-	font-size: 26rpx;
-	line-height: 1.75;
-	word-break: break-all;
-	white-space: pre-wrap;
-}
-.empty-location {
-	display: block;
-	margin-top: 18rpx;
-	font-size: 24rpx;
-	line-height: 1.6;
-	color: #97a2b5;
-}
-.recruit-map-preview {
+
+.intro-input {
 	width: 100%;
-	height: 280rpx;
-	border-radius: 22rpx;
-	overflow: hidden;
-	background: #e8e8e8;
-	margin-top: 18rpx;
+	min-height: 180rpx;
+	margin-top: 16rpx;
+	padding: 20rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	font-size: 26rpx;
+	color: #1F2329;
+	line-height: 1.6;
+	box-sizing: border-box;
 }
+
+.intro-input.short {
+	min-height: 140rpx;
+}
+
+.recruit-map {
+	width: 100%;
+	height: 240rpx;
+	margin-top: 16rpx;
+	border-radius: 16rpx;
+	overflow: hidden;
+	background: #F4F6F9;
+}
+
 .map-link {
 	display: inline-block;
 	margin-top: 16rpx;
 	font-size: 24rpx;
 	font-weight: 600;
-	line-height: 1.5;
-	color: #2f6df6;
+	color: #2563EB;
 }
-.budget-row {
-	display: flex;
-	align-items: center;
-	gap: 16rpx;
-	padding: 20rpx 0;
-	border-bottom: 1rpx solid #eef2f7;
-}
-.budget-box {
-	flex: 1;
-}
-.budget-divider {
-	color: #a0a9bb;
-	font-size: 30rpx;
-	padding-top: 32rpx;
-}
-.valid-grid {
+
+.chips-wrap {
 	display: flex;
 	gap: 16rpx;
+	padding: 0 32rpx 8rpx;
 }
-.valid-chip {
-	flex: 1;
-	text-align: center;
-	padding: 22rpx 0;
-	border-radius: 22rpx;
-	background: #f6f8fc;
-	font-size: 26rpx;
-	line-height: 1.4;
-	color: #72809a;
+
+.chip {
+	height: 56rpx;
+	padding: 0 28rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
 }
-.valid-chip.active {
-	background: #2f6df6;
-	color: #fff;
+
+.chip.on {
+	background: #EEF3FF;
+	color: #2563EB;
 	font-weight: 600;
 }
-.footer-bar {
-	background: #fff;
-	padding: 18rpx 24rpx calc(env(safe-area-inset-bottom) + 18rpx);
-	box-shadow: 0 -8rpx 24rpx rgba(31, 42, 68, 0.04);
+
+.scroll-spacer {
+	height: 24rpx;
 }
-.submit-btn {
+
+.action-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 20;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+
+.save-btn {
+	width: 100%;
 	height: 88rpx;
-	line-height: 88rpx;
-	border-radius: 999rpx;
-	background: linear-gradient(135deg, #2f6df6 0%, #5f8dff 100%);
-	color: #fff;
-	font-size: 28rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
 	font-weight: 600;
+	line-height: 88rpx;
+}
+
+.save-btn::after {
 	border: none;
 }
-.submit-btn::after {
-	border: none;
+
+.save-btn[disabled] {
+	opacity: 0.55;
 }
 </style>

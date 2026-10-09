@@ -6,7 +6,7 @@ const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
 const utils_chatPoll = require("../../utils/chatPoll.js");
 const utils_chatPush = require("../../utils/chatPush.js");
 const card = () => "../../components/common/card.js";
-const TeacherTabBar = () => "../../components/TeacherTabBar.js";
+const TeacherTabBar = () => "../components/TeacherTabBar.js";
 const _sfc_main = {
   name: "TeacherChatList",
   components: {
@@ -76,7 +76,7 @@ const _sfc_main = {
       if (this._onChatPush)
         return;
       this._onChatPush = (payload) => {
-        common_vendor.index.__f__("log", "at pages-teacher/chat/list.vue:159", "[teacher-chat-list] 收到 push，刷新列表", payload);
+        common_vendor.index.__f__("log", "at pages-teacher/chat/list.vue:150", "[teacher-chat-list] 收到 push，刷新列表", payload);
         this.refreshConversationsSilently();
       };
       utils_chatPush.onChatPush(this._onChatPush);
@@ -89,13 +89,7 @@ const _sfc_main = {
     },
     startPolling() {
       this.stopPolling();
-      if (this.useMock)
-        return;
-      this.pollTimer = setInterval(() => {
-        if (this.loading || this.silentPolling)
-          return;
-        this.refreshConversationsSilently();
-      }, this.pollInterval);
+      return;
     },
     stopPolling() {
       if (this.pollTimer) {
@@ -150,13 +144,13 @@ const _sfc_main = {
           this.$nextTick(() => this.loadConversations());
         }
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/list.vue:228", "[teacher-chat-list] 静默刷新失败:", e);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/list.vue:219", "[teacher-chat-list] 静默刷新失败:", e);
       } finally {
         this.silentPolling = false;
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/list.vue:234", "[teacher-chat-list] 下拉刷新：重新加载会话列表");
+      common_vendor.index.__f__("log", "at pages-teacher/chat/list.vue:225", "[teacher-chat-list] 下拉刷新：重新加载会话列表");
       await this.loadConversations(true);
     },
     resetAndLoad() {
@@ -229,7 +223,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "加载会话失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/list.vue:305", "加载会话列表失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/list.vue:296", "加载会话列表失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后重试", icon: "none" });
       } finally {
         this.loading = false;
@@ -314,7 +308,12 @@ const _sfc_main = {
           return "已下课打卡";
         return "已上课打卡";
       }
-      return message;
+      if (trimmed.includes("review_result")) {
+        if (trimmed.includes("is_auto") && trimmed.includes("true"))
+          return "系统默认好评";
+        return "家长已评价";
+      }
+      return message.replace(/\s+/g, " ").trim();
     },
     goToConversation(item) {
       common_vendor.index.navigateTo({

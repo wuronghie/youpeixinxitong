@@ -138,6 +138,8 @@
 							v-model="formData.introduction"
 							placeholder="请输入教师个人介绍"
 							placeholder-class="text-light-muted"
+							:show-confirm-bar="false"
+							:cursor-spacing="24"
 							style="min-height: 120rpx;"
 						/>
 					</view>

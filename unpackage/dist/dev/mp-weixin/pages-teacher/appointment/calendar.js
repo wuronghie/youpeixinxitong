@@ -1,12 +1,8 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
-const card = () => "../../components/common/card.js";
 const _sfc_main = {
   name: "AppointmentCalendar",
-  components: {
-    card
-  },
   data() {
     return {
       currentDate: /* @__PURE__ */ new Date(),
@@ -164,7 +160,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/calendar.vue:265", "加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/calendar.vue:234", "加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败", icon: "none" });
       }
     },
@@ -208,22 +204,18 @@ const _sfc_main = {
     },
     getStatusClass(status) {
       const map = {
-        pending_payment: "text-warning",
-        pending_confirm: "text-warning",
-        confirmed: "text-success",
-        in_progress: "text-success",
-        completed: "text-primary",
-        cancelled: "text-danger",
-        rejected: "text-danger"
+        pending_payment: "s-pay",
+        pending_confirm: "s-wait",
+        confirmed: "s-ing",
+        in_progress: "s-ing",
+        completed: "s-done",
+        cancelled: "s-muted",
+        rejected: "s-muted"
       };
-      return map[status] || "";
+      return map[status] || "s-muted";
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: common_vendor.o(($event) => $options.changeMonth(-1)),
@@ -238,39 +230,34 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     e: common_vendor.f($data.calendarDays, (day, index, i0) => {
       return common_vendor.e({
         a: common_vendor.t(day.date),
-        b: day.hasAppointment && !day.isSelected
-      }, day.hasAppointment && !day.isSelected ? {} : day.hasAppointment && day.isSelected ? {} : {}, {
-        c: day.hasAppointment && day.isSelected,
-        d: index,
-        e: !day.isCurrentMonth ? 1 : "",
-        f: day.isToday && !day.isSelected ? 1 : "",
-        g: day.isSelected ? 1 : "",
-        h: day.hasAppointment || day.isSelected ? 1 : "",
-        i: common_vendor.o(($event) => $options.selectDay(day), index)
+        b: day.hasAppointment
+      }, day.hasAppointment ? {} : {}, {
+        c: index,
+        d: !day.isCurrentMonth ? 1 : "",
+        e: day.isToday && !day.isSelected ? 1 : "",
+        f: day.isSelected ? 1 : "",
+        g: day.hasAppointment ? 1 : "",
+        h: common_vendor.o(($event) => $options.selectDay(day), index)
       });
     }),
     f: common_vendor.t($data.selectedDate ? $options.selectedDateDisplay : "请选择一个日期"),
-    g: $data.selectedAppointments.length > 0
-  }, $data.selectedAppointments.length > 0 ? {
+    g: $data.selectedAppointments.length
+  }, $data.selectedAppointments.length ? {
     h: common_vendor.t($data.selectedAppointments.length)
   } : {}, {
     i: $data.selectedAppointments.length === 0
   }, $data.selectedAppointments.length === 0 ? {
     j: common_vendor.t($data.selectedDate ? "当天暂时没有预约安排" : "选择一个日期查看课程安排")
-  } : {
+  } : {}, {
     k: common_vendor.f($data.selectedAppointments, (apt, k0, i0) => {
       return {
-        a: common_vendor.t(apt.appointment_time || "--:--"),
-        b: common_vendor.t($options.formatStatus(apt.status)),
-        c: common_vendor.n($options.getStatusClass(apt.status)),
-        d: common_vendor.t(apt.student_name || "学生"),
-        e: common_vendor.t(apt.subject || "未填写科目"),
+        a: common_vendor.t(apt.student_name || "学生"),
+        b: common_vendor.t(apt.subject || "未填写科目"),
+        c: common_vendor.t(apt.appointment_time || "--:--"),
+        d: common_vendor.t($options.formatStatus(apt.status)),
+        e: common_vendor.n($options.getStatusClass(apt.status)),
         f: apt._id
       };
-    })
-  }, {
-    l: common_vendor.p({
-      headTitle: "预约安排"
     })
   });
 }

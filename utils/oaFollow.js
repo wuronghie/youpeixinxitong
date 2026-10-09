@@ -16,6 +16,35 @@ const FALLBACK_META = {
 
 let metaCache = null
 let promptedThisSession = false
+let promptInFlight = false
+
+/** 启动页 / 登录页上弹窗会被 reLaunch 立刻关掉 */
+const UNSTABLE_ROUTES = ['pages/index/index', 'pages/login/index']
+
+function getCurrentRoute() {
+  try {
+    const pages = getCurrentPages()
+    if (!pages || !pages.length) return ''
+    const cur = pages[pages.length - 1]
+    return String((cur && cur.route) || '').replace(/^\//, '')
+  } catch (e) {
+    return ''
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitForStablePage(timeoutMs = 12000) {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const route = getCurrentRoute()
+    if (route && UNSTABLE_ROUTES.indexOf(route) === -1) return route
+    await sleep(250)
+  }
+  return getCurrentRoute()
+}
 
 export async function loadOaFollowMeta(force = false) {
   if (!force && metaCache && metaCache.username) return metaCache
@@ -47,12 +76,31 @@ export async function loadOaFollowMeta(force = false) {
   return metaCache
 }
 
+function getWxSdk() {
+  try {
+    if (typeof globalThis !== 'undefined' && globalThis.wx) return globalThis.wx
+  } catch (e) {}
+  try {
+    // 避免打包器把 wx 换成垫片，导致 openOfficialAccountProfile 丢失
+    return Function('return typeof wx !== "undefined" ? wx : undefined')()
+  } catch (e) {}
+  return undefined
+}
+
+function showSearchHint(oaName) {
+  uni.showModal({
+    title: '请手动关注',
+    content: `请在微信中搜索「${oaName || '服务号'}」并关注，然后返回小程序。`,
+    showCancel: false
+  })
+}
+
 /**
- * 一键打开公众号主页（用户可在页内点关注）
+ * 同步打开公众号资料页。必须在用户点击回调里立刻调用，不能先 await，否则会丢掉手势。
  */
-export async function openOfficialAccountFollow() {
-  const meta = await loadOaFollowMeta()
-  const username = meta.username
+export function openOfficialAccountProfileNow(meta = {}) {
+  const username = String(meta.username || '').trim()
+  const oaName = meta.oaName || '服务号'
   if (!username) {
     uni.showModal({
       title: '暂未配置',
@@ -62,42 +110,38 @@ export async function openOfficialAccountFollow() {
     return { ok: false, reason: 'no_username' }
   }
 
-  // #ifdef MP-WEIXIN
-  if (typeof wx !== 'undefined' && typeof wx.openOfficialAccountProfile === 'function') {
-    return new Promise((resolve) => {
-      wx.openOfficialAccountProfile({
-        username,
-        success: () => resolve({ ok: true, reason: 'opened' }),
-        fail: (err) => {
-          console.warn('[oaFollow] openOfficialAccountProfile fail', err)
-          uni.navigateTo({
-            url: '/pages/common/follow-oa',
-            fail: () => {
-              uni.showModal({
-                title: '无法打开',
-                content: `请在微信中搜索「${meta.oaName}」并关注。`,
-                showCancel: false
-              })
-            }
-          })
-          resolve({ ok: false, reason: 'api_fail', err })
-        }
-      })
-    })
+  const wxSdk = getWxSdk()
+  const openProfile = wxSdk && wxSdk.openOfficialAccountProfile
+  if (typeof openProfile !== 'function') {
+    console.warn('[oaFollow] openOfficialAccountProfile 不可用')
+    showSearchHint(oaName)
+    return { ok: false, reason: 'unsupported' }
   }
-  // #endif
 
-  uni.navigateTo({
-    url: '/pages/common/follow-oa',
-    fail: () => {
-      uni.showModal({
-        title: '请手动关注',
-        content: `请搜索公众号「${meta.oaName}」并关注，然后返回小程序。`,
-        showCancel: false
-      })
-    }
-  })
-  return { ok: false, reason: 'unsupported' }
+  try {
+    openProfile.call(wxSdk, {
+      username,
+      success: () => {},
+      fail: (err) => {
+        console.warn('[oaFollow] openOfficialAccountProfile fail', err)
+        showSearchHint(oaName)
+      }
+    })
+    return { ok: true, reason: 'opened' }
+  } catch (e) {
+    console.warn('[oaFollow] openOfficialAccountProfile throw', e)
+    showSearchHint(oaName)
+    return { ok: false, reason: 'throw' }
+  }
+}
+
+/**
+ * 一键打开公众号主页（用户可在页内点关注）
+ */
+export async function openOfficialAccountFollow() {
+  const cached = metaCache && metaCache.username ? metaCache : null
+  const meta = cached || await loadOaFollowMeta()
+  return openOfficialAccountProfileNow(meta)
 }
 
 function isSnoozed() {
@@ -119,9 +163,11 @@ export function snoozeFollowPrompt(ms = 24 * 60 * 60 * 1000) {
  * 进入小程序时：未关注则弹窗，可跳转公众号关注
  */
 export async function promptFollowOfficialAccount(options = {}) {
-  const { force = false, delayMs = 1200 } = options
+  const { force = false, delayMs = 400 } = options
 
   const run = async () => {
+    if (promptInFlight && !force) return { skipped: true, reason: 'in_flight' }
+    promptInFlight = true
     try {
       const token = uni.getStorageSync('uni_id_token')
       if (!token) return { skipped: true, reason: 'no_token' }
@@ -130,8 +176,18 @@ export async function promptFollowOfficialAccount(options = {}) {
 
       const bindRes = await syncOaBind({ force: true, minIntervalMs: 0 })
       if (bindRes && bindRes.code === 0 && bindRes.data && bindRes.data.bound) {
+        promptedThisSession = true
         return { skipped: true, reason: 'already_bound' }
       }
+
+      // 等离开启动页再弹，避免 reLaunch 把弹窗关掉并误记成已提醒
+      const route = await waitForStablePage()
+      if (!route || UNSTABLE_ROUTES.indexOf(route) !== -1) {
+        return { skipped: true, reason: 'unstable_page' }
+      }
+      if (!force && promptedThisSession) return { skipped: true, reason: 'session' }
+
+      await sleep(320)
 
       promptedThisSession = true
       const meta = await loadOaFollowMeta()
@@ -143,21 +199,26 @@ export async function promptFollowOfficialAccount(options = {}) {
           content: `关注「${oaName}」后，可收到预约、聊天、打卡等重要提醒，避免错过。`,
           confirmText: '去关注',
           cancelText: '稍后',
-          success: async (res) => {
+          success: (res) => {
             if (res.confirm) {
-              const opened = await openOfficialAccountFollow()
+              const opened = openOfficialAccountProfileNow(meta)
               resolve({ prompted: true, action: 'follow', ...opened })
               return
             }
             snoozeFollowPrompt()
             resolve({ prompted: true, action: 'snooze' })
           },
-          fail: () => resolve({ prompted: false, reason: 'modal_fail' })
+          fail: () => {
+            promptedThisSession = false
+            resolve({ prompted: false, reason: 'modal_fail' })
+          }
         })
       })
     } catch (e) {
       console.warn('[oaFollow] prompt fail', e)
       return { skipped: true, reason: 'error' }
+    } finally {
+      promptInFlight = false
     }
   }
 

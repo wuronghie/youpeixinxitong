@@ -2,8 +2,6 @@
   "navigationBarTitleText": "收银台",
   "backgroundColor": "#F8F8F8",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
     "uni-list-item": "../../../uni-list/components/uni-list-item/uni-list-item",
     "uni-list": "../../../uni-list/components/uni-list/uni-list",

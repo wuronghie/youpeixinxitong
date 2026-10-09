@@ -9,7 +9,7 @@
  *      - 必须上传定位（latitude/longitude）
  *      - 不校验与排课开始/结束时间的先后关系
  *      - 成功后将 status 置为 in_progress 并写入 class_started_at + class_started_location
- *      - 同步写入聊天提醒，便于家长与后台查看
+ *      - 同步写入双方聊天会话（上课/下课打卡卡片）
  *
  *   2. 下课打卡（clockOut）：
  *      - 仅教师本人可调用
@@ -17,13 +17,13 @@
  *      - 家长须已支付本单课程费
  *      - 必须上传定位；不限制相对排课结束时间多久
  *      - 成功后写入 class_ended_at + class_ended_location
- *      - 同步写入聊天提醒
+ *      - 同步写入双方聊天会话
  *
  *   3. 结算等流程仍以「存在下课打卡记录」等为准，由 appointment-complete 等单独校验
  */
 
 const { appendAttendanceChatNotice } = require('./helpers/append-attendance-notice')
-const { sendCheckIn } = require('wx-oa-client')
+const { reverseGeocodeDetailed, isWeakAddress } = require('./helpers/reverse-geocode')
 
 function success(data = null, message = 'success') {
   return { code: 0, message, data, timestamp: Date.now() }
@@ -52,18 +52,21 @@ async function notifyParentCheckInOa(db, appointment, location, appointmentId) {
     '待确认'
   let person = '老师'
   try {
-    const teacherDoc = await db.collection('uni-id-users')
-      .doc(appointment.teacher_id)
-      .field({ nickname: true, username: true })
-      .get()
-    const teacher = teacherDoc.data && teacherDoc.data[0]
-    if (teacher) {
-      person = teacher.nickname || teacher.username || person
-    }
+    const { resolveNotifyPersonName } = require('wx-oa-client')
+    person = await resolveNotifyPersonName(db, appointment.teacher_id, 'teacher')
   } catch (e) {}
   const time =
     formatNotifyTime(schedule.start_time || appointment.start_time || appointment.appointment_time) ||
     formatNotifyTime(Date.now())
+
+  let sendCheckIn
+  try {
+    sendCheckIn = require('wx-oa-client').sendCheckIn
+  } catch (e) {
+    console.warn('[appointment-attendance] wx-oa-client 不可用，跳过服务号通知', e && (e.message || e))
+    return
+  }
+  if (typeof sendCheckIn !== 'function') return
 
   const oaRes = await sendCheckIn({
     user_id: appointment.parent_id,
@@ -124,15 +127,19 @@ function validateLocation(location) {
   if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
     return '定位参数超出合法范围'
   }
-  // 文字地址可选：逆地理失败时允许仅凭经纬度打卡
+  // 文字地址由云端逆地理补全，这里只校验经纬度
   return null
 }
 
-function buildLocation(location) {
+async function buildLocation(location) {
   const latitude = Number(location.latitude)
   const longitude = Number(location.longitude)
   let address = typeof location.address === 'string' ? location.address.trim() : ''
-  if (!address && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+  if (isWeakAddress(address)) {
+    const detailed = await reverseGeocodeDetailed(latitude, longitude)
+    if (detailed) address = detailed
+  }
+  if (!address) {
     address = `已定位(${latitude.toFixed(5)},${longitude.toFixed(5)})`
   }
   return {
@@ -208,7 +215,7 @@ async function isParentCourseFeePaid(db, appointment) {
 }
 
 function canClockInByStatus(status) {
-  return ['confirmed', 'in_progress'].includes(status)
+  return ['confirmed', 'in_progress', 'pending_confirm', 'completed'].includes(status)
 }
 
 async function resolveParentPaid(db, appointment) {
@@ -272,12 +279,13 @@ module.exports = {
       }
 
       const now = Date.now()
-
-      const startedLocation = buildLocation(location)
+      const dbCmd = db.command
+      const startedLocation = await buildLocation(location)
+      // 预约创建时 location 常被写成 null；直接 update 对象会被当成给 null 加子字段，报 cannot create field
       await db.collection('appointments').doc(appointment_id).update({
         status: 'in_progress',
         class_started_at: now,
-        class_started_location: startedLocation,
+        class_started_location: dbCmd.set(startedLocation),
         update_time: now
       })
 
@@ -351,6 +359,7 @@ module.exports = {
       }
 
       const now = Date.now()
+      const endedLocation = await buildLocation(location)
       console.log('[appointment-attendance.clockOut] 准备写入下课打卡:', {
         appointment_id,
         teacherId,
@@ -360,13 +369,13 @@ module.exports = {
         class_started_at: appointment.class_started_at || null,
         class_ended_at_before: appointment.class_ended_at || null,
         write_class_ended_at: now,
-        location: buildLocation(location)
+        location: endedLocation
       })
 
-      const endedLocation = buildLocation(location)
+      const dbCmd = db.command
       await db.collection('appointments').doc(appointment_id).update({
         class_ended_at: now,
-        class_ended_location: endedLocation,
+        class_ended_location: dbCmd.set(endedLocation),
         update_time: now
       })
       console.log('[appointment-attendance.clockOut] 下课打卡写入完成:', {

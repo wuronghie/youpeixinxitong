@@ -7,6 +7,7 @@ const _sfc_main = {
     return {
       oaName: "服务号",
       bound: false,
+      bindReason: "",
       opening: false,
       syncing: false,
       boundChecked: false
@@ -16,7 +17,11 @@ const _sfc_main = {
     boundText() {
       if (!this.boundChecked)
         return "检测中…";
-      return this.bound ? "已绑定，可接收通知" : "未绑定，请先关注";
+      if (this.bound)
+        return "已绑定，可接收通知";
+      if (this.bindReason === "unsubscribed")
+        return "已取消关注";
+      return "未绑定，请先关注";
     }
   },
   onShow() {
@@ -33,8 +38,10 @@ const _sfc_main = {
       try {
         const res = await utils_oaBind.syncOaBind({ force: true, minIntervalMs: 0 });
         this.bound = !!(res && res.code === 0 && res.data && res.data.bound);
+        this.bindReason = res && res.data && res.data.reason || "";
       } catch (e) {
         this.bound = false;
+        this.bindReason = "";
       } finally {
         this.boundChecked = true;
         this.syncing = false;
@@ -53,15 +60,15 @@ const _sfc_main = {
     async onSync() {
       await this.refreshBind();
       common_vendor.index.showToast({
-        title: this.bound ? "绑定成功" : "尚未检测到关注",
+        title: this.bound ? "绑定成功" : this.bindReason === "unsubscribed" ? "已取消关注" : "尚未检测到关注",
         icon: this.bound ? "success" : "none"
       });
     },
     onOaCompLoad() {
-      common_vendor.index.__f__("log", "at pages/common/follow-oa.vue:97", "[follow-oa] official-account load");
+      common_vendor.index.__f__("log", "at pages/common/follow-oa.vue:107", "[follow-oa] official-account load");
     },
     onOaCompError(e) {
-      common_vendor.index.__f__("log", "at pages/common/follow-oa.vue:100", "[follow-oa] official-account error", e);
+      common_vendor.index.__f__("log", "at pages/common/follow-oa.vue:110", "[follow-oa] official-account error", e);
     }
   }
 };
@@ -69,13 +76,14 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return {
     a: common_vendor.t($data.oaName || "服务号"),
     b: common_vendor.t($options.boundText),
-    c: common_vendor.n($data.bound ? "ok" : "warn"),
-    d: $data.opening,
-    e: common_vendor.o((...args) => $options.onFollow && $options.onFollow(...args)),
-    f: $data.syncing,
-    g: common_vendor.o((...args) => $options.onSync && $options.onSync(...args)),
-    h: common_vendor.o((...args) => $options.onOaCompLoad && $options.onOaCompLoad(...args)),
-    i: common_vendor.o((...args) => $options.onOaCompError && $options.onOaCompError(...args))
+    c: $data.bound ? 1 : "",
+    d: $data.boundChecked && !$data.bound ? 1 : "",
+    e: $data.opening,
+    f: common_vendor.o((...args) => $options.onFollow && $options.onFollow(...args)),
+    g: $data.syncing,
+    h: common_vendor.o((...args) => $options.onSync && $options.onSync(...args)),
+    i: common_vendor.o((...args) => $options.onOaCompLoad && $options.onOaCompLoad(...args)),
+    j: common_vendor.o((...args) => $options.onOaCompError && $options.onOaCompError(...args))
   };
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-30054922"]]);

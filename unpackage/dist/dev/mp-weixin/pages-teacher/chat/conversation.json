@@ -1,7 +1,5 @@
 {
   "navigationBarTitleText": "聊天",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
     "uni-pay": "../../uni_modules/uni-pay/components/uni-pay/uni-pay"
   }

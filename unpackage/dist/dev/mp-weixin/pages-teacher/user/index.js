@@ -4,12 +4,10 @@ const utils_mockData = require("../../utils/mockData.js");
 const utils_auth = require("../../utils/auth.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
-const card = () => "../../components/common/card.js";
-const TeacherTabBar = () => "../../components/TeacherTabBar.js";
+const TeacherTabBar = () => "../components/TeacherTabBar.js";
 const _sfc_main = {
   name: "TeacherUserCenter",
   components: {
-    card,
     TeacherTabBar
   },
   mixins: [utils_pullRefreshMixin.pullRefreshMixin],
@@ -70,8 +68,8 @@ const _sfc_main = {
           url: "/pages-teacher/profile/index"
         },
         {
-          title: "收款确认",
-          desc: "微信转账待确认时在此处理",
+          title: "我的课酬",
+          desc: "查看课酬流水与到账状态",
           icon: utils_imageConfig.getIconUrl("wallet.png"),
           url: "/pages-teacher/wallet/index"
         },
@@ -98,14 +96,14 @@ const _sfc_main = {
           desc: "查看平台通知和审核结果",
           icon: utils_imageConfig.getIconUrl("bell.png"),
           url: "/pages-teacher/user/messages"
-        },
-        {
-          title: "消息中心",
-          desc: "与家长实时沟通",
-          icon: utils_imageConfig.getIconUrl("chat.png"),
-          url: "/pages-teacher/chat/list"
         }
       ],
+      serviceIcon: utils_imageConfig.getIconUrl("chat.png"),
+      inviteIcon: utils_imageConfig.getInviteIconUrl(),
+      myInviteCode: "",
+      boundInviteCode: "",
+      inviteBound: false,
+      adminWechat: "chen18148503231",
       statusTextMap: {
         pending: "待完善资料",
         verifying: "审核中",
@@ -120,6 +118,14 @@ const _sfc_main = {
     teacherStatusText() {
       const status = this.metrics.verificationStatus;
       return this.statusTextMap[status] || "";
+    },
+    greetText() {
+      const hour = (/* @__PURE__ */ new Date()).getHours();
+      if (hour < 12)
+        return "上午好";
+      if (hour < 18)
+        return "下午好";
+      return "晚上好";
     }
   },
   onLoad() {
@@ -141,6 +147,22 @@ const _sfc_main = {
     this.loadData();
   },
   methods: {
+    contactService() {
+      const wechat = this.adminWechat;
+      if (!wechat) {
+        common_vendor.index.showToast({ title: "暂无客服微信", icon: "none" });
+        return;
+      }
+      common_vendor.index.setClipboardData({
+        data: wechat,
+        success: () => {
+          common_vendor.index.showToast({ title: "微信号已复制", icon: "success" });
+        },
+        fail: () => {
+          common_vendor.index.showToast({ title: "复制失败", icon: "none" });
+        }
+      });
+    },
     copyUserId() {
       const uid = this.userInfo && this.userInfo.uid;
       if (!uid) {
@@ -158,15 +180,15 @@ const _sfc_main = {
       });
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:301", "[teacher-user-center] 下拉刷新：重新加载个人中心");
-      await this.loadUserInfo();
+      common_vendor.index.__f__("log", "at pages-teacher/user/index.vue:309", "[teacher-user-center] 下拉刷新：重新加载个人中心");
+      await Promise.all([this.loadUserInfo(), this.loadInviteCode()]);
     },
     async loadData() {
       if (this.loading)
         return;
       this.loading = true;
       try {
-        await Promise.all([this.loadUserInfo(), this.loadTeacherMetrics()]);
+        await Promise.all([this.loadUserInfo(), this.loadTeacherMetrics(), this.loadInviteCode()]);
       } finally {
         this.loading = false;
       }
@@ -193,7 +215,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取用户信息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:336", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:344", "加载用户信息失败:", error);
         common_vendor.index.showToast({ title: "获取用户信息失败", icon: "none" });
       }
     },
@@ -255,7 +277,130 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:410", "加载教师统计失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:418", "加载教师统计失败:", error);
+      }
+    },
+    applyInviteBind(data = {}) {
+      const uid = this.userInfo && this.userInfo.uid || (common_vendor.index.getStorageSync("userInfo") || {}).uid;
+      const bound = data.bound === true || !!data.bound_invite_code;
+      if (data.bound_invite_code) {
+        this.boundInviteCode = data.bound_invite_code;
+      }
+      if (bound) {
+        this.inviteBound = true;
+        if (uid && this.boundInviteCode) {
+          common_vendor.index.setStorageSync(`bound_invite_code_${uid}`, this.boundInviteCode);
+        }
+      } else if (data.bound === false) {
+        this.inviteBound = false;
+        this.boundInviteCode = "";
+      }
+    },
+    async loadInviteCode() {
+      try {
+        if (this.useMock) {
+          this.myInviteCode = "DEMO88";
+          this.boundInviteCode = "";
+          this.inviteBound = false;
+          return;
+        }
+        const uid = this.userInfo && this.userInfo.uid || (common_vendor.index.getStorageSync("userInfo") || {}).uid;
+        const cached = uid ? common_vendor.index.getStorageSync(`bound_invite_code_${uid}`) : "";
+        if (cached) {
+          this.boundInviteCode = cached;
+          this.inviteBound = true;
+        }
+        const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
+        const res = await inviteCenter.getMyInviteCode();
+        if (res.code === 0 && res.data) {
+          if (res.data.invite_code)
+            this.myInviteCode = res.data.invite_code;
+          this.applyInviteBind(res.data);
+        }
+      } catch (error) {
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:458", "加载邀请码失败:", error);
+      }
+    },
+    async copyInviteCode() {
+      try {
+        if (!this.myInviteCode && !this.useMock) {
+          const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
+          const res = await inviteCenter.getMyInviteCode();
+          if (res.code === 0 && res.data && res.data.invite_code) {
+            this.myInviteCode = res.data.invite_code;
+            this.applyInviteBind(res.data);
+          } else {
+            common_vendor.index.showToast({ title: res.message || "生成邀请码失败", icon: "none" });
+            return;
+          }
+        }
+        const codeToCopy = this.myInviteCode || (this.useMock ? "DEMO88" : "");
+        if (!codeToCopy) {
+          common_vendor.index.showToast({ title: "邀请码生成中，请稍后再试", icon: "none" });
+          return;
+        }
+        common_vendor.index.setClipboardData({
+          data: codeToCopy,
+          success: () => {
+            common_vendor.index.showToast({ title: "邀请码已复制", icon: "success" });
+          }
+        });
+      } catch (error) {
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:486", "生成或复制邀请码失败:", error);
+        common_vendor.index.showToast({ title: "生成邀请码失败，请稍后重试", icon: "none" });
+      }
+    },
+    async openInviteInput() {
+      if (this.useMock) {
+        common_vendor.index.showToast({ title: "演示模式下不支持填写邀请码", icon: "none" });
+        return;
+      }
+      if (this.inviteBound || this.boundInviteCode) {
+        common_vendor.index.showModal({
+          title: "已填写邀请码",
+          content: this.boundInviteCode ? `您已填写邀请码：${this.boundInviteCode}` : "您已填写过邀请码，不能再次填写",
+          showCancel: false,
+          confirmText: "知道了"
+        });
+        return;
+      }
+      try {
+        const modalRes = await new Promise((resolve) => {
+          common_vendor.index.showModal({
+            title: "填写好友邀请码",
+            editable: true,
+            placeholderText: "请输入 6 位邀请码（不区分大小写）",
+            cancelText: "取消",
+            confirmText: "确定",
+            success: resolve
+          });
+        });
+        if (!modalRes.confirm)
+          return;
+        const raw = (modalRes.content || "").trim();
+        if (!raw) {
+          common_vendor.index.showToast({ title: "请输入邀请码", icon: "none" });
+          return;
+        }
+        const inviteCode = raw.toUpperCase();
+        if (inviteCode.length < 4 || inviteCode.length > 10) {
+          common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
+          return;
+        }
+        const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
+        const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
+        if (res.code === 0) {
+          this.applyInviteBind({
+            bound: true,
+            bound_invite_code: res.data && res.data.bound_invite_code || inviteCode
+          });
+          common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
+        } else {
+          common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
+        }
+      } catch (error) {
+        common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:540", "填写邀请码失败:", error);
+        common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
     goToPage(url) {
@@ -303,7 +448,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:460", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/user/index.vue:591", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"
@@ -316,32 +461,31 @@ const _sfc_main = {
   }
 };
 if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
   const _component_TeacherTabBar = common_vendor.resolveComponent("TeacherTabBar");
-  (_component_card + _component_TeacherTabBar)();
+  _component_TeacherTabBar();
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: $data.userInfo.avatar || $data.defaultAvatarUrl,
-    b: common_vendor.t($data.userInfo.displayName),
-    c: $options.teacherStatusText
-  }, $options.teacherStatusText ? {
-    d: common_vendor.t($options.teacherStatusText)
-  } : {}, {
-    e: $data.userInfo.phone
-  }, $data.userInfo.phone ? {
-    f: common_vendor.t($data.userInfo.phone)
-  } : {}, {
-    g: $data.userInfo.uid
+    a: common_vendor.t($options.greetText),
+    b: $data.userInfo.avatar || $data.defaultAvatarUrl,
+    c: common_vendor.t($data.userInfo.displayName),
+    d: common_vendor.t($options.teacherStatusText || "待完善资料"),
+    e: common_vendor.o(($event) => $options.goToPage("/pages-teacher/profile/edit")),
+    f: $data.userInfo.uid
   }, $data.userInfo.uid ? {
-    h: common_vendor.t($data.userInfo.uid),
-    i: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
+    g: common_vendor.t($data.userInfo.uid),
+    h: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
   } : {}, {
+    i: common_vendor.o(($event) => $options.goToPage("/pages-teacher/index/index")),
     j: common_vendor.t($data.metrics.totalStudents || 0),
-    k: common_vendor.t($data.metrics.totalTrials || 0),
-    l: common_vendor.t($data.metrics.successfulTrials || 0),
-    m: common_vendor.t($data.metrics.totalIncome || 0),
-    n: common_vendor.f($data.actionList, (action, k0, i0) => {
+    k: common_vendor.o(($event) => $options.goToPage("/pages-teacher/appointment/list")),
+    l: common_vendor.t($data.metrics.totalTrials || 0),
+    m: common_vendor.o(($event) => $options.goToPage("/pages-teacher/appointment/list")),
+    n: common_vendor.t($data.metrics.successfulTrials || 0),
+    o: common_vendor.o(($event) => $options.goToPage("/pages-teacher/appointment/list")),
+    p: common_vendor.t($data.metrics.totalIncome || 0),
+    q: common_vendor.o(($event) => $options.goToPage("/pages-teacher/wallet/index")),
+    r: common_vendor.f($data.actionList, (action, k0, i0) => {
       return {
         a: action.icon,
         b: common_vendor.t(action.title),
@@ -349,49 +493,29 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         d: common_vendor.o(($event) => $options.goToPage(action.url), action.url)
       };
     }),
-    o: common_vendor.p({
-      headTitle: "快捷功能"
-    }),
-    p: common_vendor.t($data.userInfo.displayName || "-"),
-    q: common_vendor.t($data.userInfo.phone || "未绑定"),
-    r: common_vendor.t($data.statusTextMap[$data.metrics.verificationStatus] || "待完善"),
-    s: common_vendor.n($data.metrics.verificationStatus === "verified" ? "text-success" : ""),
-    t: common_vendor.p({
-      headTitle: "账号信息"
-    }),
-    v: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 || $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 || $data.teacherProfile.hourly_rate
-  }, $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 || $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 || $data.teacherProfile.hourly_rate ? common_vendor.e({
-    w: $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0
-  }, $data.teacherProfile.subjects && $data.teacherProfile.subjects.length > 0 ? {
-    x: common_vendor.t(($data.teacherProfile.subjects || []).join("、"))
-  } : {}, {
-    y: $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0
-  }, $data.teacherProfile.grades && $data.teacherProfile.grades.length > 0 ? {
-    z: common_vendor.t(($data.teacherProfile.grades || []).join("、"))
-  } : {}, {
-    A: $data.teacherProfile.hourly_rate
-  }, $data.teacherProfile.hourly_rate ? {
-    B: common_vendor.t($data.teacherProfile.hourly_rate)
-  } : {}, {
-    C: common_vendor.p({
-      headTitle: "教师资料"
-    })
-  }) : {}, {
-    D: common_vendor.f($data.listMenus, (item, k0, i0) => {
+    s: common_vendor.f($data.listMenus, (item, k0, i0) => {
       return {
         a: item.icon,
         b: common_vendor.t(item.title),
-        c: common_vendor.t(item.desc),
-        d: item.url,
-        e: common_vendor.o(($event) => $options.goToPage(item.url), item.url)
+        c: item.url,
+        d: common_vendor.o(($event) => $options.goToPage(item.url), item.url)
       };
     }),
-    E: common_vendor.p({
-      headTitle: "常用设置"
-    }),
-    F: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
-    G: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
-    H: common_vendor.p({
+    t: $data.inviteIcon,
+    v: common_vendor.t($data.myInviteCode || "--"),
+    w: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
+    x: $data.inviteIcon,
+    y: $data.inviteBound || $data.boundInviteCode
+  }, $data.inviteBound || $data.boundInviteCode ? {
+    z: common_vendor.t($data.boundInviteCode ? "已填写 " + $data.boundInviteCode : "已填写")
+  } : {}, {
+    A: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
+    B: $data.serviceIcon,
+    C: common_vendor.t($data.adminWechat),
+    D: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
+    E: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
+    F: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
+    G: common_vendor.p({
       current: "user"
     })
   });

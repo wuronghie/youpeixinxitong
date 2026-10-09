@@ -1,7 +1,10 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
+const utils_appPushMixin = require("../../utils/appPushMixin.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const ParentTabBar = () => "../../components/ParentTabBar.js";
 const _sfc_main = {
+  mixins: [utils_appPushMixin.createAppPushMixin(utils_chatPush.APP_PUSH_TYPES.SYSTEM_MESSAGE)],
   components: {
     ParentTabBar
   },
@@ -23,6 +26,9 @@ const _sfc_main = {
     async refreshData() {
       await this.load(true);
     },
+    onAppPushPayload() {
+      this.load(true);
+    },
     onTabOpen() {
       this.tab = "open";
       this.load(true);
@@ -38,6 +44,15 @@ const _sfc_main = {
         return "已关闭";
       const left = item.expire_at ? Math.ceil((item.expire_at - Date.now()) / 864e5) : 0;
       return left > 0 ? `剩余约${left}天` : "即将过期";
+    },
+    statusClass(item) {
+      if (item.effective_status === "expired" || item.status === "expired" || item.status === "closed")
+        return "s-muted";
+      if (item.audit_status === "rejected")
+        return "s-pay";
+      if (item.audit_status === "pending")
+        return "s-wait";
+      return "s-ing";
     },
     auditHint(item) {
       if (item.status !== "open")
@@ -55,6 +70,26 @@ const _sfc_main = {
       if (gender === "female" || gender === 2 || gender === "2")
         return "女孩";
       return "";
+    },
+    metaLine(item) {
+      const parts = [];
+      parts.push(item.lesson_mode === "online" ? "线上辅导" : "线下辅导");
+      const region = item.region || {};
+      const place = region.district || region.city || region.name || "";
+      if (place && item.lesson_mode !== "online")
+        parts.push(place);
+      const gender = this.studentGenderText(item.student_gender);
+      if (gender)
+        parts.push(gender);
+      const min = Number(item.budget_min);
+      if (Number.isFinite(min) && min > 0)
+        parts.push(`${min}元/小时起`);
+      const audit = this.auditHint(item);
+      if (audit)
+        parts.push(audit);
+      if (item.time_note)
+        parts.push(item.time_note);
+      return parts.join(" · ");
     },
     async load(reset) {
       const seq = ++this._loadSeq;
@@ -130,50 +165,40 @@ if (!Array) {
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.t($data.tab === "open" ? "进行中" : "历史记录"),
-    b: $data.tab === "open" ? 1 : "",
-    c: common_vendor.o((...args) => $options.onTabOpen && $options.onTabOpen(...args)),
-    d: $data.tab === "ended" ? 1 : "",
-    e: common_vendor.o((...args) => $options.onTabEnded && $options.onTabEnded(...args)),
-    f: common_vendor.o(($event) => $options.goEdit()),
-    g: !$data.list.length && !$data.loading
+    a: $data.tab === "open" ? 1 : "",
+    b: common_vendor.o((...args) => $options.onTabOpen && $options.onTabOpen(...args)),
+    c: $data.tab === "ended" ? 1 : "",
+    d: common_vendor.o((...args) => $options.onTabEnded && $options.onTabEnded(...args)),
+    e: !$data.list.length && !$data.loading
   }, !$data.list.length && !$data.loading ? common_vendor.e({
-    h: common_vendor.t($data.tab === "open" ? "还没有进行中的招募" : "还没有历史招募"),
-    i: common_vendor.t($data.tab === "open" ? "先发布一条需求，让合适的老师尽快看到你。" : "结束或过期的招募会展示在这里。"),
-    j: $data.tab === "open"
+    f: common_vendor.t($data.tab === "open" ? "还没有进行中的招募" : "还没有历史招募"),
+    g: common_vendor.t($data.tab === "open" ? "先发布一条需求，让合适的老师尽快看到你。" : "结束或过期的招募会展示在这里。"),
+    h: $data.tab === "open"
   }, $data.tab === "open" ? {
-    k: common_vendor.o(($event) => $options.goEdit())
+    i: common_vendor.o(($event) => $options.goEdit())
   } : {}) : {}, {
-    l: common_vendor.f($data.list, (item, k0, i0) => {
+    j: common_vendor.f($data.list, (item, k0, i0) => {
       return common_vendor.e({
         a: common_vendor.t(item.subject),
         b: common_vendor.t(item.student_grade),
-        c: $options.studentGenderText(item.student_gender)
-      }, $options.studentGenderText(item.student_gender) ? {
-        d: common_vendor.t($options.studentGenderText(item.student_gender))
-      } : {}, {
-        e: common_vendor.t(item.lesson_mode === "online" ? "线上辅导" : "线下辅导"),
-        f: $options.auditHint(item)
-      }, $options.auditHint(item) ? {
-        g: common_vendor.t($options.auditHint(item).replace("· ", ""))
-      } : {}, {
-        h: common_vendor.t($options.statusText(item)),
-        i: common_vendor.t(item.goal || item.remark || "暂未填写补充说明"),
-        j: common_vendor.t(item.time_note || "时间可沟通"),
-        k: $data.tab === "open" && item.status === "open"
+        c: common_vendor.t($options.metaLine(item)),
+        d: common_vendor.t($options.statusText(item)),
+        e: common_vendor.n($options.statusClass(item)),
+        f: common_vendor.t(item.goal || item.remark || "暂未填写补充说明"),
+        g: $data.tab === "open" && item.status === "open"
       }, $data.tab === "open" && item.status === "open" ? {
-        l: common_vendor.o(($event) => $options.goEdit(item._id), item._id),
-        m: common_vendor.o(($event) => $options.closeItem(item), item._id)
+        h: common_vendor.o(($event) => $options.goEdit(item._id), item._id),
+        i: common_vendor.o(($event) => $options.closeItem(item), item._id)
       } : {}, {
-        n: item._id,
-        o: item.effective_status === "expired" || $data.tab === "ended" ? 1 : ""
+        j: item._id,
+        k: item.effective_status === "expired" || $data.tab === "ended" ? 1 : ""
       });
     }),
-    m: $data.loading
+    k: $data.loading
   }, $data.loading ? {} : {}, {
-    n: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
-    o: common_vendor.o(($event) => $options.goEdit()),
-    p: common_vendor.p({
+    l: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
+    m: common_vendor.o(($event) => $options.goEdit()),
+    n: common_vendor.p({
       current: "recruitment"
     })
   });

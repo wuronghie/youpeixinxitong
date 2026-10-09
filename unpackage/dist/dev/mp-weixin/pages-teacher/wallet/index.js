@@ -2,12 +2,8 @@
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
-const card = () => "../../components/common/card.js";
 const _sfc_main = {
   name: "TeacherWalletIndex",
-  components: {
-    card
-  },
   mixins: [utils_pullRefreshMixin.pullRefreshMixin],
   data() {
     return {
@@ -21,7 +17,8 @@ const _sfc_main = {
       pendingConfirms: [],
       confirmingId: "",
       useMock: false,
-      loading: false
+      loading: false,
+      _walletReloadQueued: false
     };
   },
   onLoad() {
@@ -30,12 +27,13 @@ const _sfc_main = {
   },
   onShow() {
     if (!this.useMock) {
+      this.loadWallet();
       this.loadPendingConfirms();
     }
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:116", "[teacher-wallet] 下拉刷新：重新加载钱包");
+      common_vendor.index.__f__("log", "at pages-teacher/wallet/index.vue:108", "[teacher-wallet] 下拉刷新：重新加载钱包");
       await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
     },
     async loadPendingConfirms() {
@@ -46,7 +44,7 @@ const _sfc_main = {
           this.pendingConfirms = res.data.list || [];
         }
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages-teacher/wallet/index.vue:127", "[teacher-wallet] 加载待确认收款失败", e);
+        common_vendor.index.__f__("warn", "at pages-teacher/wallet/index.vue:119", "[teacher-wallet] 加载待确认收款失败", e);
       }
     },
     requestMerchantTransfer(item) {
@@ -79,7 +77,7 @@ const _sfc_main = {
         }
         await Promise.all([this.loadWallet(), this.loadPendingConfirms()]);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:161", "确认收款失败", e);
+        common_vendor.index.__f__("error", "at pages-teacher/wallet/index.vue:153", "确认收款失败", e);
         const msg = e && (e.errMsg || e.message) || "确认收款失败";
         if (String(msg).includes("cancel")) {
           common_vendor.index.showToast({ title: "已取消确认", icon: "none" });
@@ -91,33 +89,40 @@ const _sfc_main = {
       }
     },
     async loadWallet() {
-      if (this.loading)
+      if (this.loading) {
+        this._walletReloadQueued = true;
         return;
+      }
       this.loading = true;
+      this._walletReloadQueued = false;
       try {
         if (this.useMock) {
           await new Promise((resolve) => setTimeout(resolve, 200));
           this.wallet = {
-            balance: 1280,
+            balance: 0,
             total_income: 5e3,
-            total_withdraw: 3720,
-            frozen_amount: 300
+            total_withdraw: 0,
+            frozen_amount: 0
           };
           this.recentTransactions = [
             {
               _id: "mock1",
               title: "课程收入",
-              description: "2025-01-02 数学课程",
+              description: "家长 张三 · 课程",
               amount: 300,
               type: "income",
+              arrive_status: "arrived",
+              arrive_label: "已到账",
               create_time: Date.now() - 864e5
             },
             {
               _id: "mock2",
-              title: "提现申请",
-              description: "微信零钱提现",
-              amount: -500,
-              type: "withdraw",
+              title: "试课收入",
+              description: "家长 李四 · 试课",
+              amount: 200,
+              type: "income",
+              arrive_status: "wait_confirm",
+              arrive_label: "待确认收款",
               create_time: Date.now() - 1728e5
             }
           ];
@@ -141,6 +146,10 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "获取钱包信息失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
+        if (this._walletReloadQueued) {
+          this._walletReloadQueued = false;
+          this.loadWallet();
+        }
       }
     },
     formatCurrency(value) {
@@ -156,27 +165,36 @@ const _sfc_main = {
       return `${month}-${day} ${hour}:${minute}`;
     },
     amountClass(amount) {
-      return amount >= 0 ? "text-success" : "text-danger";
+      return amount >= 0 ? "amt-plus" : "amt-minus";
+    },
+    arriveClass(status) {
+      if (status === "arrived")
+        return "arrive-ok";
+      if (status === "wait_confirm" || status === "pending_review")
+        return "arrive-warn";
+      if (status === "failed")
+        return "arrive-fail";
+      return "arrive-muted";
+    },
+    displayTitle(item) {
+      if (!item)
+        return "流水";
+      if (item.type === "withdraw")
+        return item.title || "微信到账";
+      return item.title || "课程收入";
     },
     defaultDescription(type) {
-      if (type === "withdraw")
-        return "资金提现";
       if (type === "refund")
         return "退款处理";
+      if (type === "withdraw")
+        return "课酬转入微信零钱";
       return "课程收入";
-    },
-    goToWithdraw() {
-      common_vendor.index.navigateTo({ url: "/pages-teacher/wallet/withdraw" });
     },
     goToIncome() {
       common_vendor.index.navigateTo({ url: "/pages-teacher/wallet/income" });
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: $data.pendingConfirms.length
@@ -193,27 +211,27 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     })
   } : {}, {
     d: common_vendor.t($options.formatCurrency($data.wallet.total_income)),
-    e: common_vendor.t($options.formatCurrency($data.wallet.total_withdraw)),
-    f: common_vendor.t($options.formatCurrency($data.wallet.frozen_amount)),
-    g: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
-    h: $data.recentTransactions.length
+    e: !$data.pendingConfirms.length ? 1 : "",
+    f: common_vendor.o((...args) => $options.goToIncome && $options.goToIncome(...args)),
+    g: $data.recentTransactions.length
   }, $data.recentTransactions.length ? {
-    i: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
-      return {
-        a: common_vendor.t(item.title),
-        b: common_vendor.t(item.description || $options.defaultDescription(item.type)),
-        c: common_vendor.t(item.amount > 0 ? "+" : ""),
-        d: common_vendor.t($options.formatCurrency(item.amount)),
-        e: common_vendor.n($options.amountClass(item.amount)),
-        f: common_vendor.t($options.formatTime(item.create_time)),
-        g: item._id
-      };
+    h: common_vendor.f($data.recentTransactions, (item, k0, i0) => {
+      return common_vendor.e({
+        a: common_vendor.t($options.displayTitle(item)),
+        b: item.arrive_label
+      }, item.arrive_label ? {
+        c: common_vendor.t(item.arrive_label),
+        d: common_vendor.n($options.arriveClass(item.arrive_status))
+      } : {}, {
+        e: common_vendor.t(item.description || $options.defaultDescription(item.type)),
+        f: common_vendor.t(item.amount > 0 ? "+" : ""),
+        g: common_vendor.t($options.formatCurrency(item.amount)),
+        h: common_vendor.n($options.amountClass(item.amount)),
+        i: common_vendor.t($options.formatTime(item.create_time)),
+        j: item._id
+      });
     })
-  } : {}, {
-    j: common_vendor.p({
-      headTitle: "最近交易"
-    })
-  });
+  } : {});
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-4389612a"]]);
 wx.createPage(MiniProgramPage);

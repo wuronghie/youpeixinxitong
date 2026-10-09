@@ -1,0 +1,20 @@
+{
+  "name": "appointment-class-remind",
+  "version": "1.0.0",
+  "description": "上课前30分钟：服务号预约到场通知教师与家长",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 256,
+    "timeout": 60,
+    "triggers": [
+      {
+        "name": "class-remind-every-5min",
+        "type": "timer",
+        "config": "0 */5 * * * * *"
+      }
+    ]
+  },
+  "dependencies": {
+    "wx-oa-client": "file:../common/wx-oa-client"
+  }
+}

@@ -13,6 +13,8 @@ const {
   sendCheckIn: sendCheckInMsg,
   sendNewChat: sendNewChatMsg,
   sendAppointmentSuccess: sendAppointmentSuccessMsg,
+  sendClassRemind: sendClassRemindMsg,
+  sendReviewRemind: sendReviewRemindMsg,
   EIP_IPS
 } = require('wx-oa-client')
 
@@ -66,10 +68,12 @@ module.exports = {
       templates: {
         check_in: !!templates.check_in,
         new_chat: !!templates.new_chat,
-        appointment_success: !!templates.appointment_success
+        appointment_success: !!templates.appointment_success,
+        class_remind: !!templates.class_remind,
+        review_remind: !!templates.review_remind
       },
       eipWhitelist: EIP_IPS,
-      tip: '已启用 check_in / new_chat / appointment_success'
+      tip: '已启用 check_in / new_chat / appointment_success / class_remind / review_remind'
     })
   },
 
@@ -83,16 +87,20 @@ module.exports = {
       const res = await syncUserOaBind(uid)
       if (res.ok) {
         return success(
-          { bound: true, oa_openid_tail: String(res.oa_openid || '').slice(-6) },
+          { bound: true, reason: res.reason, oa_openid_tail: String(res.oa_openid || '').slice(-6) },
           '已绑定服务号'
         )
       }
       const tips = {
         no_unionid: '账号缺少 unionid，请退出后重新登录小程序，再确认已关注服务号',
         not_followed_or_pending: '未检测到服务号绑定。请用同一微信关注服务号后，重新打开小程序或重新登录',
+        unsubscribed: '已取消关注服务号，通知将暂停。关注后即可重新绑定',
         no_user: '用户无效'
       }
-      return error(tips[res.reason] || '未绑定服务号', -1, res)
+      return success(
+        { bound: false, reason: res.reason || '' },
+        tips[res.reason] || '未绑定服务号'
+      )
     } catch (e) {
       console.error('[wx-oa-notify] syncMyOaBind', e)
       return error(e.message || '补绑失败')
@@ -100,7 +108,7 @@ module.exports = {
   },
 
   /**
-   * 测发。params.scene = check_in | new_chat | appointment_success
+   * 测发。params.scene = check_in | new_chat | appointment_success | class_remind | review_remind
    */
   async testSendToMe(params = {}) {
     try {
@@ -136,6 +144,28 @@ module.exports = {
           project: params.project || '数学',
           pagepath: params.pagepath || 'pages/appointment/list',
           client_msg_id: 'test_appt_' + uid + '_' + Date.now()
+        })
+      } else if (scene === 'class_remind') {
+        if (!conf.templates.class_remind) return error('未配置 templates.class_remind')
+        result = await sendClassRemindMsg({
+          user_id: uid,
+          appointment_id: 'TEST' + Date.now(),
+          visitor_name: params.visitor_name || '测试学员',
+          service: params.service || '试课 数学 14:00',
+          time: params.time || '',
+          phone: params.phone || '13800138000',
+          pagepath: params.pagepath || 'pages/appointment/list',
+          client_msg_id: 'test_class_' + uid + '_' + Date.now()
+        })
+      } else if (scene === 'review_remind') {
+        if (!conf.templates.review_remind) return error('未配置 templates.review_remind')
+        result = await sendReviewRemindMsg({
+          user_id: uid,
+          appointment_id: 'TEST' + Date.now(),
+          visitor_name: params.visitor_name || '评价提醒',
+          reason: params.reason || '3小时后将默认好评',
+          pagepath: params.pagepath || 'pages/review/create',
+          client_msg_id: 'test_review_' + uid + '_' + Date.now()
         })
       } else {
         if (!conf.templates.check_in) return error('未配置 templates.check_in')
@@ -197,6 +227,30 @@ module.exports = {
         : error(result.errmsg || '发送失败', result.errcode || -1, result)
     } catch (e) {
       console.error('[wx-oa-notify] sendAppointmentSuccess', e)
+      return error(e.message || '发送失败')
+    }
+  },
+
+  async sendClassRemind(params = {}) {
+    try {
+      const result = await sendClassRemindMsg(params)
+      return result.ok || result.skipped
+        ? success(result, result.ok ? 'ok' : 'skipped')
+        : error(result.errmsg || '发送失败', result.errcode || -1, result)
+    } catch (e) {
+      console.error('[wx-oa-notify] sendClassRemind', e)
+      return error(e.message || '发送失败')
+    }
+  },
+
+  async sendReviewRemind(params = {}) {
+    try {
+      const result = await sendReviewRemindMsg(params)
+      return result.ok || result.skipped
+        ? success(result, result.ok ? 'ok' : 'skipped')
+        : error(result.errmsg || '发送失败', result.errcode || -1, result)
+    } catch (e) {
+      console.error('[wx-oa-notify] sendReviewRemind', e)
       return error(e.message || '发送失败')
     }
   }

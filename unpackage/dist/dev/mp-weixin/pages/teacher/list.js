@@ -301,8 +301,8 @@ const _sfc_main = {
    */
   onLoad() {
     this.useMock = utils_mockData.useMockData() === true;
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:598", "[teacher-list] 年级筛选选项:", this.gradeFilters);
-    common_vendor.index.__f__("log", "at pages/teacher/list.vue:599", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:595", "[teacher-list] 年级筛选选项:", this.gradeFilters);
+    common_vendor.index.__f__("log", "at pages/teacher/list.vue:596", "[teacher-list] 年级筛选选项数量:", this.gradeFilters.length);
     this.fetchUserLocation();
     this.$nextTick(() => {
       setTimeout(() => {
@@ -381,7 +381,7 @@ const _sfc_main = {
      * 功能：重新加载第一页数据
      */
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/teacher/list.vue:679", "[teacher-list] 下拉刷新：重新加载教师列表");
+      common_vendor.index.__f__("log", "at pages/teacher/list.vue:676", "[teacher-list] 下拉刷新：重新加载教师列表");
       await this.loadTeachers(true);
     },
     /**
@@ -473,7 +473,7 @@ const _sfc_main = {
           throw new Error(result.message || "加载教师失败");
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:775", "加载教师失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:772", "加载教师失败:", error);
         common_vendor.index.showToast({ title: error.message || "加载失败", icon: "none" });
       } finally {
         this.isLoading = false;
@@ -647,7 +647,7 @@ const _sfc_main = {
           this.favoriteIds = [];
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:942", "获取收藏状态失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:939", "获取收藏状态失败:", error);
       } finally {
         this.applyFavoriteStatus();
       }
@@ -723,7 +723,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1020", "操作收藏失败:", error);
+        common_vendor.index.__f__("error", "at pages/teacher/list.vue:1017", "操作收藏失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       }
     },
@@ -741,13 +741,13 @@ const _sfc_main = {
       if (teacherUid)
         params.push(`teacherUid=${teacherUid}`);
       common_vendor.index.navigateTo({
-        url: `/pages/teacher/detail?${params.join("&")}`,
+        url: `/pages-biz/teacher/detail?${params.join("&")}`,
         success: () => {
           this._navigatingDetail = false;
         },
         fail: (err) => {
           this._navigatingDetail = false;
-          common_vendor.index.__f__("warn", "at pages/teacher/list.vue:1043", "[teacher/list] navigateTo detail failed:", err && err.errMsg);
+          common_vendor.index.__f__("warn", "at pages/teacher/list.vue:1040", "[teacher/list] navigateTo detail failed:", err && err.errMsg);
           if (err && /timeout/i.test(err.errMsg || "")) {
             common_vendor.index.showToast({ title: "加载超时，请重试", icon: "none" });
           } else {
@@ -1093,57 +1093,51 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       }, $options.hasReviewStats(teacher) ? {
         k: common_vendor.t($options.getPositiveRate(teacher))
       } : {}, {
-        l: teacher.trial_count > 0
-      }, teacher.trial_count > 0 ? {
-        m: common_vendor.t(teacher.trial_count)
-      } : {}, {
-        n: (teacher.trial_success_count || 0) > 0
-      }, (teacher.trial_success_count || 0) > 0 ? {
-        o: common_vendor.t(teacher.trial_success_count)
-      } : {}, {
-        p: teacher.trial_success_rate > 0
+        l: teacher.trial_success_rate > 0
       }, teacher.trial_success_rate > 0 ? {
-        q: common_vendor.t($options.formatPercent(teacher.trial_success_rate))
+        m: common_vendor.t($options.formatPercent(teacher.trial_success_rate))
       } : {}, {
-        r: $options.getTeacherAddress(teacher)
+        n: common_vendor.t(teacher.trial_count || 0),
+        o: common_vendor.t(teacher.trial_success_count || 0),
+        p: $options.getTeacherAddress(teacher)
       }, $options.getTeacherAddress(teacher) ? common_vendor.e({
-        s: common_vendor.t($options.getTeacherAddress(teacher)),
-        t: $options.getTeacherDistance(teacher) != null
+        q: common_vendor.t($options.getTeacherAddress(teacher)),
+        r: $options.getTeacherDistance(teacher) != null
       }, $options.getTeacherDistance(teacher) != null ? {
-        v: common_vendor.t($options.getTeacherDistance(teacher))
+        s: common_vendor.t($options.getTeacherDistance(teacher))
       } : {}) : {}, {
-        w: (teacher.subjects || []).length
+        t: (teacher.subjects || []).length || (teacher.grades || []).length
+      }, (teacher.subjects || []).length || (teacher.grades || []).length ? common_vendor.e({
+        v: (teacher.subjects || []).length
       }, (teacher.subjects || []).length ? common_vendor.e({
-        x: common_vendor.t((teacher.subjects || []).slice(0, 2).join("、")),
-        y: (teacher.subjects || []).length > 2
+        w: common_vendor.t((teacher.subjects || []).slice(0, 2).join("、")),
+        x: (teacher.subjects || []).length > 2
       }, (teacher.subjects || []).length > 2 ? {
-        z: common_vendor.t(teacher.subjects.length)
+        y: common_vendor.t(teacher.subjects.length)
       } : {}) : {}, {
-        A: (teacher.grades || []).length
+        z: (teacher.grades || []).length
       }, (teacher.grades || []).length ? {
-        B: common_vendor.t($options.formatGrades(teacher.grades))
-      } : {}, {
-        C: (teacher.subjects || []).length
-      }, (teacher.subjects || []).length ? {
-        D: common_vendor.f((teacher.subjects || []).slice(0, 4), (subject, index, i1) => {
+        A: common_vendor.t($options.formatGrades(teacher.grades))
+      } : {}) : {}, {
+        B: (teacher.subjects || []).length
+      }, (teacher.subjects || []).length ? common_vendor.e({
+        C: common_vendor.f((teacher.subjects || []).slice(0, 4), (subject, k1, i1) => {
           return {
             a: common_vendor.t(subject),
-            b: subject,
-            c: common_vendor.s($options.getTagStyle(index))
+            b: subject
           };
-        })
-      } : {}, {
-        E: common_vendor.t(teacher.hourly_rate || 100),
-        F: $options.getTeachingMethod(teacher)
+        }),
+        D: $options.getTeachingMethod(teacher)
       }, $options.getTeachingMethod(teacher) ? {
-        G: common_vendor.t($options.getTeachingMethod(teacher))
-      } : {}, {
-        H: $options.getSpecialty(teacher)
+        E: common_vendor.t($options.getTeachingMethod(teacher))
+      } : {}) : {}, {
+        F: common_vendor.t(teacher.hourly_rate || 100),
+        G: $options.getSpecialty(teacher)
       }, $options.getSpecialty(teacher) ? {
-        I: common_vendor.t($options.getSpecialty(teacher))
+        H: common_vendor.t($options.getSpecialty(teacher))
       } : {}, {
-        J: teacher._id,
-        K: common_vendor.o(($event) => $options.goToDetail(teacher), teacher._id)
+        I: teacher._id,
+        J: common_vendor.o(($event) => $options.goToDetail(teacher), teacher._id)
       });
     }),
     R: !$data.teacherList.length && !$data.isLoading

@@ -1,243 +1,153 @@
+<!-- 家长端：完善资料。云对象 user-profile.getUserProfile / updateParentProfile -->
 <template>
-	<view style="background: #F5F5F5;">
+	<view class="page">
 		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 头部信息卡片 -->
-				<card class="mb-3">
-					<view class="d-flex a-center mb-3">
-						<view class="d-flex flex-column a-center mr-3" @click="chooseAvatar">
-							<image
-								class="rounded-circle mb-2"
-								:src="formData.avatar || defaultAvatar"
-								mode="aspectFill"
-								style="width: 140rpx;height: 140rpx;border: 4rpx solid rgba(102, 126, 234, 0.2);"
-							/>
-							<text class="main-text-color font-sm">{{ avatarUploading ? '上传中...' : '更换头像' }}</text>
-						</view>
-						<view class="flex-1">
-							<text class="font-md font-weight d-block mb-1">{{ formData.real_name || '家长用户' }}</text>
-							<text class="font-sm text-light-muted d-block mb-1">{{ heroSubtitle }}</text>
-							<view v-if="role !== 'parent'" class="bg-warning rounded px-2 py-1 font-sm text-warning">
-								当前角色：{{ roleText }}
-							</view>
-						</view>
-					</view>
-					<view class="d-flex a-center j-sb pt-3 border-top">
-						<view class="text-center flex-1">
-							<text class="font-md font-weight d-block">{{ formData.phone || '未填写' }}</text>
-							<text class="font-sm text-light-muted">联系方式</text>
-						</view>
-						<view class="text-center flex-1 border-left">
-							<text class="font-md font-weight d-block">{{ formData.student_name || '未填写' }}</text>
-							<text class="font-sm text-light-muted">学生姓名</text>
-						</view>
-						<view class="text-center flex-1 border-left">
-							<text class="font-md font-weight d-block">{{ formData.student_grade || '未选择' }}</text>
-							<text class="font-sm text-light-muted">当前年级</text>
-						</view>
-					</view>
-				</card>
-
-				<view v-if="role !== 'parent'" class="card bg-warning mb-3 p-3">
-					<text class="font-sm text-warning d-block mb-2">当前账号不是家长角色，无法编辑家长资料。</text>
-					<text class="main-text-color font-sm" @click="goRolePage">前往教师资料</text>
+			<view class="hero-card" :class="{ muted: !canEdit }" @click="chooseAvatar">
+				<image class="avatar" :src="formData.avatar || defaultAvatar" mode="aspectFill" />
+				<view class="hero-main">
+					<text class="hero-name">{{ heroName }}</text>
+					<text class="hero-meta">{{ avatarUploading ? '上传中...' : '点击更换头像' }}</text>
 				</view>
+			</view>
 
-				<!-- 家长信息 -->
-				<card headTitle="家长信息" class="mb-3" :class="{ 'opacity-50': !canEdit }">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">真实姓名<text class="text-danger">*</text></text>
+			<view v-if="role !== 'parent'" class="warn-card">
+				<text class="warn-title">当前账号不是家长角色，无法编辑家长资料。</text>
+				<text class="warn-link" @click="goRolePage">前往教师资料</text>
+			</view>
+
+			<view class="form-card" :class="{ muted: !canEdit }">
+				<view class="form-row last">
+					<text class="form-label">手机号码 <text class="req">*</text></text>
+					<view class="phone-side">
 						<input
-							class="text-right font-sm flex-1 ml-3"
-							v-model.trim="formData.real_name"
-							:disabled="!canEdit"
-							placeholder="请输入真实姓名"
-							placeholder-class="text-light-muted"
-						/>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">性别<text class="text-danger">*</text></text>
-						<view class="d-flex a-center">
-							<view
-								class="gender-chip rounded px-3 py-1 mr-2 font-sm"
-								:class="formData.gender === 'male' ? 'gender-selected male' : 'gender-default'"
-								@click="selectGender('male')"
-							>男</view>
-							<view
-								class="gender-chip rounded px-3 py-1 font-sm"
-								:class="formData.gender === 'female' ? 'gender-selected female' : 'gender-default'"
-								@click="selectGender('female')"
-							>女</view>
-						</view>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">手机号码<text class="text-danger">*</text></text>
-						<input
-							class="text-right font-sm flex-1 ml-3"
+							class="form-input"
 							v-model.trim="formData.phone"
 							:disabled="!canEdit"
 							type="number"
-							placeholder="请输入常用手机号"
-							placeholder-class="text-light-muted"
+							maxlength="11"
+							:placeholder="hasBoundPhone ? '' : '授权后自动填写'"
+							placeholder-class="ph"
 						/>
+						<!-- #ifdef MP-WEIXIN -->
+						<button
+							v-if="canEdit && !hasBoundPhone"
+							class="phone-btn"
+							open-type="getPhoneNumber"
+							:disabled="phoneBinding"
+							@getphonenumber="onGetPhoneNumber"
+						>授权填写</button>
+						<!-- #endif -->
 					</view>
-				</card>
-
-				<!-- 学生信息 -->
-				<card headTitle="学生信息" class="mb-3" :class="{ 'opacity-50': !canEdit }">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">学生姓名<text class="text-danger">*</text></text>
-						<input
-							class="text-right font-sm flex-1 ml-3"
-							v-model.trim="formData.student_name"
-							:disabled="!canEdit"
-							placeholder="请输入学生姓名"
-							placeholder-class="text-light-muted"
-						/>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">孩子性别<text class="text-danger">*</text></text>
-						<view class="d-flex a-center">
-							<view
-								class="gender-chip rounded px-3 py-1 mr-2 font-sm"
-								:class="formData.student_gender === 'male' ? 'gender-selected male' : 'gender-default'"
-								@click="selectStudentGender('male')"
-							>男</view>
-							<view
-								class="gender-chip rounded px-3 py-1 font-sm"
-								:class="formData.student_gender === 'female' ? 'gender-selected female' : 'gender-default'"
-								@click="selectStudentGender('female')"
-							>女</view>
-						</view>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">当前年级<text class="text-danger">*</text></text>
-						<picker
-							mode="selector"
-							:range="gradeOptions"
-							:value="gradeIndex"
-							@change="onGradeChange"
-							:disabled="!canEdit"
-						>
-							<view class="d-flex a-center">
-								<text class="font-sm" :class="formData.student_grade ? '' : 'text-light-muted'">
-									{{ formData.student_grade || '请选择年级' }}
-								</text>
-								<text class="iconfont icon-you text-light-muted ml-2"></text>
-							</view>
-						</picker>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">学生年龄</text>
-						<input
-							class="text-right font-sm flex-1 ml-3"
-							v-model.trim="formData.student_age"
-							:disabled="!canEdit"
-							type="number"
-							placeholder="如：12"
-							placeholder-class="text-light-muted"
-						/>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">就读学校</text>
-						<input
-							class="text-right font-sm flex-1 ml-3"
-							v-model.trim="formData.school_name"
-							:disabled="!canEdit"
-							placeholder="请填写学校或培训机构名称"
-							placeholder-class="text-light-muted"
-						/>
-					</view>
-					<view class="py-2">
-						<text class="font-sm d-block mb-2">关注科目</text>
-						<view class="d-flex flex-wrap">
-							<view
-								v-for="item in subjectOptions"
-								:key="item"
-								class="rounded px-3 py-2 font-sm mr-2 mb-2"
-								:class="formData.student_subjects.includes(item) ? 'main-bg-color text-white' : 'bg-light-secondary'"
-								@click="toggleSubject(item)"
-							>
-								{{ item }}
-							</view>
-						</view>
-					</view>
-				</card>
-
-				<!-- 学习目标 -->
-				<card headTitle="学习目标" class="mb-3" :class="{ 'opacity-50': !canEdit }">
-					<view class="py-2 border-bottom">
-						<text class="font-sm d-block mb-2">目标方向</text>
-						<view class="d-flex flex-wrap">
-							<view
-								v-for="item in goalOptions"
-								:key="item"
-								class="rounded px-3 py-2 font-sm mr-2 mb-2"
-								:class="formData.learning_goal === item ? 'main-bg-color text-white' : 'bg-light-secondary'"
-								@click="selectGoal(item)"
-							>
-								{{ item }}
-							</view>
-						</view>
-					</view>
-					<view class="py-2">
-						<text class="font-sm d-block mb-2">补充说明</text>
-						<textarea
-							class="w-100 bg-light-secondary rounded px-3 py-2 font-sm mb-1"
-							v-model.trim="formData.extra_notes"
-							:disabled="!canEdit"
-							placeholder="请描述孩子目前的学习情况、期望的上课频次、教师要求等"
-							maxlength="300"
-							auto-height
-							placeholder-class="text-light-muted"
-							style="min-height: 120rpx;"
-						/>
-						<text class="font-sm text-light-muted text-right d-block">{{ formData.extra_notes.length }}/300</text>
-					</view>
-				</card>
-
-				<!-- 上课地址 -->
-				<card headTitle="上课地址" class="mb-3" :class="{ 'opacity-50': !canEdit }">
-					<view class="py-2">
-						<view class="d-flex a-center j-sb mb-2">
-							<text class="font-sm">地址与联系方式</text>
-							<view class="d-flex a-center" @click="handleChooseLocation">
-								<text class="font-sm main-text-color mr-2">{{ addressDisplay || '点击选择地址' }}</text>
-								<text class="iconfont icon-arrow-right font-sm text-light-muted"></text>
-							</view>
-						</view>
-						<!-- 地图预览 -->
-						<view v-if="formData.address.latitude && formData.address.longitude" class="map-preview-container">
-							<map
-								:latitude="parseFloat(formData.address.latitude)"
-								:longitude="parseFloat(formData.address.longitude)"
-								:markers="mapMarkers"
-								:scale="15"
-								:show-location="true"
-								style="width: 100%; height: 300rpx; border-radius: 12rpx;"
-								@tap="handleOpenLocation"
-							></map>
-						</view>
-					</view>
-				</card>
-
-				<!-- 提示卡片 -->
-				<card class="bg-light-secondary mb-3">
-					<text class="font-sm font-weight d-block mb-2">完善资料小贴士</text>
-					<text class="font-sm text-light-muted d-block mb-1">· 联系方式仅用于课程沟通，不会公开展示。</text>
-					<text class="font-sm text-light-muted d-block mb-1">· 如更换学生或联系方式，可随时重新编辑。</text>
-					<text class="font-sm text-light-muted d-block">· 完整信息有助于平台快速匹配合适教师。</text>
-				</card>
+				</view>
 			</view>
+
+			<view class="form-card" :class="{ muted: !canEdit }">
+				<view class="form-row">
+					<text class="form-label">学生姓名 <text class="req">*</text></text>
+					<input
+						class="form-input"
+						v-model.trim="formData.student_name"
+						:disabled="!canEdit"
+						placeholder="请输入学生姓名"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="form-row">
+					<text class="form-label">孩子性别 <text class="req">*</text></text>
+					<view class="chip-row">
+						<text class="chip" :class="{ on: formData.student_gender === 'male' }" @click="selectStudentGender('male')">男</text>
+						<text class="chip" :class="{ on: formData.student_gender === 'female' }" @click="selectStudentGender('female')">女</text>
+					</view>
+				</view>
+				<picker mode="selector" :range="gradeOptions" :value="gradeIndex" @change="onGradeChange" :disabled="!canEdit">
+					<view class="form-row">
+						<text class="form-label">当前年级 <text class="req">*</text></text>
+						<text class="form-em" :class="{ filled: !!formData.student_grade }">{{ formData.student_grade || '请选择' }}</text>
+					</view>
+				</picker>
+				<view class="form-row">
+					<text class="form-label">学生年龄</text>
+					<input
+						class="form-input"
+						v-model.trim="formData.student_age"
+						:disabled="!canEdit"
+						type="number"
+						placeholder="如：14"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="form-row last">
+					<text class="form-label">就读学校</text>
+					<input
+						class="form-input"
+						v-model.trim="formData.school_name"
+						:disabled="!canEdit"
+						placeholder="请填写学校名称"
+						placeholder-class="ph"
+					/>
+				</view>
+				<view class="chip-block">
+					<text class="chip-label">关注科目</text>
+					<view class="chips-wrap">
+						<text
+							v-for="item in subjectOptions"
+							:key="item"
+							class="chip"
+							:class="{ on: formData.student_subjects.includes(item) }"
+							@click="toggleSubject(item)"
+						>{{ item }}</text>
+					</view>
+				</view>
+			</view>
+
+			<view class="section-card" :class="{ muted: !canEdit }">
+				<text class="section-title">学习目标</text>
+				<view class="chips-wrap">
+					<text
+						v-for="item in goalOptions"
+						:key="item"
+						class="chip"
+						:class="{ on: formData.learning_goal === item }"
+						@click="selectGoal(item)"
+					>{{ item }}</text>
+				</view>
+				<textarea
+					class="intro-input"
+					v-model.trim="formData.extra_notes"
+					:disabled="!canEdit"
+					placeholder="请描述孩子目前的学习情况、期望的上课频次、教师要求等"
+					maxlength="300"
+					:show-confirm-bar="false"
+					:cursor-spacing="24"
+					placeholder-class="ph"
+				/>
+				<text class="count">{{ formData.extra_notes.length }}/300</text>
+			</view>
+
+			<view class="section-card" :class="{ muted: !canEdit }">
+				<view class="section-head" @click="handleChooseLocation">
+					<text class="section-title">上课地址</text>
+					<text class="section-action">选择</text>
+				</view>
+				<text class="intro">{{ addressDisplay || '点击选择大致上课地点' }}</text>
+				<map
+					v-if="formData.address.latitude && formData.address.longitude"
+					class="recruit-map"
+					:latitude="parseFloat(formData.address.latitude)"
+					:longitude="parseFloat(formData.address.longitude)"
+					:markers="mapMarkers"
+					:scale="15"
+					:show-location="true"
+					@tap="handleOpenLocation"
+				/>
+			</view>
+
+			<text class="form-tip">联系方式仅用于课程沟通，不会公开展示。完整信息有助于匹配合适教师。</text>
+			<view class="scroll-spacer"></view>
 		</scroll-view>
 
-		<!-- 保存按钮 -->
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
-			<button 
-				class="main-bg-color text-white rounded px-4 py-2 font-md font-weight w-100" 
-				:disabled="!canEdit || isSubmitting"
-				@click="submitForm"
-			>
+		<view class="action-bar">
+			<button class="save-btn" :disabled="!canEdit || isSubmitting" @click="submitForm">
 				{{ isSubmitting ? '保存中...' : '保存信息' }}
 			</button>
 		</view>
@@ -245,25 +155,22 @@
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { mockUserInfo, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 import { redirectByRole } from '@/utils/auth.js'
+import { bindWeixinPhoneAndSync, refreshBoundPhone, pickUserPhone, isValidCnMobile } from '@/utils/wxPhone.js'
 import { 
 	chooseLocation, 
 	openLocation, 
 	requestLocationPermission 
 } from '@/utils/location.js'
-import { wxCheckLocalImageBeforeUpload } from '@/utils/wxContentSecurity.js'
+import { wxCheckLocalImageBeforeUpload } from './utils/wxContentSecurity.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
 export default {
 	mixins: [pullRefreshMixin],
-	components: {
-		card
-	},
 	name: 'ParentRegister',
 	data() {
 		return {
@@ -272,6 +179,7 @@ export default {
 			loading: false,
 			avatarUploading: false,
 			isSubmitting: false,
+			phoneBinding: false,
 			gradeIndex: -1,
 			gradeOptions: ['一年级', '二年级', '三年级', '四年级', '五年级', '六年级', '初一', '初二', '初三', '高一', '高二', '高三'],
 			subjectOptions: ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治', '其他'],
@@ -279,8 +187,7 @@ export default {
 			formData: {
 				avatar: '',
 				avatarFileId: '',
-				real_name: '',
-				gender: '', // 家长性别（必填）：'male' | 'female'
+				nickname: '',
 				phone: '',
 				student_name: '',
 				student_gender: '', // 孩子性别（必填）：'male' | 'female'
@@ -306,6 +213,12 @@ export default {
 		},
 		canEdit() {
 			return this.role === 'parent' && !this.loading
+		},
+		hasBoundPhone() {
+			return isValidCnMobile(this.formData.phone)
+		},
+		heroName() {
+			return this.formData.nickname || this.formData.student_name || '家长用户'
 		},
 		heroSubtitle() {
 			if (this.role !== 'parent') {
@@ -456,11 +369,6 @@ export default {
 			
 			const finalAddressName = pInfo.address_detail || locationName || (hasLegacyAddress && legacyAddress.name) || ''
 			
-			// 性别：uni-id-users.gender 约定 1=男, 2=女；兼容前端 male/female 文本
-			const rawGender = profile.gender
-			let genderStr = ''
-			if (rawGender === 1 || rawGender === '1' || rawGender === 'male') genderStr = 'male'
-			else if (rawGender === 2 || rawGender === '2' || rawGender === 'female') genderStr = 'female'
 			const rawStudentGender = pInfo.student_gender
 			let studentGenderStr = ''
 			if (rawStudentGender === 1 || rawStudentGender === '1' || rawStudentGender === 'male') studentGenderStr = 'male'
@@ -469,9 +377,8 @@ export default {
 			this.formData = {
 				avatar: avatarUrl || defaultAvatar,
 				avatarFileId: avatarFileId || '',
-				real_name: profile.nickname || pInfo.real_name || '',
-				gender: genderStr,
-				phone: profile.phone || '',
+				nickname: profile.nickname || profile.wx_nickname || '',
+				phone: pickUserPhone(profile) || profile.phone || '',
 				student_name: pInfo.student_name || '',
 				student_gender: studentGenderStr,
 				student_grade: pInfo.student_grade || '',
@@ -500,6 +407,14 @@ export default {
 				extra_notes: pInfo.extra_notes || ''
 			}
 			this.gradeIndex = this.gradeOptions.indexOf(this.formData.student_grade)
+			if (!this.formData.phone) {
+				try {
+					const bound = await refreshBoundPhone()
+					if (bound) this.formData.phone = bound
+				} catch (e) {
+					console.warn('[register] 读取已绑定手机号失败:', e)
+				}
+			}
 		},
 		chooseAvatar() {
 			if (!this.canEdit || this.avatarUploading) return
@@ -563,15 +478,30 @@ export default {
 			this.gradeIndex = index
 			this.formData.student_grade = this.gradeOptions[index]
 		},
-		selectGender(gender) {
-			if (!this.canEdit) return
-			if (gender !== 'male' && gender !== 'female') return
-			this.formData.gender = gender
-		},
 		selectStudentGender(gender) {
 			if (!this.canEdit) return
 			if (gender !== 'male' && gender !== 'female') return
 			this.formData.student_gender = gender
+		},
+		async onGetPhoneNumber(e) {
+			if (!this.canEdit || this.phoneBinding) return
+			this.phoneBinding = true
+			try {
+				uni.showLoading({ title: '获取中...' })
+				const phone = await bindWeixinPhoneAndSync(e)
+				if (phone) {
+					this.formData.phone = phone
+					uni.showToast({ title: '已自动填入手机号', icon: 'success' })
+				} else {
+					uni.showToast({ title: '已授权，请确认号码', icon: 'none' })
+				}
+			} catch (error) {
+				console.error('[register] 获取本机号码失败:', error)
+				uni.showToast({ title: (error && error.message) || '获取手机号失败', icon: 'none' })
+			} finally {
+				uni.hideLoading()
+				this.phoneBinding = false
+			}
 		},
 		toggleSubject(subject) {
 			if (!this.canEdit) return
@@ -661,17 +591,8 @@ export default {
 			})
 		},
 		validateForm() {
-			if (!this.formData.real_name) {
-				uni.showToast({ title: '请填写真实姓名', icon: 'none' })
-				return false
-			}
-			if (this.formData.gender !== 'male' && this.formData.gender !== 'female') {
-				uni.showToast({ title: '请选择性别', icon: 'none' })
-				return false
-			}
-			const phoneReg = /^1[3-9]\d{9}$/
-			if (!this.formData.phone || !phoneReg.test(this.formData.phone)) {
-				uni.showToast({ title: '请填写正确的手机号', icon: 'none' })
+			if (!isValidCnMobile(this.formData.phone)) {
+				uni.showToast({ title: '请填写或获取正确的手机号', icon: 'none' })
 				return false
 			}
 			if (!this.formData.student_name) {
@@ -700,7 +621,6 @@ export default {
 			try {
 				this.isSubmitting = true
 				console.log('[register] 开始保存，payload:', {
-					real_name: this.formData.real_name,
 					phone: this.formData.phone,
 					student_name: this.formData.student_name,
 					student_grade: this.formData.student_grade
@@ -714,9 +634,7 @@ export default {
 				}
 				
 				const payload = {
-					real_name: this.formData.real_name,
 					phone: this.formData.phone,
-					gender: this.formData.gender,
 					avatar: this.formData.avatarFileId || this.formData.avatar,
 					student_name: this.formData.student_name,
 					student_gender: this.formData.student_gender,
@@ -751,7 +669,6 @@ export default {
 					}
 					const stored = uni.getStorageSync('userInfo') || {}
 					const parentInfo = {
-						real_name: this.formData.real_name,
 						student_name: this.formData.student_name,
 						student_gender: this.formData.student_gender,
 						student_grade: this.formData.student_grade,
@@ -772,10 +689,9 @@ export default {
 					}
 					const nextStored = {
 						...stored,
-						nickname: this.formData.real_name,
+						nickname: stored.nickname || this.formData.nickname,
 						avatar: this.formData.avatarFileId || this.formData.avatar || stored.avatar,
 						phone: this.formData.phone,
-						gender: this.formData.gender === 'male' ? 1 : 2,
 						parent_info: parentInfo,
 						role: 'parent'
 					}
@@ -817,37 +733,305 @@ export default {
 </script>
 
 <style scoped>
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+}
+
 .scroll {
+	height: calc(100vh - 132rpx);
+}
+
+.hero-card,
+.form-card,
+.section-card,
+.warn-card {
+	margin: 24rpx 32rpx 0;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.hero-card {
+	display: flex;
+	align-items: center;
+	gap: 24rpx;
+	padding: 28rpx 32rpx;
+}
+
+.avatar {
+	width: 128rpx;
+	height: 128rpx;
+	border-radius: 50%;
+	background: #EEF3FF;
+	flex-shrink: 0;
+}
+
+.hero-main {
 	flex: 1;
-	height: calc(100vh - 200rpx);
-	padding-bottom: 160rpx;
+	min-width: 0;
 }
 
-.gender-chip {
-	min-width: 96rpx;
-	text-align: center;
-	transition: all 0.3s;
-	padding: 8rpx 24rpx;
-	border: 2rpx solid #e0e0e0;
+.hero-name {
+	display: block;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-.gender-default {
-	background-color: #f5f5f5;
-	color: #666;
-	border: 2rpx solid #e0e0e0;
+.hero-meta {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
-.gender-selected.male {
-	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-	color: #fff;
-	border: 2rpx solid #4A90E2;
-	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
+.warn-card {
+	padding: 24rpx 32rpx;
 }
 
-.gender-selected.female {
-	background: linear-gradient(135deg, #ff6b9a 0%, #e04a7c 100%);
-	color: #fff;
-	border: 2rpx solid #ff6b9a;
-	box-shadow: 0 4rpx 12rpx rgba(255, 107, 154, 0.3);
+.warn-title {
+	display: block;
+	font-size: 26rpx;
+	color: #C47A12;
+	line-height: 1.5;
+}
+
+.warn-link {
+	display: inline-block;
+	margin-top: 12rpx;
+	font-size: 26rpx;
+	color: #2563EB;
+	font-weight: 500;
+}
+
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
+}
+
+.section-card {
+	padding: 28rpx 32rpx;
+}
+
+.muted {
+	opacity: 0.55;
+}
+
+.form-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	min-height: 96rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.form-row.last {
+	border-bottom: none;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+
+.req {
+	color: #FA5151;
+}
+
+.form-input {
+	flex: 1;
+	min-width: 0;
+	text-align: right;
+	font-size: 28rpx;
+	color: #1F2329;
+}
+
+.phone-side {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 12rpx;
+}
+
+.phone-side .form-input {
+	flex: 1;
+}
+
+.phone-btn {
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0 20rpx;
+	height: 56rpx;
+	line-height: 56rpx;
+	font-size: 22rpx;
+	font-weight: 600;
+	color: #2563EB;
+	background: #EEF3FF;
+	border-radius: 16rpx;
+	border: none;
+}
+
+.phone-btn::after {
+	border: none;
+}
+
+.form-em {
+	flex: 1;
+	min-width: 0;
+	font-size: 28rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.form-em.filled {
+	color: #1F2329;
+}
+
+.ph {
+	color: #C5C8CE;
+}
+
+.chip-row {
+	display: flex;
+	gap: 12rpx;
+}
+
+.chip-block {
+	padding: 8rpx 0 16rpx;
+}
+
+.chip-label {
+	display: block;
+	margin-bottom: 16rpx;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+
+.chips-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+}
+
+.chip {
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
+}
+
+.chip.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.section-action {
+	font-size: 26rpx;
+	color: #2563EB;
+}
+
+.intro {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.6;
+}
+
+.intro-input {
+	width: 100%;
+	min-height: 160rpx;
+	margin-top: 16rpx;
+	padding: 20rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	font-size: 26rpx;
+	color: #1F2329;
+	line-height: 1.6;
+	box-sizing: border-box;
+}
+
+.count {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.recruit-map {
+	width: 100%;
+	height: 240rpx;
+	margin-top: 16rpx;
+	border-radius: 16rpx;
+	overflow: hidden;
+	background: #F4F6F9;
+}
+
+.form-tip {
+	display: block;
+	padding: 20rpx 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+
+.scroll-spacer {
+	height: 24rpx;
+}
+
+.action-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 20;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+
+.save-btn {
+	width: 100%;
+	height: 88rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
+}
+
+.save-btn::after {
+	border: none;
+}
+
+.save-btn[disabled] {
+	opacity: 0.55;
 }
 </style>

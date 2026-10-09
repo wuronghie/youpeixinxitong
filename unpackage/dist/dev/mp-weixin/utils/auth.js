@@ -1,6 +1,7 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
 const utils_chatPush = require("./chatPush.js");
+const utils_oaFollow = require("./oaFollow.js");
 const DEFAULT_ROLE = "parent";
 function normalizeUserInfoFromDb(data = {}) {
   const activeRole = data.role || DEFAULT_ROLE;
@@ -10,7 +11,8 @@ function normalizeUserInfoFromDb(data = {}) {
     avatar: data.avatar || data.wx_avatarUrl || "",
     role: activeRole,
     status: data.status || "active",
-    phone: data.phone || "",
+    phone: data.phone || data.mobile || data.parent_info && data.parent_info.phone || "",
+    mobile: data.mobile || data.phone || "",
     // 性别（uni-id 约定：0=未知, 1=男, 2=女）
     gender: data.gender != null ? data.gender : 0,
     parent_info: data.parent_info || {},
@@ -29,17 +31,34 @@ function setStoredUserInfo(info = {}) {
     }
   }
 }
+function persistAuthToken(token, tokenExpired) {
+  if (token) {
+    common_vendor.index.setStorageSync("uni_id_token", token);
+    common_vendor.index.setStorageSync("token", token);
+  }
+  if (tokenExpired) {
+    common_vendor.index.setStorageSync("uni_id_token_expired", tokenExpired);
+  }
+}
 function clearStoredAuth() {
   common_vendor.index.removeStorageSync("uni_id_token");
+  common_vendor.index.removeStorageSync("uni_id_token_expired");
   common_vendor.index.removeStorageSync("token");
   common_vendor.index.removeStorageSync("userInfo");
   common_vendor.index.removeStorageSync("last_role");
+  common_vendor.index.removeStorageSync("just_issued_coupons");
+  common_vendor.index.removeStorageSync("cached_available_coupons");
   utils_chatPush.clearBoundPushClientId();
 }
 function redirectByRole(role) {
   const url = role === "teacher" ? "/pages-teacher/index/index" : "/pages/teacher/list";
   setTimeout(() => {
-    common_vendor.index.reLaunch({ url });
+    common_vendor.index.reLaunch({
+      url,
+      success: () => {
+        utils_oaFollow.promptFollowOfficialAccount({ delayMs: 400 });
+      }
+    });
   }, 100);
 }
 async function checkProfileComplete(userInfo) {
@@ -49,15 +68,9 @@ async function checkProfileComplete(userInfo) {
   if (userInfo.role === "parent") {
     const parentInfo = userInfo.parent_info || {};
     const phone = userInfo.phone || userInfo.mobile || parentInfo.phone || "";
-    const genderCode = userInfo.gender;
-    const genderFilled = genderCode === 1 || genderCode === 2 || genderCode === "1" || genderCode === "2" || genderCode === "male" || genderCode === "female";
     const studentGender = parentInfo.student_gender;
     const studentGenderFilled = studentGender === "male" || studentGender === "female" || studentGender === 1 || studentGender === 2 || studentGender === "1" || studentGender === "2";
     const missing = [];
-    if (!parentInfo.real_name)
-      missing.push("家长姓名");
-    if (!genderFilled)
-      missing.push("性别");
     if (!phone)
       missing.push("手机号");
     if (!parentInfo.student_name)
@@ -66,9 +79,7 @@ async function checkProfileComplete(userInfo) {
       missing.push("孩子性别");
     if (!parentInfo.student_grade)
       missing.push("学生年级");
-    common_vendor.index.__f__("log", "at utils/auth.js:80", "[auth] 家长信息检查:", {
-      real_name: parentInfo.real_name,
-      gender: genderCode,
+    common_vendor.index.__f__("log", "at utils/auth.js:95", "[auth] 家长信息检查:", {
       phone,
       student_name: parentInfo.student_name,
       student_gender: studentGender,
@@ -87,7 +98,7 @@ async function checkProfileComplete(userInfo) {
     try {
       const dashboard = common_vendor.tr.importObject("teacher-dashboard", { customUI: true });
       const res = await dashboard.checkProfileComplete();
-      common_vendor.index.__f__("log", "at utils/auth.js:103", "[auth] 教师信息检查结果:", res);
+      common_vendor.index.__f__("log", "at utils/auth.js:116", "[auth] 教师信息检查结果:", res);
       if (res.code === 0 && res.data) {
         const { isComplete, missingFieldsText } = res.data;
         if (!isComplete) {
@@ -101,11 +112,11 @@ async function checkProfileComplete(userInfo) {
         }
         return { isComplete: true };
       } else {
-        common_vendor.index.__f__("warn", "at utils/auth.js:119", "[auth] 检查教师信息失败，跳转到首页:", res.message);
+        common_vendor.index.__f__("warn", "at utils/auth.js:132", "[auth] 检查教师信息失败，跳转到首页:", res.message);
         return { isComplete: true };
       }
     } catch (error) {
-      common_vendor.index.__f__("error", "at utils/auth.js:123", "[auth] 检查教师信息异常:", error);
+      common_vendor.index.__f__("error", "at utils/auth.js:136", "[auth] 检查教师信息异常:", error);
       return { isComplete: true };
     }
   }
@@ -147,7 +158,7 @@ async function fetchRemoteUserInfo(options = {}) {
     }
     throw new Error(res.message || "获取用户信息失败");
   } catch (error) {
-    common_vendor.index.__f__("error", "at utils/auth.js:177", "[auth] 获取远程用户信息失败:", error);
+    common_vendor.index.__f__("error", "at utils/auth.js:190", "[auth] 获取远程用户信息失败:", error);
     const local = getStoredUserInfo();
     if (local && local.uid) {
       return local;
@@ -160,6 +171,7 @@ exports.clearStoredAuth = clearStoredAuth;
 exports.ensureLoggedIn = ensureLoggedIn;
 exports.fetchRemoteUserInfo = fetchRemoteUserInfo;
 exports.getStoredUserInfo = getStoredUserInfo;
+exports.persistAuthToken = persistAuthToken;
 exports.redirectByRole = redirectByRole;
 exports.setStoredUserInfo = setStoredUserInfo;
 //# sourceMappingURL=../../.sourcemap/mp-weixin/utils/auth.js.map

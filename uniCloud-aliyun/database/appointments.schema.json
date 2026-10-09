@@ -282,6 +282,27 @@
       "bsonType": "timestamp",
       "description": "教师上课打卡时间（早于排课结束时间，原则上≥排课开始时间，允许提前 15 分钟内打卡）"
     },
+    "oa_class_reminded_at": {
+      "bsonType": "timestamp",
+      "description": "上课前30分钟服务号预约到场提醒的发送时间"
+    },
+    "oa_review_reminded_at": {
+      "bsonType": "timestamp",
+      "description": "下课满21小时未评价：服务号「即将默认好评」提醒的发送时间"
+    },
+    "auto_reviewed_at": {
+      "bsonType": "timestamp",
+      "description": "下课满24小时未评价：系统默认好评写入时间"
+    },
+    "has_review": {
+      "bsonType": "bool",
+      "description": "家长是否已评价（含系统默认好评）"
+    },
+    "review_id": {
+      "bsonType": "string",
+      "description": "关联评价ID",
+      "foreignKey": "reviews._id"
+    },
     "class_started_location": {
       "bsonType": "object",
       "description": "上课打卡定位",

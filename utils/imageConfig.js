@@ -62,6 +62,22 @@ export function getIconUrl(iconName) {
   return getStaticImageUrl(`/static/icons/${iconName}`)
 }
 
+/**
+ * 招募入口图标（底部中间 Tab、「我的招募」、教师工作台「招募广场」）
+ * 云存储路径：/static/icons/add.png
+ */
+export function getRecruitmentIconUrl() {
+  return getIconUrl('add.png')
+}
+
+/**
+ * 邀请入口图标（我的邀请码、填写好友邀请码）
+ * 云存储路径：/static/icons/yaoqing.png
+ */
+export function getInviteIconUrl() {
+  return getIconUrl('yaoqing.png')
+}
+
 // 导出CDN基础URL，供其他地方使用
 export { CDN_BASE_URL }
 

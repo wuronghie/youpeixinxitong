@@ -1,317 +1,218 @@
 <template>
-	<view class="profile-edit-page">
+	<view class="page">
 		<scroll-view scroll-y class="scroll" :scroll-into-view="scrollIntoView" scroll-with-animation>
-			<view class="page-content px-3 py-3">
-				<!-- 提示卡片 -->
-				<view class="notice-card mb-3 p-3">
-					<view class="d-flex a-center mb-2">
-						<view class="icon-warning mr-2" style="width: 40rpx; height: 40rpx;"></view>
-						<text class="font-md font-weight notice-title">重要提示</text>
+			<text class="form-tip">审核期间不可被搜索；审核通过后展示给家长。</text>
+
+			<view class="form-card" :class="{ 'error-highlight': errors.name || errors.avatar || errors.gender || errors.contact_mobile || errors.hourly_rate || errors.experience_years }">
+				<view class="form-row" :class="{ 'error-item': errors.avatar }" id="field-avatar" @click="chooseAvatar">
+					<text class="form-label">头像 <text class="req">*</text></text>
+					<view class="form-right">
+						<image class="avatar" :src="formData.avatar || defaultAvatar" mode="aspectFill"></image>
+						<text class="form-em">{{ avatarUploading ? '上传中...' : (formData.avatar ? '点击更换证件照' : '点击上传证件照') }}</text>
 					</view>
-					<text class="font-sm notice-text d-block">请认真填写您的资料信息，审核期间无法被家长搜索到。审核通过后，您的资料将展示给家长，请确保信息真实有效。</text>
 				</view>
+				<text v-if="errors.avatar" class="error-text">{{ errors.avatar }}</text>
 
-				<!-- 头像和基本信息 -->
-				<card class="mb-3 profile-card" :class="{ 'error-highlight': errors.name || errors.avatar || errors.gender || errors.contact_mobile }">
-					<view class="profile-hero p-3">
-						<view class="avatar-picker d-flex flex-column a-center mr-4" :class="{ 'avatar-error': errors.avatar }" id="field-avatar" @click="chooseAvatar">
-							<view class="avatar-ring rounded-circle d-flex a-center j-center">
-								<image class="rounded-circle" :src="formData.avatar || defaultAvatar" mode="aspectFill" style="width: 140rpx;height: 140rpx;"></image>
-							</view>
-							<view class="d-flex a-center mt-2">
-								<text class="main-text-color font-sm">{{ avatarUploading ? '上传中...' : (formData.avatar ? '点击更换头像' : '点击上传头像') }}</text>
-								<text class="required-star ml-1">*</text>
-							</view>
-							<text class="font-xs text-danger mt-1" style="text-align:center;line-height:1.5;">请上传本人证件照或自拍照，便于家长识别与审核</text>
-							<text v-if="errors.avatar" class="error-text mt-1">{{ errors.avatar }}</text>
-						</view>
-						<view class="flex-1">
-							<view class="font-lg font-weight mb-1 main-text-color">教师主页信息</view>
-							<text class="font-sm text-light-muted d-block mb-3">家长会先看到你的头像、姓名、性别与介绍，建议尽量完整填写。</text>
-							<view class="d-flex a-center j-sb py-3 form-item" :class="{ 'error-item': errors.name }" id="field-name">
-								<view class="d-flex a-center">
-									<text class="font-md required-label">姓名</text>
-									<text class="required-star">*</text>
-								</view>
-								<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.name }" v-model.trim="formData.name" placeholder="请输入真实姓名" placeholder-class="text-light-muted" @input="clearError('name')" />
-							</view>
-							<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.gender }" id="field-gender">
-								<view class="d-flex a-center">
-									<text class="font-md required-label">性别</text>
-									<text class="required-star">*</text>
-								</view>
-								<view class="d-flex a-center">
-									<view class="gender-item rounded px-3 py-1 mr-2 font-sm"
-										:class="formData.gender === 'male' ? 'gender-selected male' : 'gender-default'"
-										@click="selectGender('male')">男</view>
-									<view class="gender-item rounded px-3 py-1 font-sm"
-										:class="formData.gender === 'female' ? 'gender-selected female' : 'gender-default'"
-										@click="selectGender('female')">女</view>
-								</view>
-							</view>
-							<text v-if="errors.gender" class="error-text ml-3">{{ errors.gender }}</text>
-							<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.contact_mobile }" id="field-contact-mobile">
-								<view class="d-flex a-center">
-									<text class="font-md required-label">联系手机号</text>
-									<text class="required-star">*</text>
-								</view>
-								<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.contact_mobile }" v-model="formData.contact_mobile" type="number" maxlength="11" placeholder="方便家长/管理员联系你的手机号" placeholder-class="text-light-muted" @input="clearError('contact_mobile')" />
-							</view>
-							<text v-if="errors.contact_mobile" class="error-text ml-3">{{ errors.contact_mobile }}</text>
-						</view>
-					</view>
-				</card>
+				<view class="form-row" :class="{ 'error-item': errors.name }" id="field-name">
+					<text class="form-label">姓名 <text class="req">*</text></text>
+					<input class="form-input" :class="{ 'error-input': errors.name }" v-model.trim="formData.name" placeholder="请输入真实姓名" placeholder-class="ph" @input="clearError('name')" />
+				</view>
+				<text v-if="errors.name" class="error-text">{{ errors.name }}</text>
 
-				<!-- 教学信息 -->
-				<card headTitle="教学信息" class="mb-3 section-card" :class="{ 'error-highlight': errors.subjects || errors.grades || errors.hourly_rate || errors.experience_years }">
-					<view class="p-3">
-						<text class="section-tip d-block mb-3">{{ isFullTimeTeacher ? '专职教师无需填写适合年级；请选择擅长科目并补充课时费与教龄。' : '选择你擅长的科目、年级，并补充课时费与教龄，方便家长快速判断是否匹配。' }}</text>
-						<view class="mb-4" :class="{ 'error-item': errors.subjects }" id="field-subjects">
-							<view class="d-flex a-center mb-3">
-								<text class="font-md required-label">教学科目</text>
-								<text class="required-star">*</text>
-							</view>
-							<view class="d-flex flex-wrap">
-								<view
-									v-for="subject in subjectOptions"
-									:key="subject.value"
-									class="tag-item rounded px-3 py-2 mr-2 mb-2 font-sm"
-									:class="formData.subjects.includes(subject.value) ? 'tag-selected' : 'tag-default'"
-									@click="toggleSubject(subject.value)"
-								>
-									{{ subject.label }}
-								</view>
-							</view>
-							<text v-if="errors.subjects" class="error-text">{{ errors.subjects }}</text>
-						</view>
-						<view v-if="!isFullTimeTeacher" class="mb-4" :class="{ 'error-item': errors.grades }" id="field-grades">
-							<view class="d-flex a-center mb-3">
-								<text class="font-md required-label">适合年级</text>
-								<text class="required-star">*</text>
-							</view>
-							<view class="d-flex flex-wrap">
-								<view
-									v-for="grade in gradeOptions"
-									:key="grade"
-									class="tag-item rounded px-3 py-2 mr-2 mb-2 font-sm"
-									:class="formData.grades.includes(grade) ? 'tag-selected' : 'tag-default'"
-									@click="toggleGrade(grade)"
-								>
-									{{ grade }}
-								</view>
-							</view>
-							<text v-if="errors.grades" class="error-text">{{ errors.grades }}</text>
-						</view>
-						<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.hourly_rate }" id="field-hourly_rate">
-							<view class="d-flex a-center">
-								<text class="font-md required-label">课时费</text>
-								<text class="required-star">*</text>
-								<text class="font-sm text-light-muted ml-1">(元/小时)</text>
-							</view>
-							<view class="d-flex a-center">
-								<text class="font-sm text-light-muted mr-1">¥</text>
-								<input class="text-right font-sm form-input" :class="{ 'error-input': errors.hourly_rate }" style="width: 200rpx;" type="number" v-model.number="formData.hourly_rate" placeholder="请输入金额" placeholder-class="text-light-muted" @input="clearError('hourly_rate')" />
-								<text class="font-sm text-light-muted ml-1">/时</text>
-							</view>
-						</view>
-						<text v-if="errors.hourly_rate" class="error-text ml-3">{{ errors.hourly_rate }}</text>
-						<view class="d-flex a-center j-sb py-3 border-top form-item" :class="{ 'error-item': errors.experience_years }" id="field-experience-years">
-							<view class="d-flex a-center">
-								<text class="font-md required-label">教龄 (年)</text>
-								<text class="required-star">*</text>
-							</view>
-							<input class="text-right font-sm flex-1 ml-3 form-input" :class="{ 'error-input': errors.experience_years }" type="number" v-model.number="formData.experience_years" placeholder="请输入教龄" placeholder-class="text-light-muted" @input="clearError('experience_years')" />
-						</view>
-						<text v-if="errors.experience_years" class="error-text ml-3">{{ errors.experience_years }}</text>
+				<view class="form-row" :class="{ 'error-item': errors.gender }" id="field-gender">
+					<text class="form-label">性别 <text class="req">*</text></text>
+					<view class="seg">
+						<text class="seg-item" :class="{ on: formData.gender === 'male' }" @click="selectGender('male')">男</text>
+						<text class="seg-item" :class="{ on: formData.gender === 'female' }" @click="selectGender('female')">女</text>
 					</view>
-				</card>
+				</view>
+				<text v-if="errors.gender" class="error-text">{{ errors.gender }}</text>
 
-				<!-- 自我介绍 -->
-				<card class="mb-3 section-card" :class="{ 'error-highlight': errors.introduction }">
-					<view slot="title" class="d-flex a-center">
-						<text class="font-md required-label">自我介绍</text>
-						<text class="required-star">*</text>
-					</view>
-					<view class="p-3" id="field-introduction">
-						<text class="section-tip d-block mb-3">建议突出教学经验、提分案例、擅长学生类型和授课风格，内容越具体越容易获得家长信任。</text>
-						<textarea
-							class="form-textarea bg-light-secondary rounded px-3 py-2 font-sm"
-							:class="{ 'error-input': errors.introduction }"
-							v-model.trim="formData.introduction"
-							maxlength="600"
-							placeholder="从教学经验、教学特色、擅长领域等角度介绍自己，建议不少于60字"
-							placeholder-class="text-light-muted"
-							style="min-height: 220rpx;"
-							@input="clearError('introduction')"
-						/>
-						<text v-if="errors.introduction" class="error-text mt-2 d-block">{{ errors.introduction }}</text>
-					</view>
-				</card>
+				<view class="form-row" :class="{ 'error-item': errors.contact_mobile }" id="field-contact-mobile">
+					<text class="form-label">联系手机 <text class="req">*</text></text>
+					<input class="form-input" :class="{ 'error-input': errors.contact_mobile }" v-model="formData.contact_mobile" type="number" maxlength="11" placeholder="方便联系的手机号" placeholder-class="ph" @input="clearError('contact_mobile')" />
+				</view>
+				<text v-if="errors.contact_mobile" class="error-text">{{ errors.contact_mobile }}</text>
 
-				<!-- 教育背景 -->
-				<card headTitle="教育背景" class="mb-3 section-card">
-					<view class="p-3">
-						<text class="section-tip d-block mb-3">是否在读、学历和专业会展示在教师主页，建议如实填写，提升资料可信度。</text>
-						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-school">
-							<text class="font-md">是否在读</text>
-							<picker :range="schoolOptions" range-key="label" @change="onSchoolChange">
-								<view class="font-sm picker-view" :class="formData.school ? '' : 'text-light-muted'">{{ getSchoolLabel(formData.school) || '请选择是否在读（可选）' }}</view>
-							</picker>
-						</view>
-						<view class="d-flex a-center j-sb py-3 border-bottom form-item" id="field-experience">
-							<text class="font-md">教师资历</text>
-							<picker :range="filteredExperienceOptions" range-key="label" @change="onExperienceChange">
-								<view class="font-sm picker-view" :class="formData.experience ? '' : 'text-light-muted'">{{ getExperienceLabel(formData.experience) || (isFullTimeTeacher ? '请选择专职教龄（可选）' : '请选择在读年级/资历（可选）') }}</view>
-							</picker>
-						</view>
-						<view class="d-flex a-center j-sb py-3 border-bottom form-item">
-							<text class="font-md">最高学历</text>
-							<picker :range="degreeOptions" @change="onDegreeChange">
-								<view class="font-sm picker-view" :class="formData.education.degree ? '' : 'text-light-muted'">{{ formData.education.degree || '请选择' }}</view>
-							</picker>
-						</view>
-						<view class="d-flex a-center j-sb py-3 border-bottom form-item">
-							<text class="font-md">专业</text>
-							<input class="text-right font-sm flex-1 ml-3 form-input" v-model.trim="formData.education.major" placeholder="请输入专业" placeholder-class="text-light-muted" />
-						</view>
-						<view class="d-flex a-center j-sb py-3 form-item">
-							<text class="font-md">毕业年份</text>
-							<input class="text-right font-sm flex-1 ml-3 form-input" type="number" v-model.number="formData.education.graduation_year" placeholder="如：2018" placeholder-class="text-light-muted" />
-						</view>
+				<view class="form-row" :class="{ 'error-item': errors.hourly_rate }" id="field-hourly_rate">
+					<text class="form-label">课时费 <text class="req">*</text></text>
+					<view class="form-right">
+						<text class="form-em">¥</text>
+						<input class="form-input rate" :class="{ 'error-input': errors.hourly_rate }" type="number" v-model.number="formData.hourly_rate" placeholder="元/小时" placeholder-class="ph" @input="clearError('hourly_rate')" />
 					</view>
-				</card>
+				</view>
+				<text v-if="errors.hourly_rate" class="error-text">{{ errors.hourly_rate }}</text>
 
-				<!-- 附加标签 -->
-				<card headTitle="附加标签" class="mb-3 section-card">
-					<view class="p-3">
-						<text class="font-sm text-light-muted d-block mb-3">选择您的教学特色标签（可多选）</text>
-						<view class="d-flex flex-wrap">
-							<view
-								v-for="tag in tagOptions"
-								:key="tag.value"
-								class="tag-item rounded px-3 py-2 mr-2 mb-2 font-sm"
-								:class="formData.tags.includes(tag.value) ? 'tag-selected' : 'tag-default'"
-								@click="toggleTag(tag.value)"
-							>
-								{{ tag.label }}
-							</view>
-						</view>
-					</view>
-				</card>
-
-				<!-- 教学地区 -->
-				<card headTitle="教学地区" class="mb-3 section-card">
-					<view slot="right" class="main-text-color font-sm" @click="addTeachingArea">+ 添加地区</view>
-					<view class="p-3">
-						<text class="section-tip d-block mb-3">选择常驻或可授课地点，家长端会展示你的教学地址并计算距离。</text>
-						<view v-if="formData.teaching_areas.length" class="d-flex flex-column">
-							<view v-for="(area, index) in formData.teaching_areas" :key="index" class="teaching-area-card rounded px-3 py-3 mb-3">
-								<view class="d-flex a-center j-sb mb-2">
-									<text class="font-sm text-light-muted">教学地址</text>
-									<view class="d-flex a-center" @click="handleChooseLocation(index)">
-										<text class="font-sm main-text-color mr-2">{{ getAreaDisplay(area) || '点击选择地址' }}</text>
-										<text class="iconfont icon-arrow-right font-sm text-light-muted"></text>
-									</view>
-								</view>
-								<!-- 地图预览 -->
-								<view v-if="area.latitude && area.longitude" class="map-preview-container">
-									<map
-										:latitude="parseFloat(area.latitude)"
-										:longitude="parseFloat(area.longitude)"
-										:markers="getAreaMarkers(area, index)"
-										:scale="15"
-										:show-location="true"
-										style="width: 100%; height: 300rpx; border-radius: 12rpx;"
-										@tap="handleOpenAreaLocation(index)"
-									></map>
-								</view>
-								<text class="text-danger font-sm" v-if="formData.teaching_areas.length > 1" @click="removeTeachingArea(index)">删除</text>
-							</view>
-						</view>
-						<view v-else class="text-center text-light-muted font-sm py-3">暂未添加教学地区</view>
-					</view>
-				</card>
-
-				<!-- 资质证书 -->
-				<card class="mb-3 section-card" :class="{ 'error-highlight': errors.qualifications }">
-					<view slot="title" class="d-flex a-center">
-						<text class="font-md required-label">资质证书</text>
-						<text class="required-star">*</text>
-					</view>
-					<view slot="right" class="main-text-color font-sm" @click="addQualification">+ 添加证书</view>
-					<view class="p-3" id="field-qualifications">
-						<view class="verification-guide rounded px-3 py-3 mb-3">
-							<text class="font-sm text-light-muted d-block mb-2">请先前往官方查询页面核验，再截图上传相关材料。至少上传 1 张截图。</text>
-							<view class="d-flex flex-wrap">
-								<view
-									v-for="link in verificationLinks"
-									:key="link.url"
-									class="verify-link-btn rounded px-3 py-2 mr-2 mb-2 font-sm"
-									@click="openVerificationLink(link)"
-								>
-									{{ link.title }}
-								</view>
-							</view>
-						</view>
-						<view v-if="formData.qualifications.length" class="d-flex flex-column">
-							<view v-for="(q, index) in formData.qualifications" :key="index" class="qualification-card rounded px-3 py-3 mb-3">
-								<input class="font-sm mb-2 form-input" v-model.trim="q.name" placeholder="证书名称，例如：教师资格证" placeholder-class="text-light-muted" />
-								<input class="font-sm mb-2 form-input" v-model.trim="q.number" placeholder="证书编号（可选）" placeholder-class="text-light-muted" />
-								<view class="mb-2">
-									<text class="font-sm text-light-muted d-block mb-2">证书截图</text>
-									<view class="upload-box bg-white rounded border border-light-muted" style="min-height: 200rpx; position: relative;" @click="uploadQualificationImage(index)">
-										<image v-if="q.image" class="rounded" :src="q.image" mode="aspectFit" style="width: 100%; min-height: 200rpx; max-height: 400rpx;"></image>
-										<view v-else class="d-flex flex-column a-center j-center" style="min-height: 200rpx;">
-											<view class="icon-camera" style="width: 48rpx; height: 48rpx; color: #ddd;"></view>
-											<text class="font-sm text-light-muted mt-2">上传截图</text>
-										</view>
-										<view v-if="q.image" class="position-absolute top-0 right-0 bg-black rounded px-2 py-1" style="opacity: 0.6; z-index: 10;" @click.stop="removeQualificationImage(index)">
-											<text class="text-white font-xs">删除</text>
-										</view>
-									</view>
-								</view>
-								<text class="text-danger font-sm" @click="removeQualification(index)">删除证书</text>
-							</view>
-						</view>
-						<view v-else class="text-center text-light-muted font-sm py-3">请至少添加 1 条资质材料并上传截图</view>
-						<text v-if="errors.qualifications" class="error-text d-block mt-2">{{ errors.qualifications }}</text>
-					</view>
-				</card>
-
-				<!-- 管理员说明 -->
-				<card class="mb-3 section-card">
-					<view slot="title" class="font-md font-weight">联系管理员</view>
-					<view class="p-3">
-						<text class="font-sm text-light-muted d-block mb-3" style="line-height: 1.8;">
-							如在资料完善、资质上传或审核过程中遇到问题，可添加管理员微信沟通。添加时请备注“教师入驻 + 姓名”，方便尽快处理。
-						</text>
-						<view class="admin-card rounded px-3 py-3 d-flex a-center j-sb" @click="copyAdminWechat">
-							<view class="d-flex a-center">
-								<view class="admin-avatar rounded-circle d-flex a-center j-center mr-3">
-									<text class="font-md text-white font-weight">管</text>
-								</view>
-								<view>
-									<text class="font-md font-weight d-block mb-1">平台管理员</text>
-									<text class="font-sm text-light-muted d-block">微信号：{{ adminWechat }}</text>
-								</view>
-							</view>
-							<view class="copy-btn rounded px-3 py-2">
-								<text class="font-sm">复制微信号</text>
-							</view>
-						</view>
-					</view>
-				</card>
+				<view class="form-row last" :class="{ 'error-item': errors.experience_years }" id="field-experience-years">
+					<text class="form-label">教龄 <text class="req">*</text></text>
+					<input class="form-input" :class="{ 'error-input': errors.experience_years }" type="number" v-model.number="formData.experience_years" placeholder="请输入教龄（年）" placeholder-class="ph" @input="clearError('experience_years')" />
+				</view>
+				<text v-if="errors.experience_years" class="error-text">{{ errors.experience_years }}</text>
 			</view>
+
+			<view class="section-card" :class="{ 'error-highlight': errors.subjects }" id="field-subjects">
+				<text class="section-title">教学科目 <text class="req">*</text></text>
+				<view class="tags">
+					<text
+						v-for="subject in subjectOptions"
+						:key="subject.value"
+						class="chip"
+						:class="{ on: formData.subjects.includes(subject.value) }"
+						@click="toggleSubject(subject.value)"
+					>{{ subject.label }}</text>
+				</view>
+				<text v-if="errors.subjects" class="error-text">{{ errors.subjects }}</text>
+			</view>
+
+			<view v-if="!isFullTimeTeacher" class="section-card" :class="{ 'error-highlight': errors.grades }" id="field-grades">
+				<text class="section-title">适合年级 <text class="req">*</text></text>
+				<view class="tags">
+					<text
+						v-for="grade in gradeOptions"
+						:key="grade"
+						class="chip"
+						:class="{ on: formData.grades.includes(grade) }"
+						@click="toggleGrade(grade)"
+					>{{ grade }}</text>
+				</view>
+				<text v-if="errors.grades" class="error-text">{{ errors.grades }}</text>
+			</view>
+
+			<view class="section-card" :class="{ 'error-highlight': errors.introduction }" id="field-introduction">
+				<text class="section-title">自我介绍 <text class="req">*</text>（600字）</text>
+				<textarea
+					class="intro-input"
+					:class="{ 'error-input': errors.introduction }"
+					v-model.trim="formData.introduction"
+					maxlength="600"
+					placeholder="从教学经验、教学特色、擅长领域等角度介绍自己，建议不少于60字"
+					:show-confirm-bar="false"
+					:cursor-spacing="24"
+					placeholder-class="ph"
+					@input="clearError('introduction')"
+				/>
+				<text v-if="errors.introduction" class="error-text">{{ errors.introduction }}</text>
+			</view>
+
+			<view class="form-card">
+				<view class="form-row" id="field-school">
+					<text class="form-label">是否在读</text>
+					<picker :range="schoolOptions" range-key="label" @change="onSchoolChange">
+						<text class="form-em">{{ getSchoolLabel(formData.school) || '请选择' }}</text>
+					</picker>
+				</view>
+				<view class="form-row" id="field-experience">
+					<text class="form-label">教师资历</text>
+					<picker :range="filteredExperienceOptions" range-key="label" @change="onExperienceChange">
+						<text class="form-em">{{ getExperienceLabel(formData.experience) || '请选择' }}</text>
+					</picker>
+				</view>
+				<view class="form-row">
+					<text class="form-label">最高学历</text>
+					<picker :range="degreeOptions" @change="onDegreeChange">
+						<text class="form-em">{{ formData.education.degree || '请选择' }}</text>
+					</picker>
+				</view>
+				<view class="form-row">
+					<text class="form-label">专业</text>
+					<input class="form-input" v-model.trim="formData.education.major" placeholder="请输入专业" placeholder-class="ph" />
+				</view>
+				<view class="form-row last">
+					<text class="form-label">毕业年份</text>
+					<input class="form-input" type="number" v-model.number="formData.education.graduation_year" placeholder="如：2018" placeholder-class="ph" />
+				</view>
+			</view>
+
+			<view class="section-card">
+				<text class="section-title">附加标签</text>
+				<view class="tags">
+					<text
+						v-for="tag in tagOptions"
+						:key="tag.value"
+						class="chip"
+						:class="{ on: formData.tags.includes(tag.value) }"
+						@click="toggleTag(tag.value)"
+					>{{ tag.label }}</text>
+				</view>
+			</view>
+
+			<view class="section-card">
+				<view class="section-head">
+					<text class="section-title">教学地区</text>
+					<text class="section-more" @click="addTeachingArea">+ 添加</text>
+				</view>
+				<view v-if="formData.teaching_areas.length">
+					<view v-for="(area, index) in formData.teaching_areas" :key="index" class="area-block">
+						<view class="form-row last" @click="handleChooseLocation(index)">
+							<text class="form-label">地址</text>
+							<text class="form-em">{{ getAreaDisplay(area) || '点击选择地址' }}</text>
+						</view>
+						<view v-if="area.latitude && area.longitude" class="map-preview">
+							<map
+								:latitude="parseFloat(area.latitude)"
+								:longitude="parseFloat(area.longitude)"
+								:markers="getAreaMarkers(area, index)"
+								:scale="15"
+								:show-location="true"
+								style="width: 100%; height: 240rpx;"
+								@tap="handleOpenAreaLocation(index)"
+							></map>
+						</view>
+						<text v-if="formData.teaching_areas.length > 1" class="danger-link" @click="removeTeachingArea(index)">删除</text>
+					</view>
+				</view>
+				<text v-else class="empty-line">暂未添加教学地区</text>
+			</view>
+
+			<view class="section-card" :class="{ 'error-highlight': errors.qualifications }" id="field-qualifications">
+				<view class="section-head">
+					<text class="section-title">资质证书 <text class="req">*</text>（至少 1 张）</text>
+					<text class="section-more" @click="addQualification">+ 添加</text>
+				</view>
+				<text class="hint">请先前往官方查询页面核验，再截图上传。至少上传 1 张截图。</text>
+				<view class="tags">
+					<text
+						v-for="link in verificationLinks"
+						:key="link.url"
+						class="chip"
+						@click="openVerificationLink(link)"
+					>{{ link.title }}</text>
+				</view>
+				<view v-if="formData.qualifications.length">
+					<view v-for="(q, index) in formData.qualifications" :key="index" class="cert-block">
+						<input class="form-input left" v-model.trim="q.name" placeholder="证书名称，例如：教师资格证" placeholder-class="ph" />
+						<input class="form-input left" v-model.trim="q.number" placeholder="证书编号（可选）" placeholder-class="ph" />
+						<view class="upload-box" @click="uploadQualificationImage(index)">
+							<image v-if="q.image" class="cert-img" :src="q.image" mode="aspectFit"></image>
+							<text v-else class="form-em">上传截图</text>
+							<text v-if="q.image" class="remove-img" @click.stop="removeQualificationImage(index)">删除图片</text>
+						</view>
+						<text class="danger-link" @click="removeQualification(index)">删除证书</text>
+					</view>
+				</view>
+				<text v-else class="empty-line">请至少添加 1 条资质材料并上传截图</text>
+				<text v-if="errors.qualifications" class="error-text">{{ errors.qualifications }}</text>
+			</view>
+
+			<view class="form-card">
+				<text class="section-title inner">联系管理员</text>
+				<text class="hint">资料或审核遇到问题，可复制微信号沟通，备注「教师入驻 + 姓名」。</text>
+				<view class="form-row last" @click="copyAdminWechat">
+					<text class="form-label">微信</text>
+					<text class="code-pill">{{ adminWechat }} 复制</text>
+				</view>
+			</view>
+
+			<view class="scroll-spacer"></view>
 		</scroll-view>
 
-		<view class="action-bar position-fixed bottom-0 left-0 right-0 d-flex a-center px-3 py-3">
-			<button class="save-btn w-100 text-white rounded px-3 py-2 font-md" :loading="saving" @click="saveProfile">保存资料</button>
+		<view class="action-bar">
+			<button class="save-btn" :loading="saving" @click="saveProfile">保存资料</button>
 		</view>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { mockTeachers, useMockData } from '@/utils/mockData.js'
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 import { 
@@ -319,15 +220,12 @@ import {
 	openLocation, 
 	requestLocationPermission 
 } from '@/utils/location.js'
-import { wxCheckLocalImageBeforeUpload } from '@/utils/wxContentSecurity.js'
+import { wxCheckLocalImageBeforeUpload } from '../utils/wxContentSecurity.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
 export default {
 	name: 'TeacherProfileEdit',
-	components: {
-		card
-	},
 	data() {
 		return {
 			formData: {
@@ -1244,311 +1142,309 @@ export default {
 </script>
 
 <style scoped>
-.profile-edit-page {
-	background: linear-gradient(180deg, #f7f9fc 0%, #f3f5f9 100%);
+.page {
 	min-height: 100vh;
-}
-
-.page-content {
-	padding-bottom: 220rpx;
+	background: #F4F6F9;
 }
 
 .scroll {
-	flex: 1;
-	height: calc(100vh - 200rpx);
-	padding-bottom: 160rpx;
+	height: calc(100vh - 140rpx);
 }
 
-.profile-card,
+.form-tip {
+	display: block;
+	padding: 20rpx 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+
+.form-card,
 .section-card {
-	border-radius: 28rpx;
-	overflow: hidden;
-}
-
-.notice-card {
-	background: linear-gradient(135deg, #fff8ea 0%, #fff3d8 100%);
-	border: 2rpx solid #ffe3a8;
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
 	border-radius: 24rpx;
-	box-shadow: 0 10rpx 24rpx rgba(255, 187, 51, 0.08);
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
-.notice-title {
-	color: #b7791f;
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
 }
 
-.notice-text {
-	color: #9a6b13;
-	line-height: 1.7;
+.section-card {
+	padding: 28rpx 32rpx;
 }
 
-.profile-hero {
+.section-head {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8rpx;
 }
 
-.avatar-picker {
-	min-width: 180rpx;
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-.avatar-ring {
-	width: 156rpx;
-	height: 156rpx;
-	padding: 8rpx;
-	background: linear-gradient(135deg, rgba(79, 123, 255, 0.2) 0%, rgba(110, 168, 255, 0.12) 100%);
-	box-shadow: 0 12rpx 28rpx rgba(79, 123, 255, 0.12);
+.section-title.inner {
+	padding-top: 16rpx;
 }
 
-.section-tip {
-	color: #8b96a9;
-	line-height: 1.7;
+.section-more {
+	font-size: 24rpx;
+	color: #2563EB;
 }
 
-/* 必填项标注 */
-.required-label {
-	font-weight: 500;
-	color: #333;
-}
-.required-star {
-	color: #ff4757;
-	font-size: 32rpx;
-	font-weight: bold;
-	margin-left: 4rpx;
+.req {
+	color: #FA5151;
 }
 
-/* 表单项样式 */
-.form-item {
-	min-height: 88rpx;
-	transition: all 0.3s;
-	border-radius: 18rpx;
-}
-.form-input {
-	border: none;
-	outline: none;
-	background: transparent;
-}
-.form-input.error-input {
-	color: #ff4757;
-}
-.form-textarea {
-	border: none;
-	outline: none;
-	resize: none;
-	width: 100%;
-	min-height: 240rpx;
-	line-height: 1.7;
-	box-sizing: border-box;
-}
-.verification-guide {
-	background: linear-gradient(135deg, #f6f9ff 0%, #eef3ff 100%);
-	border: 2rpx solid #dbe6ff;
-}
-.verify-link-btn {
-	background: #ffffff;
-	color: #4f7bff;
-	border: 2rpx solid #d7e3ff;
-	box-shadow: 0 6rpx 16rpx rgba(79, 123, 255, 0.08);
-}
-.teaching-area-card,
-.qualification-card {
-	background: linear-gradient(180deg, #fafbff 0%, #f5f7fc 100%);
-	border: 2rpx solid #edf1f7;
-}
-.upload-box {
-	border-style: dashed;
-	border-width: 2rpx;
-	border-color: #dbe3f0 !important;
-	box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, 0.65);
-}
-.admin-card {
-	background: linear-gradient(135deg, #f7f9ff 0%, #eef3ff 100%);
-	border: 2rpx solid #dbe6ff;
-	box-shadow: 0 10rpx 24rpx rgba(79, 123, 255, 0.08);
-}
-.admin-avatar {
-	width: 88rpx;
-	height: 88rpx;
-	background: linear-gradient(135deg, #4f7bff 0%, #6ea8ff 100%);
-}
-.copy-btn {
-	background: #ffffff;
-	color: #4f7bff;
-	border: 2rpx solid #cfe0ff;
-	box-shadow: 0 6rpx 16rpx rgba(79, 123, 255, 0.08);
+.form-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	min-height: 96rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
 }
 
-/* 选择器样式 */
-.picker-view {
-	color: #333;
-	min-width: 200rpx;
+.form-row.last {
+	border-bottom: none;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+
+.form-right {
+	display: flex;
+	align-items: center;
+	gap: 12rpx;
+	min-width: 0;
+}
+
+.form-em {
+	font-size: 26rpx;
+	color: #8B919C;
 	text-align: right;
 }
 
-/* 性别选择样式 */
-.gender-item {
-	min-width: 96rpx;
-	text-align: center;
-	transition: all 0.3s;
-	cursor: pointer;
-	border: 2rpx solid #e0e0e0;
-	background-color: #f5f5f5;
-	color: #666;
-	padding: 8rpx 24rpx;
+.form-input {
+	flex: 1;
+	min-width: 0;
+	text-align: right;
+	font-size: 28rpx;
+	color: #1F2329;
 }
 
-.gender-default {
-	background-color: #f5f5f5;
-	color: #666;
-	border: 2rpx solid #e0e0e0;
-}
-
-.gender-selected.male {
-	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-	color: #fff;
-	border: 2rpx solid #4A90E2;
-	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
-}
-
-.gender-selected.female {
-	background: linear-gradient(135deg, #ff6b9a 0%, #e04a7c 100%);
-	color: #fff;
-	border: 2rpx solid #ff6b9a;
-	box-shadow: 0 4rpx 12rpx rgba(255, 107, 154, 0.3);
-}
-
-/* 头像错误提示 */
-.avatar-picker.avatar-error .avatar-ring {
-	border: 2rpx solid #ff4757;
-	box-shadow: 0 0 0 4rpx rgba(255, 71, 87, 0.18);
-}
-
-/* 标签样式 */
-.tag-item {
-	transition: all 0.3s;
-	cursor: pointer;
-}
-.tag-default {
-	background-color: #f5f5f5;
-	color: #666;
-	border: 2rpx solid #e0e0e0;
-}
-.tag-selected {
-	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-	color: #fff;
-	border: 2rpx solid #4A90E2;
-	box-shadow: 0 4rpx 12rpx rgba(74, 144, 226, 0.3);
-}
-
-/* 错误状态样式 */
-.error-highlight {
-	border: 2rpx solid #ffebee;
-	background-color: #fff5f5;
-	box-shadow: 0 10rpx 22rpx rgba(255, 71, 87, 0.08);
-}
-.error-item {
-	background-color: #fff5f5;
-	border-radius: 18rpx;
-	padding: 10rpx 14rpx;
-}
-.error-text {
-	color: #ff4757;
-	font-size: 24rpx;
-	margin-top: 8rpx;
-	display: block;
-}
-
-/* CSS图标样式 */
-.icon-warning {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-warning::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 0;
-	height: 0;
-	border-left: 20rpx solid transparent;
-	border-right: 20rpx solid transparent;
-	border-bottom: 14rpx solid currentColor;
-}
-.icon-warning::after {
-	content: '!';
-	position: absolute;
-	bottom: 6rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	color: #fff;
-	font-weight: bold;
-	font-size: 24rpx;
-	line-height: 1;
-}
-
-/* 地图预览容器 */
-.map-preview-container {
+.form-input.left {
+	text-align: left;
 	width: 100%;
-	height: 300rpx;
-	border-radius: 20rpx;
-	overflow: hidden;
-	background-color: #F5F5F5;
+	flex: none;
+	margin-bottom: 12rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.form-input.rate {
+	width: 160rpx;
+	flex: none;
+}
+
+.ph {
+	color: #C5C8CE;
+}
+
+.avatar {
+	width: 72rpx;
+	height: 72rpx;
+	border-radius: 50%;
+	background: #93B4FF;
+}
+
+.seg {
+	display: flex;
+	gap: 12rpx;
+}
+
+.seg-item {
+	min-width: 88rpx;
+	height: 56rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	color: #5C6370;
+	font-size: 26rpx;
+	line-height: 56rpx;
+	text-align: center;
+}
+
+.seg-item.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
 	margin-top: 16rpx;
-	box-shadow: 0 10rpx 24rpx rgba(15, 23, 42, 0.08);
+}
+
+.chip {
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
+}
+
+.chip.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+
+.intro-input {
+	width: 100%;
+	min-height: 220rpx;
+	margin-top: 16rpx;
+	padding: 20rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	font-size: 26rpx;
+	color: #1F2329;
+	line-height: 1.6;
+	box-sizing: border-box;
+}
+
+.hint {
+	display: block;
+	margin: 12rpx 0 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+
+.empty-line {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.area-block,
+.cert-block {
+	margin-top: 16rpx;
+	padding-top: 8rpx;
+	border-top: 1rpx solid #F3F4F6;
+}
+
+.map-preview {
+	margin-top: 12rpx;
+	border-radius: 16rpx;
+	overflow: hidden;
+	background: #F4F6F9;
+}
+
+.upload-box {
+	margin: 12rpx 0;
+	min-height: 200rpx;
+	border: 2rpx dashed #EBEDF0;
+	border-radius: 16rpx;
+	background: #F8FAFC;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	padding: 16rpx;
+}
+
+.cert-img {
+	width: 100%;
+	max-height: 360rpx;
+}
+
+.remove-img {
+	margin-top: 12rpx;
+	font-size: 22rpx;
+	color: #FA5151;
+}
+
+.danger-link {
+	display: inline-block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #FA5151;
+}
+
+.code-pill {
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 22rpx;
+	font-weight: 600;
+	line-height: 56rpx;
+}
+
+.error-highlight {
+	box-shadow: 0 0 0 2rpx #FFD0D0;
+}
+
+.error-item {
+	background: #FFF8F8;
+}
+
+.error-text {
+	display: block;
+	padding-bottom: 12rpx;
+	font-size: 22rpx;
+	color: #FA5151;
+}
+
+.error-input {
+	color: #FA5151;
+}
+
+.scroll-spacer {
+	height: 40rpx;
 }
 
 .action-bar {
-	z-index: 100;
-	background: rgba(255, 255, 255, 0.92);
-	backdrop-filter: blur(18rpx);
-	border-top: 1rpx solid rgba(226, 232, 240, 0.9);
-	box-shadow: 0 -10rpx 30rpx rgba(15, 23, 42, 0.06);
-	padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+	z-index: 20;
 }
 
 .save-btn {
-	background: linear-gradient(135deg, #4f7bff 0%, #3f8cff 100%);
 	height: 88rpx;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
 	line-height: 88rpx;
-	box-shadow: 0 16rpx 30rpx rgba(79, 123, 255, 0.25);
 }
 
-.icon-camera {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-camera::before {
-	content: '';
-	position: absolute;
-	top: 6rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 12rpx;
-	height: 8rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 4rpx;
-	background: transparent;
-}
-.icon-camera::after {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
+.save-btn::after {
+	border: none;
 }
 </style>

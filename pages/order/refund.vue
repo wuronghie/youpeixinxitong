@@ -1,81 +1,61 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3">
-			<view class="d-flex flex-column text-white">
-				<text class="font-lg font-weight mb-1">申请退款</text>
-				<text class="font-sm" style="opacity: 0.85;">提交后由平台审核，通过后原路退回</text>
+	<view class="page">
+		<text class="form-tip">{{ isTrialOrder ? '仅可在确认上课结果前申请。试课退款预计退 30%，70% 给教师。' : '仅可在确认上课结果前申请，提交后由平台审核。' }}</text>
+
+		<view class="form-card">
+			<view class="form-row">
+				<text class="form-label">订单号</text>
+				<text class="form-em">{{ order.order_no || '-' }}</text>
+			</view>
+			<view v-if="order.appointment_info" class="form-row">
+				<text class="form-label">预约教师</text>
+				<text class="form-val">{{ teacherLabel }}</text>
+			</view>
+			<view class="form-row">
+				<text class="form-label">订单金额</text>
+				<text class="form-val">¥{{ Number(order.amount || 0).toFixed(2) }}</text>
+			</view>
+			<view class="form-row last">
+				<text class="form-label">预计退款</text>
+				<text class="form-price">¥{{ refundAmount.toFixed(2) }}</text>
+			</view>
+			<text v-if="isTrialOrder" class="hint">审核通过后退回 30% 原路退回，其余 70% 结算给教师；当前预约取消后教师可再次邀请试课。</text>
+			<text v-else class="hint">正式课程退款由平台审核后按实际情况处理。</text>
+		</view>
+
+		<view class="section-card">
+			<text class="section-title">退款原因</text>
+			<view class="chips">
+				<text
+					v-for="(item, index) in reasonOptions"
+					:key="item"
+					class="chip"
+					:class="{ on: reasonIndex === index }"
+					@click="selectReason(index)"
+				>{{ item }}</text>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 订单信息 -->
-				<card headTitle="订单信息" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">订单号</text>
-						<text class="font-sm text-right">{{ order.order_no || '-' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">订单金额</text>
-						<text class="font-sm font-weight main-text-color text-right">¥{{ order.amount.toFixed(2) }}</text>
-					</view>
-					<view v-if="order.appointment_info" class="d-flex a-center j-sb py-2">
-						<text class="font-sm">预约教师</text>
-						<text class="font-sm text-right">{{ order.appointment_info.teacher_name || '教师' }}</text>
-					</view>
-				</card>
+		<view class="section-card">
+			<text class="section-title">补充说明（选填）</text>
+			<textarea
+				class="intro-input"
+				v-model.trim="form.description"
+				placeholder="讲解节奏偏快，孩子跟不上。"
+				maxlength="200"
+				auto-height
+				:show-confirm-bar="false"
+				:cursor-spacing="24"
+				placeholder-class="ph"
+			/>
+			<text class="count">{{ form.description.length }}/200</text>
+		</view>
 
-				<!-- 退款说明 -->
-				<card headTitle="退款说明" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">预计退款</text>
-						<text class="font-sm font-weight main-text-color text-right">¥{{ refundAmount.toFixed(2) }}</text>
-					</view>
-					<view class="refund-rule mt-2">
-						<template v-if="isTrialOrder">
-							<text class="font-sm d-block mb-1">试课退款规则：</text>
-							<text class="font-sm text-light-muted d-block">· 提交后需平台审核</text>
-							<text class="font-sm text-light-muted d-block">· 审核通过后退回试课费 30%（原路退回）</text>
-							<text class="font-sm text-light-muted d-block">· 其余 70% 结算给教师微信零钱</text>
-							<text class="font-sm text-light-muted d-block">· 审核通过后当前预约取消，教师可再次邀请试课</text>
-						</template>
-						<template v-else>
-							<text class="font-sm text-light-muted d-block">正式课程退款将由平台审核后按实际情况处理。</text>
-						</template>
-					</view>
-				</card>
+		<view class="scroll-spacer"></view>
 
-				<!-- 退款原因 -->
-				<card headTitle="退款原因" class="mb-3">
-					<picker mode="selector" :range="reasonOptions" :value="reasonIndex" @change="onReasonChange">
-						<view class="d-flex a-center j-sb py-2 bg-light-secondary rounded px-3">
-							<text class="font-sm" :class="form.reason ? '' : 'text-light-muted'">
-								{{ form.reason || '请选择退款原因' }}
-							</text>
-							<text class="iconfont icon-you text-light-muted"></text>
-						</view>
-					</picker>
-					<view class="mt-3">
-						<textarea
-							class="w-100 bg-light-secondary rounded px-3 py-2 font-sm mb-1"
-							v-model.trim="form.description"
-							placeholder="补充说明（选填）"
-							maxlength="200"
-							auto-height
-							placeholder-class="text-light-muted"
-							style="min-height: 140rpx;"
-						/>
-						<text class="font-sm text-light-muted text-right d-block">{{ form.description.length }}/200</text>
-					</view>
-				</card>
-			</view>
-		</scroll-view>
-
-		<!-- 唯一退款按钮 -->
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
+		<view class="action-bar">
 			<button
-				class="main-bg-color text-white rounded px-4 py-2 font-md font-weight w-100"
+				class="save-btn"
 				:disabled="isSubmitting"
 				@click="submitRefund"
 			>
@@ -86,16 +66,11 @@
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
-
 /** 试课家长退款比例（与 appointment-complete / 业务文案一致） */
 const TRIAL_PARENT_REFUND_RATE = 0.3
 
 export default {
 	name: 'OrderRefund',
-	components: {
-		card
-	},
 	data() {
 		return {
 			orderId: '',
@@ -110,7 +85,8 @@ export default {
 			reasonOptions: ['试课不满意', '教师爽约/未按时上课', '时间冲突需要调整', '其他原因'],
 			reasonIndex: -1,
 			isSubmitting: false,
-			isLoading: false
+			isLoading: false,
+			blockedByConfirm: false
 		}
 	},
 	computed: {
@@ -123,6 +99,13 @@ export default {
 				return Math.round(this.order.amount * TRIAL_PARENT_REFUND_RATE * 100) / 100
 			}
 			return this.order.amount
+		},
+		teacherLabel() {
+			const info = this.order.appointment_info || {}
+			const name = info.teacher_name || '教师'
+			if (info.course_type === 'trial') return `${name} · 试课`
+			if (info.course_type === 'regular' || info.course_type === 'formal') return `${name} · 正式课`
+			return name
 		}
 	},
 	async onLoad(options) {
@@ -133,6 +116,7 @@ export default {
 			return
 		}
 		await this.loadOrder()
+		if (this.blockedByConfirm) return
 		await this.loadRefundDetail()
 	},
 	methods: {
@@ -160,15 +144,11 @@ export default {
 			this.isLoading = true
 			try {
 				const paymentCreate = uniCloud.importObject('payment-create', { customUI: true })
-				const res = await paymentCreate.getOrderList({ status: 'all', page: 1, pageSize: 1, order_id: this.orderId })
-
-				let orderData
-				if (res.code === 0 && res.data?.list?.length) {
-					orderData = res.data.list.find(item => item._id === this.orderId || item.order_no === this.orderId) || res.data.list[0]
-				}
-				if (!orderData) {
+				const res = await paymentCreate.getOrderDetail({ order_id: this.orderId })
+				if (res.code !== 0 || !res.data) {
 					throw new Error(res.message || '获取订单失败')
 				}
+				const orderData = res.data
 
 				this.order = {
 					_id: orderData._id,
@@ -176,8 +156,17 @@ export default {
 					amount: Number(orderData.amount || orderData.total_amount || 0),
 					appointment_info: orderData.appointment_info ? {
 						course_type: orderData.appointment_info.course_type,
+						status: orderData.appointment_info.status,
+						has_review: !!orderData.appointment_info.has_review,
 						teacher_name: orderData.appointment_info.teacher_info?.display_name || orderData.appointment_info.teacher_info?.name
 					} : null
+				}
+				const apt = this.order.appointment_info || {}
+				if (apt.status === 'completed' || apt.has_review) {
+					this.blockedByConfirm = true
+					uni.showToast({ title: '已确认上课结果，不可再申请退款', icon: 'none' })
+					setTimeout(() => this.safeLeave(), 1500)
+					return
 				}
 			} catch (error) {
 				console.error('[退款申请] 加载订单失败:', error)
@@ -202,7 +191,9 @@ export default {
 			}
 		},
 		onReasonChange(e) {
-			const index = Number(e.detail.value)
+			this.selectReason(Number(e.detail.value))
+		},
+		selectReason(index) {
 			this.reasonIndex = index
 			this.form.reason = this.reasonOptions[index]
 		},
@@ -214,6 +205,11 @@ export default {
 		},
 		async submitRefund() {
 			if (this.isSubmitting) return
+			const apt = this.order.appointment_info || {}
+			if (apt.status === 'completed' || apt.has_review) {
+				uni.showToast({ title: '已确认上课结果，不可再申请退款', icon: 'none' })
+				return
+			}
 			const msg = this.validateForm()
 			if (msg) {
 				uni.showToast({ title: msg, icon: 'none' })
@@ -271,12 +267,178 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
-	flex: 1;
-	height: calc(100vh - 300rpx);
-	padding-bottom: 160rpx;
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+	padding-bottom: calc(148rpx + env(safe-area-inset-bottom));
 }
-.refund-rule {
-	line-height: 1.7;
+
+.form-tip {
+	display: block;
+	padding: 20rpx 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+
+.form-card,
+.section-card {
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
+}
+
+.section-card {
+	padding: 28rpx 32rpx;
+}
+
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.form-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24rpx;
+	min-height: 88rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.form-row.last {
+	border-bottom: none;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #5C6370;
+}
+
+.form-val {
+	flex: 1;
+	min-width: 0;
+	font-size: 28rpx;
+	font-weight: 500;
+	color: #1F2329;
+	text-align: right;
+}
+
+.form-em {
+	flex: 1;
+	min-width: 0;
+	font-size: 28rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.form-price {
+	flex: 1;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #FA5151;
+	text-align: right;
+}
+
+.hint {
+	display: block;
+	padding: 8rpx 0 12rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.6;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	margin-top: 20rpx;
+}
+
+.chip {
+	min-height: 64rpx;
+	padding: 0 20rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 64rpx;
+}
+
+.chip.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+
+.intro-input {
+	width: 100%;
+	min-height: 180rpx;
+	margin-top: 16rpx;
+	padding: 20rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	font-size: 26rpx;
+	color: #1F2329;
+	line-height: 1.6;
+	box-sizing: border-box;
+}
+
+.ph {
+	color: #C5C8CE;
+}
+
+.count {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.scroll-spacer {
+	height: 24rpx;
+}
+
+.action-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 20;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+
+.save-btn {
+	width: 100%;
+	height: 88rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
+}
+
+.save-btn::after {
+	border: none;
+}
+
+.save-btn[disabled] {
+	opacity: 0.55;
 }
 </style>

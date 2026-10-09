@@ -1,28 +1,19 @@
 <template>
 	<view class="chat-list-page">
-		<!-- 顶部导航栏 -->
-		<view class="navbar">
-			<view class="navbar-content">
-				<text class="navbar-title">家长沟通</text>
-			</view>
-		</view>
-
-		<!-- 搜索框 -->
 		<view class="search-box">
 			<view class="search-input-wrapper">
-				<view class="icon-search search-icon"></view>
+				<text class="iconfont icon-sousuo search-icon"></text>
 				<input
 					class="search-input"
 					v-model="searchKeyword"
-					placeholder="搜索"
+					placeholder="搜索家长姓名或消息"
 					placeholder-class="search-placeholder"
 					confirm-type="search"
 				/>
-				<view v-if="searchKeyword" class="icon-close clear-icon" @click="clearSearch"></view>
+				<text v-if="searchKeyword" class="iconfont icon-guanbi clear-icon" @click="clearSearch"></text>
 			</view>
 		</view>
 
-		<!-- 会话列表 -->
 		<scroll-view scroll-y class="list-scroll" @scrolltolower="loadMore">
 			<view v-if="loading && !displayList.length" class="loading-wrapper">
 				<view v-for="n in 5" :key="n" class="conversation-item skeleton">
@@ -41,9 +32,9 @@
 					class="conversation-item"
 					@click="goToConversation(item)"
 				>
-					<image 
-						class="avatar" 
-						:src="item.avatar || defaultAvatarUrl" 
+					<image
+						class="avatar"
+						:src="item.avatar || defaultAvatarUrl"
 						mode="aspectFill"
 					/>
 					<view class="content">
@@ -52,9 +43,9 @@
 							<text class="time">{{ formatTime(item.last_message_time) }}</text>
 						</view>
 						<view class="footer">
-							<text class="message" :class="{ 'unread': item.unread_count > 0 }">
-								{{ formatLastMessage(item.last_message) || '暂无消息' }}
-							</text>
+							<view class="message-wrap">
+								<text class="message" :class="{ unread: item.unread_count > 0 }">{{ formatLastMessage(item.last_message) || '暂无消息' }}</text>
+							</view>
 							<view v-if="item.unread_count > 0" class="badge">
 								{{ item.unread_count > 99 ? '99+' : item.unread_count }}
 							</view>
@@ -63,7 +54,7 @@
 				</view>
 
 				<view v-if="!loading && !displayList.length" class="empty-state">
-					<view class="empty-icon icon-chat" style="width: 120rpx; height: 120rpx; color: #ddd;"></view>
+					<view class="empty-mark"></view>
 					<text class="empty-text">暂无会话</text>
 					<text class="empty-hint">开始与家长沟通，建立信任</text>
 				</view>
@@ -72,7 +63,7 @@
 				<view v-else-if="finished && displayList.length" class="loading-more">没有更多了</view>
 			</view>
 		</scroll-view>
-		
+
 		<view class="tabbar-spacer"></view>
 		<TeacherTabBar current="chat" />
 	</view>
@@ -83,7 +74,7 @@ import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 
 import card from '@/components/common/card.vue'
 import { mockConversations, useMockData } from '@/utils/mockData.js'
-import TeacherTabBar from '@/components/TeacherTabBar.vue'
+import TeacherTabBar from '@/pages-teacher/components/TeacherTabBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
 import { onChatPush, offChatPush } from '@/utils/chatPush.js'
@@ -392,8 +383,12 @@ export default {
 				if (trimmed.includes('clock_out')) return '已下课打卡'
 				return '已上课打卡'
 			}
+			if (trimmed.includes('review_result')) {
+				if (trimmed.includes('is_auto') && trimmed.includes('true')) return '系统默认好评'
+				return '家长已评价'
+			}
 			
-			return message
+			return message.replace(/\s+/g, ' ').trim()
 		},
 		goToConversation(item) {
 			uni.navigateTo({
@@ -406,100 +401,83 @@ export default {
 
 <style scoped>
 .chat-list-page {
-	background: #EDEDED;
+	background: #F4F6F9;
 	min-height: 100vh;
 }
 
-/* 导航栏 */
-.navbar {
-	background: #FFFFFF;
-	padding-top: var(--status-bar-height, 0);
-}
-
-.navbar-content {
-	height: 88rpx;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-}
-
-.navbar-title {
-	font-size: 36rpx;
-	font-weight: 600;
-	color: #000000;
-}
-
-/* 搜索框 */
 .search-box {
-	background: #FFFFFF;
-	padding: 20rpx 30rpx;
+	padding: 16rpx 32rpx 8rpx;
 }
 
 .search-input-wrapper {
-	background: #F7F7F7;
-	border-radius: 10rpx;
+	background: #FFFFFF;
+	border-radius: 16rpx;
 	display: flex;
 	align-items: center;
-	padding: 0 30rpx;
+	padding: 0 24rpx;
 	height: 72rpx;
 }
 
 .search-icon {
-	font-size: 32rpx;
-	color: #999999;
-	margin-right: 20rpx;
+	font-size: 28rpx;
+	color: #8B919C;
+	margin-right: 12rpx;
 }
 
 .search-input {
 	flex: 1;
 	font-size: 28rpx;
-	color: #333333;
+	color: #1F2329;
 }
 
 .search-placeholder {
-	color: #999999;
+	color: #8B919C;
 }
 
 .clear-icon {
 	font-size: 28rpx;
-	color: #999999;
-	margin-left: 20rpx;
+	color: #8B919C;
+	margin-left: 16rpx;
 }
 
-/* 列表区域 */
 .list-scroll {
 	flex: 1;
-	height: calc(100vh - 200rpx);
+	height: calc(100vh - 96rpx);
+	margin-top: 8rpx;
+	background: #FFFFFF;
 }
 
-/* 会话项 */
 .conversation-item {
 	background: #FFFFFF;
 	display: flex;
 	align-items: center;
-	padding: 24rpx 30rpx;
-	border-bottom: 1rpx solid #EDEDED;
-	position: relative;
+	height: 144rpx;
+	padding: 0 32rpx;
+	border-bottom: 1rpx solid #F2F3F5;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .conversation-item:active {
-	background: #F5F5F5;
+	background: #F4F6F9;
 }
 
 .avatar {
 	width: 96rpx;
 	height: 96rpx;
-	border-radius: 8rpx;
+	border-radius: 50%;
 	margin-right: 24rpx;
 	flex-shrink: 0;
+	background: #EEF3FF;
 }
 
 .content {
 	flex: 1;
 	min-width: 0;
+	height: 88rpx;
 	display: flex;
 	flex-direction: column;
+	justify-content: center;
 	overflow: hidden;
 }
 
@@ -507,16 +485,15 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 12rpx;
-	min-height: 44rpx;
-	max-height: 44rpx;
-	flex-shrink: 0;
+	height: 44rpx;
+	margin-bottom: 4rpx;
+	overflow: hidden;
 }
 
 .name {
 	font-size: 32rpx;
-	font-weight: 500;
-	color: #000000;
+	font-weight: 600;
+	color: #1F2329;
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -524,34 +501,39 @@ export default {
 }
 
 .time {
-	font-size: 24rpx;
-	color: #999999;
-	margin-left: 20rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	margin-left: 16rpx;
 	flex-shrink: 0;
 }
 
 .footer {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	min-height: 40rpx;
-	max-height: 40rpx;
+	height: 40rpx;
+	overflow: hidden;
 }
 
-.message {
-	font-size: 28rpx;
-	color: #999999;
+.message-wrap {
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;
+}
+
+.message {
+	display: block;
+	width: 100%;
+	font-size: 26rpx;
+	color: #8B919C;
+	line-height: 40rpx;
+	height: 40rpx;
+	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	line-height: 40rpx;
-	max-height: 40rpx;
 }
 
 .message.unread {
-	color: #000000;
+	color: #5C6370;
 	font-weight: 500;
 }
 
@@ -565,14 +547,13 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0 12rpx;
+	padding: 0 8rpx;
 	margin-left: 16rpx;
 	flex-shrink: 0;
 }
 
-/* 加载状态 */
 .loading-wrapper {
-	padding: 20rpx 0;
+	background: #FFFFFF;
 }
 
 .skeleton {
@@ -582,8 +563,8 @@ export default {
 .avatar-skeleton {
 	width: 96rpx;
 	height: 96rpx;
-	border-radius: 8rpx;
-	background: #F0F0F0;
+	border-radius: 50%;
+	background: #EBEDF0;
 	margin-right: 24rpx;
 }
 
@@ -594,138 +575,52 @@ export default {
 .name-skeleton {
 	width: 200rpx;
 	height: 32rpx;
-	background: #F0F0F0;
-	border-radius: 4rpx;
-	margin-bottom: 12rpx;
+	background: #EBEDF0;
+	border-radius: 8rpx;
+	margin-bottom: 16rpx;
 }
 
 .message-skeleton {
 	width: 300rpx;
-	height: 28rpx;
-	background: #F0F0F0;
-	border-radius: 4rpx;
+	height: 24rpx;
+	background: #EBEDF0;
+	border-radius: 8rpx;
 }
 
-/* 空状态 */
 .empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	padding: 200rpx 0;
+	padding: 160rpx 32rpx;
+	background: #FFFFFF;
 }
 
-.empty-icon {
-	margin-bottom: 40rpx;
-}
-
-/* CSS图标样式 */
-.icon-search {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-search::before {
-	content: '';
-	position: absolute;
-	top: 4rpx;
-	left: 4rpx;
-	width: 16rpx;
-	height: 16rpx;
-	border: 2rpx solid currentColor;
+.empty-mark {
+	width: 96rpx;
+	height: 96rpx;
 	border-radius: 50%;
-	background: transparent;
-}
-.icon-search::after {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	right: 4rpx;
-	width: 12rpx;
-	height: 2rpx;
-	background: currentColor;
-	transform: rotate(45deg);
-	transform-origin: left center;
-}
-
-.icon-close {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-close::before,
-.icon-close::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	width: 24rpx;
-	height: 2rpx;
-	background: currentColor;
-}
-.icon-close::before {
-	transform: translate(-50%, -50%) rotate(45deg);
-}
-.icon-close::after {
-	transform: translate(-50%, -50%) rotate(-45deg);
-}
-
-.icon-chat {
-	width: 120rpx;
-	height: 120rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-chat::before {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 84rpx;
-	height: 60rpx;
-	border: 4rpx solid currentColor;
-	border-radius: 12rpx 12rpx 12rpx 0;
-	background: transparent;
-}
-.icon-chat::after {
-	content: '';
-	position: absolute;
-	bottom: 8rpx;
-	left: 12rpx;
-	width: 8rpx;
-	height: 8rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 12rpx 0 0 currentColor, 24rpx 0 0 currentColor;
+	background: #EEF3FF;
+	margin-bottom: 28rpx;
 }
 
 .empty-text {
-	font-size: 32rpx;
-	color: #999999;
-	margin-bottom: 16rpx;
+	font-size: 30rpx;
+	color: #5C6370;
+	margin-bottom: 8rpx;
 }
 
 .empty-hint {
-	font-size: 28rpx;
-	color: #CCCCCC;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
 .loading-more {
 	text-align: center;
-	padding: 40rpx 0;
-	font-size: 28rpx;
-	color: #999999;
+	padding: 32rpx 0;
+	font-size: 24rpx;
+	color: #8B919C;
+	background: #FFFFFF;
 }
 
 .tabbar-spacer {

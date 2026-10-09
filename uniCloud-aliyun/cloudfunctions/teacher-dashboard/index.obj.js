@@ -31,6 +31,64 @@ function formatDate(date) {
   return `${year}-${month}-${day}`
 }
 
+function getChinaMonthRange(nowMs = Date.now()) {
+  const offset = 8 * 60 * 60 * 1000
+  const cn = new Date(nowMs + offset)
+  const start = Date.UTC(cn.getUTCFullYear(), cn.getUTCMonth(), 1) - offset
+  const end = Date.UTC(cn.getUTCFullYear(), cn.getUTCMonth() + 1, 1) - offset
+  return { start, end }
+}
+
+async function sumDocsAmount(list, field) {
+  return (list || []).reduce((sum, row) => sum + Number(row[field] || 0), 0)
+}
+
+/**
+ * 本月收入：优先课酬流水（结算当时），兜底预约 teacher_income（按完成/结算时间，不按下单时间）
+ */
+async function countTeacherMonthIncome(db, teacher_id) {
+  const dbCmd = db.command
+  const { start, end } = getChinaMonthRange()
+
+  let fromTx = 0
+  try {
+    const txRes = await db.collection('teacher-transactions')
+      .where({
+        teacher_id,
+        type: 'income',
+        create_time: dbCmd.gte(start).and(dbCmd.lt(end))
+      })
+      .field({ amount: true })
+      .limit(500)
+      .get()
+    fromTx = await sumDocsAmount(txRes.data, 'amount')
+  } catch (e) {
+    console.warn('[teacher-dashboard] 本月流水汇总失败:', e && e.message)
+  }
+
+  let fromApt = 0
+  try {
+    const aptRes = await db.collection('appointments')
+      .where(dbCmd.and([
+        { teacher_id },
+        { teacher_income: dbCmd.gt(0) },
+        { status: dbCmd.in(['completed', 'cancelled', 'refunded']) },
+        dbCmd.or([
+          { complete_time: dbCmd.gte(start).and(dbCmd.lt(end)) },
+          { wallet_settlement_time: dbCmd.gte(start).and(dbCmd.lt(end)) }
+        ])
+      ]))
+      .field({ teacher_income: true })
+      .limit(500)
+      .get()
+    fromApt = await sumDocsAmount(aptRes.data, 'teacher_income')
+  } catch (e) {
+    console.warn('[teacher-dashboard] 本月预约收入汇总失败:', e && e.message)
+  }
+
+  return Number(Math.max(fromTx, fromApt).toFixed(2))
+}
+
 /**
  * 累计学生 = 预约过试课的去重家长数（邀请发出即算）
  */
@@ -165,7 +223,6 @@ module.exports = {
   async getOverview() {
     const db = uniCloud.database()
     const dbCmd = db.command
-    const $ = db.command.aggregate
 
     try {
       const token = this.getUniIdToken()
@@ -214,9 +271,6 @@ module.exports = {
       const now = new Date()
       const todayStr = formatDate(now)
 
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-      const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime()
-
       // 今日预约数量
       const todayCountRes = await db.collection('appointments')
         .where({
@@ -226,24 +280,7 @@ module.exports = {
         })
         .count()
 
-      // 本月收入：完成/取消/退款中已记 teacher_income 的预约
-      const monthIncomeAgg = await db.collection('appointments')
-        .aggregate()
-        .match({
-          teacher_id,
-          status: dbCmd.in(['completed', 'cancelled', 'refunded']),
-          teacher_income: dbCmd.gt(0),
-          create_time: dbCmd.and([dbCmd.gte(startOfMonth), dbCmd.lt(startOfNextMonth)])
-        })
-        .group({
-          _id: null,
-          total: $.sum('$teacher_income')
-        })
-        .end()
-
-      const monthIncome = monthIncomeAgg.data && monthIncomeAgg.data.length > 0
-        ? Number(monthIncomeAgg.data[0].total || 0)
-        : 0
+      const monthIncome = await countTeacherMonthIncome(db, teacher_id)
 
       // 累计学生：家长接受试课后即计入（去重家长）
       const totalStudents = await countAcceptedTrialStudents(db, teacher_id)

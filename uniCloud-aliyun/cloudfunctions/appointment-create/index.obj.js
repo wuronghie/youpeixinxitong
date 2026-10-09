@@ -6,6 +6,7 @@
 
 const uniID = require('uni-id-common')
 const { notifyAppointmentSuccessOa } = require('./helpers/notify-oa')
+const { notifyChatNew, notifyAppointmentPeers } = require('notify-push')
 
 /** 课时费下限（元/小时）；暂时取消 120 限制，恢复时改回 120 */
 const MIN_HOURLY_RATE = 0
@@ -73,9 +74,8 @@ async function syncTeacherTotalStudents(db, teacher_id) {
   return totalStudents
 }
 
-const UNI_APP_ID = '__UNI__863DB44'
-
 async function notifyPeerAfterNotice({
+  db,
   conversationId,
   receiverId,
   receiverRole,
@@ -87,33 +87,30 @@ async function notifyPeerAfterNotice({
   if (!conversationId || !receiverId) return
 
   try {
-    const uniPush = uniCloud.getPushManager({ appId: UNI_APP_ID })
-    await uniPush.sendMessage({
-      user_id: receiverId,
-      check_token: false,
-      platform: ['mp-weixin'],
-      title: '新消息',
-      content: String(content || '您有一条新消息').substring(0, 50),
-      payload: {
-        type: 'chat_new',
-        conversation_id: conversationId,
-        send_time: Date.now()
-      }
+    await notifyChatNew({
+      receiverId,
+      conversationId,
+      content
     })
   } catch (e) {
     console.warn('[appointment-create] notice push 失败:', e && (e.message || e))
   }
 
   try {
-    const { sendNewChat, formatNow } = require('wx-oa-client')
+    const { sendNewChat, formatNow, resolveNotifyPersonName } = require('wx-oa-client')
     const timeText = formatNow()
+    const visitorName = await resolveNotifyPersonName(
+      db || uniCloud.database(),
+      senderId,
+      senderRole
+    )
     const pagepath = receiverRole === 'teacher'
       ? `pages-teacher/chat/conversation?conversationId=${encodeURIComponent(conversationId)}`
       : `pages/chat/conversation?conversationId=${encodeURIComponent(conversationId)}`
     const oaRes = await sendNewChat({
       user_id: receiverId,
       message_id: messageId,
-      visitor_name: senderRole === 'parent' ? '家长' : '老师',
+      visitor_name: visitorName,
       reason: String(content || '您有一条新消息').replace(/\s+/g, ' ').trim().slice(0, 20),
       visit_time: timeText,
       send_time: timeText,
@@ -192,6 +189,7 @@ async function appendConversationNotice(db, {
 
   const messageId = messageResult.id || ''
   await notifyPeerAfterNotice({
+    db,
     conversationId: conversation._id,
     receiverId: receiver_id,
     receiverRole: receiver_role,
@@ -429,11 +427,6 @@ module.exports = {
         trial_invite_hourly_rate: hourlyRate, // 本次邀请专用单价，不影响教师档案
         total_amount: trialAmount,
         duration: 2,
-        // 新邀请必须是干净打卡状态，避免与历史预约混淆
-        class_started_at: null,
-        class_started_location: null,
-        class_ended_at: null,
-        class_ended_location: null,
         parent_paid: false,
         create_time: now,
         update_time: now,
@@ -503,6 +496,21 @@ module.exports = {
         console.warn('[inviteTrial] 同步学员数失败:', studentErr)
       }
       
+      try {
+        await notifyAppointmentPeers(
+          { _id: result.id, parent_id, teacher_id, status: 'trial_invited' },
+          {
+            status: 'trial_invited',
+            title: '试课邀请',
+            content: '老师向您发起了试课邀请，请打开查看',
+            extra: { action: 'trial_invite' },
+            excludeUserId: teacher_id
+          }
+        )
+      } catch (pushErr) {
+        console.warn('[inviteTrial] appointment push 失败:', pushErr)
+      }
+
       return success({
         appointment_id: result.id,
         appointment_no: appointmentNo,
@@ -575,6 +583,18 @@ module.exports = {
         unread_for: 'teacher',
         content
       })
+
+      try {
+        await notifyAppointmentPeers(invite, {
+          status: 'rejected',
+          title: '试课邀请已拒绝',
+          content: '家长暂不接受本次试课邀请',
+          extra: { action: 'trial_invite_rejected' },
+          excludeUserId: parent_id
+        })
+      } catch (pushErr) {
+        console.warn('[rejectTrialInvite] appointment push 失败:', pushErr)
+      }
 
       return success({
         appointment_id: invite_id,
@@ -796,11 +816,6 @@ module.exports = {
           total_amount: totalAmount,
           parent_paid: false,
           status: 'pending_payment', // 家长填写信息后待支付试课费
-          // 接受邀请时清空打卡，确保本单从零开始
-          class_started_at: null,
-          class_started_location: null,
-          class_ended_at: null,
-          class_ended_location: null,
           update_time: now
           // invited_by: 'teacher' 字段会被保留，因为 update 不会删除未指定的字段
         })
@@ -875,6 +890,26 @@ module.exports = {
         console.warn('[appointment-create] 服务号预约通知失败:', oaErr && (oaErr.message || oaErr))
       }
       
+      try {
+        await notifyAppointmentPeers(
+          {
+            _id: appointmentId,
+            parent_id,
+            teacher_id: finalTeacherId,
+            status: 'pending_payment'
+          },
+          {
+            status: 'pending_payment',
+            title: '新的预约',
+            content: '家长提交了新的预约，请打开查看',
+            extra: { action: 'created' },
+            excludeUserId: parent_id
+          }
+        )
+      } catch (pushErr) {
+        console.warn('[appointment-create] appointment push 失败:', pushErr)
+      }
+
       return success({
         appointment_id: appointmentId,
         appointment_no: appointmentNo,
@@ -1044,6 +1079,21 @@ module.exports = {
       // 前端在创建联系请求成功后，会自动跳转到聊天页面，然后可以发送初始消息
       // 或者前端可以在创建成功后调用 chat-send.send 方法发送一条初始消息
       
+      try {
+        await notifyAppointmentPeers(
+          { _id: result.id, parent_id, teacher_id, status: 'contact_request' },
+          {
+            status: 'contact_request',
+            title: '联系请求',
+            content: '家长发起了联系请求，请打开查看',
+            extra: { action: 'contact_request' },
+            excludeUserId: parent_id
+          }
+        )
+      } catch (pushErr) {
+        console.warn('[createContactRequest] appointment push 失败:', pushErr)
+      }
+
       return success({
         appointment_id: result.id,
         conversation_id: conversationId

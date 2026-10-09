@@ -1,7 +1,6 @@
 {
   "navigationBarTitleText": "优培信息通",
+  "navigationStyle": "custom",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {}
 }

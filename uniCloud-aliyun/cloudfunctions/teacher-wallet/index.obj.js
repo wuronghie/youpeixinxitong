@@ -51,6 +51,18 @@ function roundCurrency(value) {
   return Number(num.toFixed(2))
 }
 
+const PUBLIC_PAY_PENDING_REVIEW = '待商家审核'
+
+function isMerchantFundShortage(text, code) {
+  const s = `${text || ''} ${code || ''}`
+  return /NOT_ENOUGH|NOTENOUGH|NO_ENOUGH|FUND_NOT_ENOUGH|ACCOUNT_NOT_ENOUGH|余额不足|账户余额|商户余额|资金不足|没钱|not enough/i.test(s)
+}
+
+function toPublicPayMessage(raw, code) {
+  if (isMerchantFundShortage(raw, code)) return PUBLIC_PAY_PENDING_REVIEW
+  return String(raw || '').trim() || '打款未完成'
+}
+
 /**
  * 云对象被其他云对象 importObject 调用时，this 上常无私有方法。
  * 优先用当前 this；否则回退到 module.exports，保证 _createAndTransfer 等可调用。
@@ -64,6 +76,22 @@ function getLocalRunner(ctx, methodName) {
 async function runLocal(ctx, methodName, ...args) {
   const runner = getLocalRunner(ctx, methodName)
   return runner[methodName].call(runner, ...args)
+}
+
+async function assertStaff(context) {
+  const token = context.getUniIdToken()
+  if (!token) throw new Error('未登录')
+  const payload = await context.uniID.checkToken(token)
+  if (payload.code) throw new Error(payload.message || 'token 无效')
+  const uid = payload.uid
+  if (!uid) throw new Error('未登录')
+  const db = uniCloud.database()
+  const userRes = await db.collection('uni-id-users').doc(uid).field({ _id: true, role: true }).get()
+  const userData = (userRes.data && userRes.data[0]) || {}
+  const roles = Array.isArray(userData.role) ? userData.role : (userData.role ? [userData.role] : [])
+  const isStaff = roles.some((r) => r === 'admin' || r === 'auditor')
+  if (!isStaff) throw new Error('无权限')
+  return uid
 }
 
 async function resolveTeacherId(context) {
@@ -116,6 +144,248 @@ async function appendTransaction(db, teacher_id, transaction) {
     ...transaction
   })
   return res
+}
+
+/**
+ * 解析家长展示名：真实姓名 > 昵称 > 用户名
+ */
+function pickParentDisplayName(user) {
+  if (!user) return ''
+  const parentInfo = user.parent_info || {}
+  const name = String(
+    parentInfo.real_name ||
+    user.nickname ||
+    user.username ||
+    ''
+  ).trim()
+  if (!name || name === '家长' || name === '用户' || name === '微信用户') return ''
+  return name.slice(0, 20)
+}
+
+/**
+ * 收入流水说明改为家长姓名（历史记录里常写预约 ID，教师看不懂）
+ */
+async function enrichTransactionsWithParentName(db, transactions) {
+  const list = Array.isArray(transactions) ? transactions : []
+  if (!list.length) return list
+
+  const appointmentIds = [...new Set(
+    list
+      .map((item) => String(item.appointment_id || '').trim())
+      .filter(Boolean)
+  )]
+  if (!appointmentIds.length) return list
+
+  const appointmentMap = {}
+  try {
+    const aptRes = await db.collection('appointments')
+      .where({ _id: db.command.in(appointmentIds) })
+      .field({ parent_id: true, course_type: true })
+      .limit(appointmentIds.length)
+      .get()
+    ;(aptRes.data || []).forEach((apt) => {
+      appointmentMap[apt._id] = apt
+    })
+  } catch (e) {
+    console.warn('[teacher-wallet] 补充预约家长信息失败', e && (e.message || e))
+    return list
+  }
+
+  const parentIds = [...new Set(
+    Object.values(appointmentMap)
+      .map((apt) => String(apt.parent_id || '').trim())
+      .filter(Boolean)
+  )]
+  const parentNameMap = {}
+  if (parentIds.length) {
+    try {
+      const userRes = await db.collection('uni-id-users')
+        .where({ _id: db.command.in(parentIds) })
+        .field({ nickname: true, username: true, parent_info: true })
+        .limit(parentIds.length)
+        .get()
+      ;(userRes.data || []).forEach((user) => {
+        parentNameMap[user._id] = pickParentDisplayName(user)
+      })
+    } catch (e) {
+      console.warn('[teacher-wallet] 查询家长姓名失败', e && (e.message || e))
+    }
+  }
+
+  return list.map((item) => {
+    const apt = item.appointment_id ? appointmentMap[item.appointment_id] : null
+    const parentName = apt && apt.parent_id ? parentNameMap[apt.parent_id] : ''
+    if (!parentName) return item
+
+    const courseLabel = (apt && apt.course_type === 'trial') || item.title === '试课收入'
+      ? '试课'
+      : '课程'
+    const next = Object.assign({}, item)
+    if (item.type === 'income' || item.type === 'refund') {
+      next.description = `家长 ${parentName} · ${courseLabel}`
+      next.parent_name = parentName
+    }
+    return next
+  })
+}
+
+/**
+ * 补充到账状态：已到账 / 待确认收款 / 处理中 / 到账失败
+ * 依据同预约的微信转账单（teacher-withdraw-requests）
+ */
+async function enrichTransactionsWithArriveStatus(db, teacherId, transactions) {
+  const list = Array.isArray(transactions) ? transactions : []
+  if (!list.length || !teacherId) return list
+
+  const appointmentIds = [...new Set(
+    list
+      .map((item) => String(item.appointment_id || '').trim())
+      .filter(Boolean)
+  )]
+  const relateIds = [...new Set(
+    list
+      .map((item) => String(item.relate_id || '').trim())
+      .filter(Boolean)
+  )]
+
+  const withdrawByAppointment = {}
+  const withdrawById = {}
+
+  try {
+    const orConditions = []
+    if (appointmentIds.length) {
+      orConditions.push({
+        teacher_id: teacherId,
+        appointment_id: db.command.in(appointmentIds)
+      })
+    }
+    if (relateIds.length) {
+      orConditions.push({
+        teacher_id: teacherId,
+        _id: db.command.in(relateIds)
+      })
+    }
+    if (!orConditions.length) {
+      return list.map((item) => attachArriveStatus(item, null))
+    }
+
+    const where = orConditions.length === 1
+      ? orConditions[0]
+      : db.command.or(orConditions)
+    const withdrawRes = await db.collection(WITHDRAW_COLLECTION)
+      .where(where)
+      .orderBy('create_time', 'desc')
+      .limit(100)
+      .get()
+
+    ;(withdrawRes.data || []).forEach((row) => {
+      withdrawById[row._id] = row
+      const aptId = String(row.appointment_id || '').trim()
+      if (aptId && !withdrawByAppointment[aptId]) {
+        withdrawByAppointment[aptId] = row
+      }
+    })
+  } catch (e) {
+    console.warn('[teacher-wallet] 补充到账状态失败', e && (e.message || e))
+  }
+
+  return list.map((item) => {
+    const withdraw =
+      (item.relate_id && withdrawById[item.relate_id]) ||
+      (item.appointment_id && withdrawByAppointment[item.appointment_id]) ||
+      null
+    return attachArriveStatus(item, withdraw)
+  })
+}
+
+function attachArriveStatus(item, withdraw) {
+  const next = Object.assign({}, item)
+  const type = item.type || 'income'
+
+  if (type === 'withdraw') {
+    next.title = next.title === '提现' ? '微信到账' : (next.title || '微信到账')
+    if (String(next.description || '').includes('提现')) {
+      next.description = '课酬转入微信零钱'
+    }
+  }
+
+  if (isMerchantFundShortage(next.description) || isMerchantFundShortage(withdraw && withdraw.fail_reason)) {
+    next.description = PUBLIC_PAY_PENDING_REVIEW
+  }
+
+  let arriveStatus = 'unknown'
+  let arriveLabel = ''
+
+  if (withdraw) {
+    const st = String(withdraw.status || '')
+    if (st === 'completed') {
+      arriveStatus = 'arrived'
+      arriveLabel = '已到账'
+    } else if (st === 'wait_confirm') {
+      arriveStatus = 'wait_confirm'
+      arriveLabel = '待确认收款'
+    } else if (st === 'pending') {
+      arriveStatus = 'pending'
+      arriveLabel = '到账处理中'
+    } else if (st === 'failed') {
+      if (isMerchantFundShortage(withdraw.fail_reason)) {
+        arriveStatus = 'pending_review'
+        arriveLabel = PUBLIC_PAY_PENDING_REVIEW
+      } else {
+        arriveStatus = 'failed'
+        arriveLabel = '到账失败'
+      }
+    }
+  } else if (type === 'income' || type === 'refund') {
+    // 无转账单：按流水自身状态兜底
+    if (item.status === 'completed') {
+      arriveStatus = 'recorded'
+      arriveLabel = '已入账'
+    } else if (item.status === 'pending') {
+      arriveStatus = 'pending'
+      arriveLabel = '处理中'
+    } else if (item.status === 'failed') {
+      arriveStatus = 'failed'
+      arriveLabel = '失败'
+    }
+  } else if (type === 'withdraw') {
+    if (item.status === 'completed') {
+      arriveStatus = 'arrived'
+      arriveLabel = '已到账'
+    } else if (item.status === 'pending') {
+      arriveStatus = 'pending'
+      arriveLabel = '到账处理中'
+    } else if (item.status === 'failed') {
+      arriveStatus = 'failed'
+      arriveLabel = '到账失败'
+    }
+  }
+
+  next.arrive_status = arriveStatus
+  next.arrive_label = arriveLabel
+  return next
+}
+
+async function resolveIncomeDescription(db, appointmentId, fallback = '课程完成收入结算') {
+  if (!appointmentId) return fallback
+  try {
+    const aptDoc = await db.collection('appointments')
+      .doc(appointmentId)
+      .field({ parent_id: true, course_type: true })
+      .get()
+    const apt = aptDoc.data && aptDoc.data[0]
+    if (!apt || !apt.parent_id) return fallback
+    const userDoc = await db.collection('uni-id-users')
+      .doc(apt.parent_id)
+      .field({ nickname: true, username: true, parent_info: true })
+      .get()
+    const parentName = pickParentDisplayName(userDoc.data && userDoc.data[0])
+    if (!parentName) return fallback
+    const courseLabel = apt.course_type === 'trial' ? '试课' : '课程'
+    return `家长 ${parentName} · ${courseLabel}`
+  } catch (e) {
+    return fallback
+  }
 }
 
 async function getLatestPaidCourseOrder(db, appointmentId) {
@@ -213,7 +483,11 @@ async function tryRepairLegacyWallet(db, teacher_id) {
     await appendTransaction(db, teacher_id, {
       type: 'income',
       title: appointment.course_type === 'trial' ? '试课收入' : '课程收入',
-      description: `预约 ${appointment._id} 完成，收入结算`,
+      description: await resolveIncomeDescription(
+        db,
+        appointment._id,
+        `预约完成，收入结算`
+      ),
       amount: teacherIncome,
       status: 'completed',
       appointment_id: appointment._id,
@@ -270,15 +544,24 @@ module.exports = {
         .limit(5)
         .get()
 
-      const transactions = (transactionsRes.data || []).map(item => ({
-        _id: item._id,
-        type: item.type || 'income',
-        title: item.title || (item.type === 'withdraw' ? '提现' : '课程收入'),
-        description: item.description || '',
-        amount: Number(item.amount || 0),
-        status: item.status || 'completed',
-        create_time: item.create_time || Date.now()
-      }))
+      const transactions = await enrichTransactionsWithArriveStatus(
+        db,
+        teacher_id,
+        await enrichTransactionsWithParentName(
+          db,
+          (transactionsRes.data || []).map(item => ({
+            _id: item._id,
+            type: item.type || 'income',
+            title: item.title || (item.type === 'withdraw' ? '微信到账' : '课程收入'),
+            description: item.description || '',
+            amount: Number(item.amount || 0),
+            status: item.status || 'completed',
+            appointment_id: item.appointment_id || '',
+            relate_id: item.relate_id || '',
+            create_time: item.create_time || Date.now()
+          }))
+        )
+      )
 
       console.log('[teacher-wallet][getWallet] 返回钱包概览与最近交易:', {
         teacher_id,
@@ -328,15 +611,24 @@ module.exports = {
 
       const countRes = await collection.where({ teacher_id }).count()
 
-      const transactions = (dataRes.data || []).map(item => ({
-        _id: item._id,
-        type: item.type || 'income',
-        title: item.title || (item.type === 'withdraw' ? '提现' : '课程收入'),
-        description: item.description || '',
-        amount: Number(item.amount || 0),
-        status: item.status || 'completed',
-        create_time: item.create_time || Date.now()
-      }))
+      const transactions = await enrichTransactionsWithArriveStatus(
+        db,
+        teacher_id,
+        await enrichTransactionsWithParentName(
+          db,
+          (dataRes.data || []).map(item => ({
+            _id: item._id,
+            type: item.type || 'income',
+            title: item.title || (item.type === 'withdraw' ? '微信到账' : '课程收入'),
+            description: item.description || '',
+            amount: Number(item.amount || 0),
+            status: item.status || 'completed',
+            appointment_id: item.appointment_id || '',
+            relate_id: item.relate_id || '',
+            create_time: item.create_time || Date.now()
+          }))
+        )
+      )
 
       return success({
         list: transactions,
@@ -511,7 +803,11 @@ module.exports = {
         }, '转账处理中')
       }
 
-      const failReason = (transferRes && transferRes.message) || data.fail_reason || status || '转账失败'
+      const failReason = (transferRes && transferRes.data && transferRes.data.fail_reason)
+        || (transferRes && transferRes.message)
+        || data.fail_reason
+        || status
+        || '转账失败'
       console.error(logPrefix, '失败', {
         teacher_id,
         amount: payAmount,
@@ -521,13 +817,15 @@ module.exports = {
         fail_reason: failReason,
         raw: transferRes
       })
-      return error(failReason, -1, {
+      return error(toPublicPayMessage(failReason), -1, {
         transfer_ok: false,
         status: status || 'failed',
         auto_transferred: false,
         need_confirm: false,
         amount: payAmount,
-        fail_reason: failReason
+        fail_reason: failReason,
+        fail_reason_public: toPublicPayMessage(failReason),
+        merchant_fund_short: isMerchantFundShortage(failReason)
       })
     } catch (e) {
       console.error(logPrefix, '异常', {
@@ -537,10 +835,55 @@ module.exports = {
         message: e.message,
         stack: e.stack
       })
-      return error(e.message || '直接打款异常', -1, {
+      return error(toPublicPayMessage(e.message || '直接打款异常'), -1, {
         transfer_ok: false,
-        fail_reason: e.message || '直接打款异常'
+        fail_reason: e.message || '直接打款异常',
+        fail_reason_public: toPublicPayMessage(e.message || '直接打款异常'),
+        merchant_fund_short: isMerchantFundShortage(e.message)
       })
+    }
+  },
+
+  /**
+   * 后台：对失败的打款单重新发起微信转账
+   */
+  async retryFailedPayout(params = {}) {
+    try {
+      await assertStaff(this)
+      const withdraw_id = params.withdraw_id || ''
+      if (!withdraw_id) return error('打款单ID不能为空')
+
+      const db = uniCloud.database()
+      const doc = await db.collection(WITHDRAW_COLLECTION).doc(withdraw_id).get()
+      const withdraw = doc.data && doc.data[0]
+      if (!withdraw) return error('打款单不存在')
+      if (withdraw.status !== 'failed') return error('仅支持失败单重新打款')
+      if (withdraw.handled) return success({ already: true }, '该失败单已处理')
+
+      const payRes = await runLocal(this, 'directPayTeacher', {
+        teacher_id: withdraw.teacher_id,
+        amount: withdraw.amount,
+        appointment_id: withdraw.appointment_id || '',
+        remark: withdraw.remark || '补打课酬'
+      })
+      if (!payRes || payRes.code !== 0) {
+        return error(
+          (payRes && payRes.data && payRes.data.fail_reason) || (payRes && payRes.message) || '重新打款失败',
+          -1,
+          payRes && payRes.data
+        )
+      }
+
+      const status = (payRes.data && payRes.data.status) || ''
+      await db.collection(WITHDRAW_COLLECTION).doc(withdraw_id).update({
+        handled: true,
+        handled_time: Date.now(),
+        handled_remark: status === 'wait_confirm' ? '已重新发起，待教师确认收款' : '已重新打款',
+        update_time: Date.now()
+      })
+      return success(payRes.data, payRes.message || '已重新打款')
+    } catch (e) {
+      return error(e.message || '重新打款失败')
     }
   },
 
@@ -571,12 +914,15 @@ module.exports = {
       await ensureWalletExists(db, teacher_id)
 
       // 先记收入流水（无论是否立刻到零钱）
+      const incomeDescription = await resolveIncomeDescription(
+        db,
+        appointment_id,
+        remark
+      )
       const incomeTx = await appendTransaction(db, teacher_id, {
         type: income_type === 'refund' ? 'refund' : 'income',
         title: income_title || (remark.includes('信息费') ? '信息费退还' : (remark.includes('试课') ? '试课收入' : '课程收入')),
-        description: appointment_id
-          ? `预约 ${appointment_id} 完成，收入结算`
-          : remark,
+        description: incomeDescription,
         amount: settleAmount,
         status: 'completed',
         appointment_id: appointment_id || null,
@@ -634,7 +980,9 @@ module.exports = {
         }
       }
 
-      const failReason = (transferRes && transferRes.message) || '自动转账未完成'
+      const failReason = (transferRes && transferRes.data && transferRes.data.fail_reason)
+        || (transferRes && transferRes.message)
+        || '自动转账未完成'
       if (!disable_wallet_fallback) {
         await db.collection(WALLET_COLLECTION)
           .where({ teacher_id })
@@ -653,11 +1001,13 @@ module.exports = {
       }
 
       console.error('[teacher-wallet] settleToWechat 打款失败且已禁用钱包兜底:', failReason)
-      return error(failReason, -1, {
+      return error(toPublicPayMessage(failReason), -1, {
         auto_transferred: false,
         need_confirm: false,
         settled: false,
         fail_reason: failReason,
+        fail_reason_public: toPublicPayMessage(failReason),
+        merchant_fund_short: isMerchantFundShortage(failReason),
         income_transaction_id: incomeTx && incomeTx.id
       })
     } catch (e) {
@@ -1077,10 +1427,16 @@ module.exports = {
 
     await runLocal(this, '_updateWithdrawTransaction', db, withdraw._id, {
       status: 'failed',
-      description: `提现失败：${reason}`
+      description: isMerchantFundShortage(reason)
+        ? PUBLIC_PAY_PENDING_REVIEW
+        : `到账未完成：${toPublicPayMessage(reason)}`
     })
 
-    return error(reason)
+    return error(toPublicPayMessage(reason), -1, {
+      fail_reason: reason,
+      fail_reason_public: toPublicPayMessage(reason),
+      merchant_fund_short: isMerchantFundShortage(reason)
+    })
   },
 
   async _updateWithdrawTransaction(db, withdrawId, patch = {}) {
@@ -1112,7 +1468,11 @@ module.exports = {
     }
     let eipRes
     if (method === 'GET') {
-      eipRes = await uniCloud.httpProxyForEip.get(url, {}, headers)
+      try {
+        eipRes = await uniCloud.httpProxyForEip.get(url, null, headers)
+      } catch (getErr) {
+        eipRes = await uniCloud.httpProxyForEip.get(url, {}, headers)
+      }
     } else {
       // 用 post + 原始 bodyStr，保证与签名原文一致（勿用 postJson 二次序列化）
       headers['Content-Type'] = 'application/json'
@@ -1121,7 +1481,7 @@ module.exports = {
 
     const status = eipRes.statusCodeValue != null
       ? Number(eipRes.statusCodeValue)
-      : (eipRes.status != null ? Number(eipRes.status) : 0)
+      : (eipRes.status != null ? Number(eipRes.status) : (eipRes.statusCode != null ? Number(eipRes.statusCode) : 0))
     let data = eipRes.body
     if (typeof data === 'string') {
       try {
@@ -1188,7 +1548,13 @@ module.exports = {
 
       const errorMsg = (response.data && (response.data.message || response.data.detail || response.data.code)) ||
         `转账失败(${response.status})`
-      return { success: false, message: errorMsg }
+      const errCode = (response.data && response.data.code) || ''
+      return {
+        success: false,
+        message: errorMsg,
+        code: errCode,
+        merchant_fund_short: isMerchantFundShortage(errorMsg, errCode)
+      }
     } catch (error) {
       console.error('[微信转账] API调用异常:', error)
       return {

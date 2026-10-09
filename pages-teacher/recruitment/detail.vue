@@ -1,78 +1,77 @@
 <template>
-	<view class="detail-page">
+	<view class="page">
 		<scroll-view v-if="detail" scroll-y class="scroll">
-			<view class="page-body">
-				<view class="hero-card">
-					<view class="hero-header">
-						<view>
-							<text class="display-name">{{ detail.display_name }}</text>
-							<text class="publish-meta">{{ detail.subject }} / {{ detail.student_grade }}<text v-if="studentGenderText(detail.student_gender)"> / {{ studentGenderText(detail.student_gender) }}</text> / {{ detail.lesson_mode === 'online' ? '线上' : '线下' }}</text>
-						</view>
-						<text class="status-badge">{{ detail.already_responded ? '已响应' : '可邀请' }}</text>
+			<view class="hero-card">
+				<view class="hero-top">
+					<view class="hero-main">
+						<text class="hero-title">{{ detail.subject }} / {{ detail.student_grade }}</text>
+						<text class="hero-sub">{{ detail.display_name }}</text>
 					</view>
-					<view class="chip-row">
-						<text class="chip">{{ detail.lesson_mode === 'online' ? '线上辅导' : '线下辅导' }}</text>
-						<text v-if="detail.lesson_mode === 'offline' && locationText(detail) !== '未填写'" class="chip address-chip">{{ locationText(detail) }}</text>
-						<text class="chip">{{ budgetText(detail) }}</text>
-					</view>
+					<text class="status">{{ detail.already_responded ? '已响应' : '可邀请' }}</text>
 				</view>
+				<view class="tags">
+					<text class="chip">{{ detail.lesson_mode === 'online' ? '线上' : '线下' }}</text>
+					<text v-if="detail.lesson_mode === 'offline' && locationText(detail) !== '未填写'" class="chip gray">{{ locationText(detail) }}</text>
+					<text v-if="studentGenderText(detail.student_gender)" class="chip gray">{{ studentGenderText(detail.student_gender) }}</text>
+				</view>
+				<text class="hero-goal">{{ detail.goal || detail.remark || '家长暂未填写更多说明' }}</text>
+			</view>
 
-				<view class="section-card">
-					<text class="section-title">需求概览</text>
-					<view class="info-item">
-						<text class="label">上课地址</text>
-						<text class="value">{{ locationText(detail) }}</text>
-					</view>
-					<view class="info-item">
-						<text class="label">时间偏好</text>
-						<text class="value">{{ detail.time_note || '暂未指定，可进一步沟通' }}</text>
-					</view>
-					<view class="info-item">
-						<text class="label">孩子性别</text>
-						<text class="value">{{ studentGenderText(detail.student_gender) || '未填写' }}</text>
-					</view>
-					<view class="info-item multiline">
-						<text class="label">辅导目标</text>
-						<text class="value">{{ detail.goal || '家长暂未填写' }}</text>
-					</view>
-					<view class="info-item multiline">
-						<text class="label">补充说明</text>
-						<text class="value">{{ detail.remark || '暂无补充说明' }}</text>
-					</view>
+			<view class="form-card">
+				<view class="form-row">
+					<text class="form-label">预算</text>
+					<text class="form-value">{{ budgetText(detail) }}</text>
 				</view>
+				<view class="form-row">
+					<text class="form-label">发布时间</text>
+					<text class="form-em">{{ formatTime(detail.create_time) }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">上课地址</text>
+					<text class="form-em">{{ locationText(detail) }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">时间偏好</text>
+					<text class="form-em">{{ detail.time_note || '暂未指定，可进一步沟通' }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">孩子性别</text>
+					<text class="form-em">{{ studentGenderText(detail.student_gender) || '未填写' }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">辅导目标</text>
+					<text class="form-em">{{ detail.goal || '家长暂未填写' }}</text>
+				</view>
+				<view class="form-row last">
+					<text class="form-label">补充说明</text>
+					<text class="form-em">{{ detail.remark || '暂无补充说明' }}</text>
+				</view>
+			</view>
 
-				<view class="section-card">
-					<text class="section-title">邀请说明</text>
-					<view class="tips-box">
-						<text class="tip-line">1. 发送试课邀请后，家长会在消息和聊天中收到通知。</text>
-						<text class="tip-line">2. 若你尚未为该家长支付信息费，系统会先引导支付再发送邀请。</text>
-						<text class="tip-line">3. 发送成功后，可直接进入聊天继续沟通试课安排。</text>
-					</view>
-				</view>
+			<view class="section-card">
+				<text class="section-title">邀请说明</text>
+				<text class="step">1. 发送试课邀请后，家长会在消息和聊天中收到通知。</text>
+				<text class="step">2. 若尚未向该家长支付信息费，进入聊天后先完成支付再发邀请。</text>
+				<text class="step">3. 发送成功后，可继续在聊天中沟通试课安排。</text>
 			</view>
 		</scroll-view>
 
 		<view v-else class="loading-wrap">加载中...</view>
 
-		<view class="footer">
-			<view v-if="detail" class="footer-card">
-				<view class="footer-texts">
-						<text class="footer-title">{{ detail.already_responded ? '继续跟进此需求' : '先建立联系，再进入聊天发送试课邀请' }}</text>
-						<text class="footer-desc">{{ detail.need_deposit ? '若你还未向该家长支付信息费，需要先完成支付后才能进入聊天。' : (detail.already_responded ? '如果之前已经发过试课邀请，聊天页不会重复发送。' : '首次进入会自动建立会话与预约记录，试课邀请在聊天页发送。') }}</text>
-				</view>
-				<button
-					v-if="!detail.already_responded"
-					class="action-btn"
-					:disabled="busy"
-					@click="onInvite"
-				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
-				<button
-					v-else
-					class="action-btn"
-					:disabled="busy"
-					@click="onContinue"
-				>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
-			</view>
+		<view v-if="detail" class="actionbar">
+			<text class="form-tip">{{ detail.need_deposit ? '未付信息费时点此进入聊天，在聊天页确认并支付；已付过则直接进入聊天。' : (detail.already_responded ? '如果之前已经发过试课邀请，聊天页不会重复发送。' : '首次进入会自动建立会话，试课邀请在聊天页发送。') }}</text>
+			<button
+				v-if="!detail.already_responded"
+				class="btn"
+				:disabled="busy"
+				@click="onInvite"
+			>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
+			<button
+				v-else
+				class="btn"
+				:disabled="busy"
+				@click="onContinue"
+			>{{ busy ? '处理中...' : (detail.need_deposit ? '支付信息费并进入聊天' : '进入聊天') }}</button>
 		</view>
 	</view>
 </template>
@@ -142,6 +141,12 @@ export default {
 			if (gender === 'female' || gender === 2 || gender === '2') return '女孩'
 			return ''
 		},
+		formatTime(t) {
+			if (!t) return '--'
+			const d = new Date(t)
+			if (Number.isNaN(d.getTime())) return '--'
+			return `${d.getMonth() + 1}月${d.getDate()}日`
+		},
 		goChat(conversationId, appointmentId) {
 			if (!conversationId) {
 				uni.showToast({ title: '未找到会话', icon: 'none' })
@@ -195,166 +200,193 @@ export default {
 </script>
 
 <style scoped>
-.detail-page {
+.page {
+	background: #F4F6F9;
 	min-height: 100vh;
-	background: #f5f7fb;
 }
+
 .scroll {
 	height: calc(100vh - 220rpx);
+	padding-bottom: 24rpx;
+	box-sizing: border-box;
 }
-.page-body {
-	padding: 24rpx;
-	padding-bottom: 36rpx;
-}
+
 .hero-card,
-.section-card,
-.footer-card {
-	background: #fff;
-	border-radius: 28rpx;
-	box-shadow: 0 10rpx 30rpx rgba(31, 42, 68, 0.06);
+.form-card,
+.section-card {
+	margin: 24rpx 32rpx 0;
+	padding: 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
-.hero-card {
-	padding: 30rpx;
-	background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
-}
-.hero-header {
+
+.hero-top {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 20rpx;
+	gap: 16rpx;
 }
-.display-name {
+
+.hero-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.hero-title {
 	display: block;
 	font-size: 36rpx;
-	font-weight: 700;
-	line-height: 1.4;
-	color: #1f2a44;
-}
-.publish-meta {
-	display: block;
-	margin-top: 12rpx;
-	font-size: 24rpx;
-	line-height: 1.7;
-	color: #7c879d;
-}
-.status-badge {
-	padding: 10rpx 18rpx;
-	border-radius: 999rpx;
-	background: rgba(47, 109, 246, 0.1);
-	color: #2f6df6;
-	font-size: 22rpx;
-	line-height: 1.4;
 	font-weight: 600;
-	white-space: nowrap;
+	color: #1F2329;
+	line-height: 1.35;
 }
-.chip-row {
+
+.hero-sub {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.status {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	padding: 4rpx 16rpx;
+	border-radius: 999rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	line-height: 1.4;
+}
+
+.tags {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 12rpx;
-	margin-top: 24rpx;
-}
-.chip {
-	padding: 8rpx 16rpx;
-	border-radius: 999rpx;
-	font-size: 22rpx;
-	line-height: 1.4;
-	color: #60708c;
-	background: #f3f6fb;
-}
-.address-chip {
-	max-width: 100%;
-	white-space: normal;
-	word-break: break-all;
-}
-.section-card {
 	margin-top: 20rpx;
-	padding: 28rpx;
 }
-.section-title {
+
+.chip {
+	padding: 6rpx 16rpx;
+	border-radius: 12rpx;
+	font-size: 22rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.chip.gray {
+	background: #F4F6F9;
+	color: #5C6370;
+}
+
+.hero-goal {
 	display: block;
-	font-size: 30rpx;
-	font-weight: 700;
-	color: #1f2a44;
-	margin-bottom: 18rpx;
-}
-.info-item {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 24rpx;
-	padding: 18rpx 0;
-	border-bottom: 1rpx solid #eef2f7;
-}
-.info-item:last-child {
-	border-bottom: none;
-}
-.info-item.multiline .value {
-	line-height: 1.75;
-}
-.label {
-	width: 132rpx;
-	font-size: 24rpx;
-	line-height: 1.5;
-	color: #96a0b3;
-}
-.value {
-	flex: 1;
+	margin-top: 20rpx;
 	font-size: 26rpx;
 	line-height: 1.6;
-	color: #33415c;
+	color: #5C6370;
+}
+
+.form-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 24rpx;
+	padding: 20rpx 0;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+
+.form-row.last {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.form-row:first-child {
+	padding-top: 0;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 26rpx;
+	color: #8B919C;
+}
+
+.form-value,
+.form-em {
+	flex: 1;
 	text-align: right;
+	font-size: 26rpx;
+	color: #1F2329;
+	font-weight: 600;
+	line-height: 1.5;
 }
-.tips-box {
-	background: #f7f9fc;
-	border-radius: 22rpx;
-	padding: 22rpx 24rpx;
+
+.form-em {
+	font-weight: 400;
+	color: #5C6370;
 }
-.tip-line {
+
+.section-title {
 	display: block;
-	font-size: 24rpx;
-	line-height: 1.8;
-	color: #60708c;
+	margin-bottom: 16rpx;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
+
+.step {
+	display: block;
+	font-size: 26rpx;
+	line-height: 1.7;
+	color: #5C6370;
+}
+
+.step + .step {
+	margin-top: 8rpx;
+}
+
 .loading-wrap {
 	padding-top: 240rpx;
 	text-align: center;
 	font-size: 26rpx;
-	color: #8a95a8;
+	color: #8B919C;
 }
-.footer {
-	padding: 16rpx 24rpx calc(env(safe-area-inset-bottom) + 16rpx);
+
+.actionbar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 16rpx 32rpx;
+	padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
 }
-.footer-card {
-	padding: 24rpx;
-}
-.footer-texts {
-	margin-bottom: 18rpx;
-}
-.footer-title {
+
+.form-tip {
 	display: block;
-	font-size: 28rpx;
-	font-weight: 700;
-	line-height: 1.4;
-	color: #1f2a44;
+	margin-bottom: 16rpx;
+	font-size: 22rpx;
+	line-height: 1.5;
+	color: #8B919C;
 }
-.footer-desc {
-	display: block;
-	margin-top: 10rpx;
-	font-size: 24rpx;
-	line-height: 1.7;
-	color: #7c879d;
-}
-.action-btn {
-	height: 88rpx;
-	line-height: 88rpx;
-	border-radius: 999rpx;
-	background: linear-gradient(135deg, #2f6df6 0%, #5f8dff 100%);
-	color: #fff;
+
+.btn {
+	width: 100%;
+	height: 80rpx;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
 	font-size: 28rpx;
 	font-weight: 600;
+	line-height: 80rpx;
 	border: none;
 }
-.action-btn::after {
+
+.btn::after {
 	border: none;
+}
+
+.btn[disabled] {
+	background: #93B4FF;
 }
 </style>

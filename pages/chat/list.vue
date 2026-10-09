@@ -1,13 +1,5 @@
 <template>
 	<view class="chat-list-page">
-		<!-- 顶部导航栏 -->
-		<view class="navbar">
-			<view class="navbar-content">
-				<text class="navbar-title">老师沟通</text>
-			</view>
-		</view>
-
-		<!-- 搜索框 -->
 		<view class="search-box">
 			<view class="search-input-wrapper">
 				<text class="iconfont icon-sousuo search-icon"></text>
@@ -56,9 +48,9 @@
 							<text class="time">{{ formatTime(item.last_message_time) }}</text>
 						</view>
 						<view class="footer">
-							<text class="message" :class="{ 'unread': item.unread_count > 0 }">
-								{{ formatLastMessage(item.last_message) || '暂无消息' }}
-							</text>
+							<view class="message-wrap">
+								<text class="message" :class="{ unread: item.unread_count > 0 }">{{ formatLastMessage(item.last_message) || '暂无消息' }}</text>
+							</view>
 							<view v-if="item.unread_count > 0" class="badge">
 								{{ item.unread_count > 99 ? '99+' : item.unread_count }}
 							</view>
@@ -67,7 +59,7 @@
 				</view>
 
 				<view v-if="!loading && !displayList.length" class="empty-state">
-					<text class="empty-icon">💬</text>
+					<view class="empty-mark"></view>
 					<text class="empty-text">暂无会话</text>
 					<text class="empty-hint">预约老师后即可开启沟通</text>
 				</view>
@@ -487,8 +479,12 @@ export default {
 				if (trimmed.includes('clock_out')) return '老师已下课打卡'
 				return '老师已上课打卡'
 			}
+			if (trimmed.includes('review_result')) {
+				if (trimmed.includes('is_auto') && trimmed.includes('true')) return '系统默认好评'
+				return '家长已评价'
+			}
 			
-			return message
+			return message.replace(/\s+/g, ' ').trim()
 		},
 		goToConversation(item) {
 			const params = [`conversationId=${item.conversation_id}`]
@@ -496,7 +492,7 @@ export default {
 				params.push(`appointmentId=${item.appointment_id}`)
 			}
 			uni.navigateTo({
-				url: `/pages/chat/conversation?${params.join('&')}`
+				url: `/pages-biz/chat/conversation?${params.join('&')}`
 			})
 		}
 	}
@@ -505,103 +501,83 @@ export default {
 
 <style scoped>
 .chat-list-page {
-	background: #EDEDED;
+	background: #F4F6F9;
 	min-height: 100vh;
 }
 
-/* 导航栏 */
-.navbar {
-	background: #FFFFFF;
-	padding-top: var(--status-bar-height, 0);
-}
-
-.navbar-content {
-	height: 88rpx;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	position: relative;
-}
-
-.navbar-title {
-	font-size: 36rpx;
-	font-weight: 600;
-	color: #000000;
-}
-
-/* 搜索框 */
 .search-box {
-	background: #FFFFFF;
-	padding: 20rpx 30rpx;
+	padding: 16rpx 32rpx 8rpx;
 }
 
 .search-input-wrapper {
-	background: #F7F7F7;
-	border-radius: 10rpx;
+	background: #FFFFFF;
+	border-radius: 16rpx;
 	display: flex;
 	align-items: center;
-	padding: 0 30rpx;
+	padding: 0 24rpx;
 	height: 72rpx;
 }
 
 .search-icon {
-	font-size: 32rpx;
-	color: #999999;
-	margin-right: 20rpx;
+	font-size: 28rpx;
+	color: #8B919C;
+	margin-right: 12rpx;
 }
 
 .search-input {
 	flex: 1;
 	font-size: 28rpx;
-	color: #333333;
+	color: #1F2329;
 }
 
 .search-placeholder {
-	color: #999999;
+	color: #8B919C;
 }
 
 .clear-icon {
 	font-size: 28rpx;
-	color: #999999;
-	margin-left: 20rpx;
+	color: #8B919C;
+	margin-left: 16rpx;
 }
 
-/* 列表区域 */
 .list-scroll {
 	flex: 1;
-	height: calc(100vh - 200rpx);
+	height: calc(100vh - 96rpx);
+	margin-top: 8rpx;
+	background: #FFFFFF;
 }
 
-/* 会话项 */
 .conversation-item {
 	background: #FFFFFF;
 	display: flex;
 	align-items: center;
-	padding: 24rpx 30rpx;
-	border-bottom: 1rpx solid #EDEDED;
-	position: relative;
-	min-height: 144rpx;
-	max-height: 144rpx;
+	height: 144rpx;
+	padding: 0 32rpx;
+	border-bottom: 1rpx solid #F2F3F5;
 	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .conversation-item:active {
-	background: #F5F5F5;
+	background: #F4F6F9;
 }
 
 .avatar {
 	width: 96rpx;
 	height: 96rpx;
-	border-radius: 8rpx;
+	border-radius: 50%;
 	margin-right: 24rpx;
 	flex-shrink: 0;
+	background: #EEF3FF;
 }
 
 .content {
 	flex: 1;
 	min-width: 0;
+	height: 88rpx;
 	display: flex;
 	flex-direction: column;
+	justify-content: center;
 	overflow: hidden;
 }
 
@@ -609,16 +585,15 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 12rpx;
-	min-height: 44rpx;
-	max-height: 44rpx;
-	flex-shrink: 0;
+	height: 44rpx;
+	margin-bottom: 4rpx;
+	overflow: hidden;
 }
 
 .name {
 	font-size: 32rpx;
-	font-weight: 500;
-	color: #000000;
+	font-weight: 600;
+	color: #1F2329;
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -626,34 +601,39 @@ export default {
 }
 
 .time {
-	font-size: 24rpx;
-	color: #999999;
-	margin-left: 20rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	margin-left: 16rpx;
 	flex-shrink: 0;
 }
 
 .footer {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	min-height: 40rpx;
-	max-height: 40rpx;
+	height: 40rpx;
+	overflow: hidden;
 }
 
-.message {
-	font-size: 28rpx;
-	color: #999999;
+.message-wrap {
 	flex: 1;
 	min-width: 0;
 	overflow: hidden;
+}
+
+.message {
+	display: block;
+	width: 100%;
+	font-size: 26rpx;
+	color: #8B919C;
+	line-height: 40rpx;
+	height: 40rpx;
+	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	line-height: 40rpx;
-	max-height: 40rpx;
 }
 
 .message.unread {
-	color: #000000;
+	color: #5C6370;
 	font-weight: 500;
 }
 
@@ -667,14 +647,13 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	padding: 0 12rpx;
+	padding: 0 8rpx;
 	margin-left: 16rpx;
 	flex-shrink: 0;
 }
 
-/* 加载状态 */
 .loading-wrapper {
-	padding: 20rpx 0;
+	background: #FFFFFF;
 }
 
 .skeleton {
@@ -684,8 +663,8 @@ export default {
 .avatar-skeleton {
 	width: 96rpx;
 	height: 96rpx;
-	border-radius: 8rpx;
-	background: #F0F0F0;
+	border-radius: 50%;
+	background: #EBEDF0;
 	margin-right: 24rpx;
 }
 
@@ -696,48 +675,52 @@ export default {
 .name-skeleton {
 	width: 200rpx;
 	height: 32rpx;
-	background: #F0F0F0;
-	border-radius: 4rpx;
-	margin-bottom: 12rpx;
+	background: #EBEDF0;
+	border-radius: 8rpx;
+	margin-bottom: 16rpx;
 }
 
 .message-skeleton {
 	width: 300rpx;
-	height: 28rpx;
-	background: #F0F0F0;
-	border-radius: 4rpx;
+	height: 24rpx;
+	background: #EBEDF0;
+	border-radius: 8rpx;
 }
 
-/* 空状态 */
 .empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	padding: 200rpx 0;
+	padding: 160rpx 32rpx;
+	background: #FFFFFF;
 }
 
-.empty-icon {
-	font-size: 120rpx;
-	margin-bottom: 40rpx;
+.empty-mark {
+	width: 96rpx;
+	height: 96rpx;
+	border-radius: 50%;
+	background: #EEF3FF;
+	margin-bottom: 28rpx;
 }
 
 .empty-text {
-	font-size: 32rpx;
-	color: #999999;
-	margin-bottom: 16rpx;
+	font-size: 30rpx;
+	color: #5C6370;
+	margin-bottom: 8rpx;
 }
 
 .empty-hint {
-	font-size: 28rpx;
-	color: #CCCCCC;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
 .loading-more {
 	text-align: center;
-	padding: 40rpx 0;
-	font-size: 28rpx;
-	color: #999999;
+	padding: 32rpx 0;
+	font-size: 24rpx;
+	color: #8B919C;
+	background: #FFFFFF;
 }
 
 .tabbar-spacer {

@@ -4,19 +4,20 @@ const utils_mockData = require("../../utils/mockData.js");
 const utils_auth = require("../../utils/auth.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_trialConfirmReminder = require("../../utils/trialConfirmReminder.js");
+const utils_appPushMixin = require("../../utils/appPushMixin.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const ParentTabBar = () => "../../components/ParentTabBar.js";
-const card = () => "../../components/common/card.js";
-const divider = () => "../../components/common/divider.js";
 const defaultAvatar = utils_imageConfig.getDefaultAvatarUrl();
 const _sfc_main = {
   name: "ParentUserCenter",
+  mixins: [utils_appPushMixin.createAppPushMixin([utils_chatPush.APP_PUSH_TYPES.SYSTEM_MESSAGE, utils_chatPush.APP_PUSH_TYPES.APPOINTMENT_UPDATE])],
   components: {
-    ParentTabBar,
-    card,
-    divider
+    ParentTabBar
   },
   data() {
     return {
+      recruitmentIcon: utils_imageConfig.getRecruitmentIconUrl(),
+      inviteIcon: utils_imageConfig.getInviteIconUrl(),
       // 是否使用模拟数据（开发测试用）
       useMock: false,
       // 用户基本信息
@@ -55,7 +56,10 @@ const _sfc_main = {
         unreadMessages: 0
       },
       // 当前用户的邀请码（用于分享）
-      myInviteCode: ""
+      myInviteCode: "",
+      boundInviteCode: "",
+      inviteBound: false,
+      adminWechat: "chen18148503231"
     };
   },
   computed: {
@@ -77,6 +81,14 @@ const _sfc_main = {
     displayName() {
       var _a, _b, _c, _d;
       return ((_b = (_a = this.profile) == null ? void 0 : _a.parent_info) == null ? void 0 : _b.real_name) || ((_c = this.profile) == null ? void 0 : _c.nickname) || ((_d = this.userInfo) == null ? void 0 : _d.nickname) || (this.isLoggedIn ? "微信用户" : "游客");
+    },
+    greetText() {
+      const hour = (/* @__PURE__ */ new Date()).getHours();
+      if (hour < 12)
+        return "上午好";
+      if (hour < 18)
+        return "下午好";
+      return "晚上好";
     },
     /**
      * 头部统计数据
@@ -168,6 +180,11 @@ const _sfc_main = {
       await this.initPage(true);
       await this.loadInviteCode();
     },
+    onAppPushPayload() {
+      if (!this.hasValidParentSession())
+        return;
+      this.loadOverview();
+    },
     hasValidParentSession() {
       const token = common_vendor.index.getStorageSync("uni_id_token");
       const stored = common_vendor.index.getStorageSync("userInfo") || {};
@@ -177,6 +194,8 @@ const _sfc_main = {
       this.userInfo = {};
       this.profile = null;
       this.myInviteCode = "";
+      this.boundInviteCode = "";
+      this.inviteBound = false;
       this.overview = {
         appointmentStats: {
           total: 0,
@@ -225,7 +244,7 @@ const _sfc_main = {
       try {
         await Promise.all([this.loadUserProfile(), this.loadOverview()]);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:445", "初始化家长个人中心失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:421", "初始化家长个人中心失败:", error);
       } finally {
         if (fromPullDown) {
           common_vendor.index.stopPullDownRefresh();
@@ -235,19 +254,45 @@ const _sfc_main = {
     /**
      * 加载当前用户的邀请码（用于分享）
      */
+    applyInviteBind(data = {}) {
+      const uid = this.userInfo && this.userInfo.uid || (common_vendor.index.getStorageSync("userInfo") || {}).uid;
+      const bound = data.bound === true || !!data.bound_invite_code;
+      if (data.bound_invite_code) {
+        this.boundInviteCode = data.bound_invite_code;
+      }
+      if (bound) {
+        this.inviteBound = true;
+        if (uid && this.boundInviteCode) {
+          common_vendor.index.setStorageSync(`bound_invite_code_${uid}`, this.boundInviteCode);
+        }
+      } else if (data.bound === false) {
+        this.inviteBound = false;
+        this.boundInviteCode = "";
+      }
+    },
     async loadInviteCode() {
       try {
         if (this.useMock) {
           this.myInviteCode = "DEMO88";
+          this.boundInviteCode = "";
+          this.inviteBound = false;
           return;
+        }
+        const uid = this.userInfo && this.userInfo.uid || (common_vendor.index.getStorageSync("userInfo") || {}).uid;
+        const cached = uid ? common_vendor.index.getStorageSync(`bound_invite_code_${uid}`) : "";
+        if (cached) {
+          this.boundInviteCode = cached;
+          this.inviteBound = true;
         }
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.getMyInviteCode();
-        if (res.code === 0 && res.data && res.data.invite_code) {
-          this.myInviteCode = res.data.invite_code;
+        if (res.code === 0 && res.data) {
+          if (res.data.invite_code)
+            this.myInviteCode = res.data.invite_code;
+          this.applyInviteBind(res.data);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:467", "加载邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:468", "加载邀请码失败:", error);
       }
     },
     /**
@@ -294,7 +339,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:514", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:515", "加载用户信息失败:", error);
       }
     },
     /**
@@ -345,7 +390,7 @@ const _sfc_main = {
           });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:565", "加载概览数据失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:566", "加载概览数据失败:", error);
       }
     },
     /**
@@ -382,11 +427,19 @@ const _sfc_main = {
      *   - 可以添加复制联系方式到剪贴板的功能
      */
     contactService() {
-      common_vendor.index.showModal({
-        title: "联系客服",
-        content: "请添加客服微信：jiajiabang_service 或拨打 400-123-4567",
-        showCancel: false,
-        confirmText: "我知道了"
+      const wechat = this.adminWechat;
+      if (!wechat) {
+        common_vendor.index.showToast({ title: "暂无客服微信", icon: "none" });
+        return;
+      }
+      common_vendor.index.setClipboardData({
+        data: wechat,
+        success: () => {
+          common_vendor.index.showToast({ title: "微信号已复制", icon: "success" });
+        },
+        fail: () => {
+          common_vendor.index.showToast({ title: "复制失败", icon: "none" });
+        }
       });
     },
     copyUserId() {
@@ -419,6 +472,7 @@ const _sfc_main = {
           const res = await inviteCenter.getMyInviteCode();
           if (res.code === 0 && res.data && res.data.invite_code) {
             this.myInviteCode = res.data.invite_code;
+            this.applyInviteBind(res.data);
           } else {
             common_vendor.index.showToast({ title: res.message || "生成邀请码失败", icon: "none" });
             return;
@@ -436,7 +490,7 @@ const _sfc_main = {
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:652", "生成或复制邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:662", "生成或复制邀请码失败:", error);
         common_vendor.index.showToast({ title: "生成邀请码失败，请稍后重试", icon: "none" });
       }
     },
@@ -449,6 +503,15 @@ const _sfc_main = {
         return;
       if (this.useMock) {
         common_vendor.index.showToast({ title: "演示模式下不支持填写邀请码", icon: "none" });
+        return;
+      }
+      if (this.inviteBound || this.boundInviteCode) {
+        common_vendor.index.showModal({
+          title: "已填写邀请码",
+          content: this.boundInviteCode ? `您已填写邀请码：${this.boundInviteCode}` : "您已填写过邀请码，不能再次填写",
+          showCancel: false,
+          confirmText: "知道了"
+        });
         return;
       }
       try {
@@ -474,23 +537,24 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "邀请码格式不正确", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages/user/index.vue:690", "[user-index] 开始绑定邀请码:", {
+        common_vendor.index.__f__("log", "at pages/user/index.vue:709", "[user-index] 开始绑定邀请码:", {
           inviteCode,
           userInfo: common_vendor.index.getStorageSync("userInfo") || {}
         });
         const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
         const res = await inviteCenter.acceptInvite({ invite_code: inviteCode });
-        common_vendor.index.__f__("log", "at pages/user/index.vue:698", "[user-index] 绑定邀请码返回结果:", res);
+        common_vendor.index.__f__("log", "at pages/user/index.vue:717", "[user-index] 绑定邀请码返回结果:", res);
         if (res.code === 0) {
+          this.applyInviteBind({
+            bound: true,
+            bound_invite_code: res.data && res.data.bound_invite_code || inviteCode
+          });
           common_vendor.index.showToast({ title: res.message || "邀请码填写成功", icon: "success" });
-          setTimeout(() => {
-            common_vendor.index.__f__("log", "at pages/user/index.vue:704", "[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账");
-          }, 300);
         } else {
           common_vendor.index.showToast({ title: res.message || "邀请码无效", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/user/index.vue:710", "填写邀请码失败:", error);
+        common_vendor.index.__f__("error", "at pages/user/index.vue:729", "填写邀请码失败:", error);
         common_vendor.index.showToast({ title: error.message || "填写邀请码失败", icon: "none" });
       }
     },
@@ -544,7 +608,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages/user/index.vue:767", "注销账号失败:", error);
+              common_vendor.index.__f__("error", "at pages/user/index.vue:786", "注销账号失败:", error);
               common_vendor.index.showToast({
                 title: "注销失败，请重试",
                 icon: "none"
@@ -557,59 +621,71 @@ const _sfc_main = {
   }
 };
 if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  const _component_divider = common_vendor.resolveComponent("divider");
   const _component_ParentTabBar = common_vendor.resolveComponent("ParentTabBar");
-  (_component_card + _component_divider + _component_ParentTabBar)();
+  _component_ParentTabBar();
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: $options.displayAvatar,
-    b: common_vendor.t($options.displayName),
+    a: common_vendor.t($options.greetText),
+    b: $options.displayAvatar,
     c: common_vendor.o((...args) => $options.handleHeaderClick && $options.handleHeaderClick(...args)),
-    d: !$options.isLoggedIn
-  }, !$options.isLoggedIn ? {
-    e: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
-  } : common_vendor.e({
-    f: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
-    g: $data.userInfo.uid
-  }, $data.userInfo.uid ? {
-    h: common_vendor.t($data.userInfo.uid),
-    i: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
-  } : {}), {
-    j: !$options.isLoggedIn
-  }, !$options.isLoggedIn ? {
-    k: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+    d: common_vendor.t($options.displayName),
+    e: common_vendor.t($options.isLoggedIn ? "资料可随时修改" : "登录后可完善资料"),
+    f: common_vendor.o((...args) => $options.handleHeaderClick && $options.handleHeaderClick(...args)),
+    g: $options.isLoggedIn
+  }, $options.isLoggedIn ? {
+    h: common_vendor.o(($event) => $options.goToPage("/pages/common/register"))
+  } : {
+    i: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+  }, {
+    j: $options.isLoggedIn && $data.userInfo.uid
+  }, $options.isLoggedIn && $data.userInfo.uid ? {
+    k: common_vendor.t($data.userInfo.uid),
+    l: common_vendor.o((...args) => $options.copyUserId && $options.copyUserId(...args))
   } : {}, {
-    l: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
-    m: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
+    m: !$options.isLoggedIn
+  }, !$options.isLoggedIn ? {
+    n: common_vendor.o((...args) => $options.goLogin && $options.goLogin(...args))
+  } : {}, {
+    o: $options.isLoggedIn
+  }, $options.isLoggedIn ? common_vendor.e({
+    p: common_vendor.o(($event) => $options.goToPage("/pages/appointment/list")),
+    q: common_vendor.f($options.appointmentOrders, (item, index, i0) => {
       return {
-        a: common_vendor.n(item.icon),
+        a: common_vendor.t($data.overview.appointmentStats[item.index] || 0),
         b: common_vendor.t(item.name),
         c: index,
         d: common_vendor.o(($event) => $options.openAppointment(item), index)
       };
     }),
-    n: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
-    o: common_vendor.o(($event) => $options.goToPage("/pages/recruitment/list")),
-    p: $data.myInviteCode
-  }, $data.myInviteCode ? {} : {}, {
-    q: common_vendor.t($data.myInviteCode || "--"),
-    r: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
-    s: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
-    t: common_vendor.o(($event) => $options.goToPage("/pages/user/collection")),
-    v: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
-    w: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
-    x: common_vendor.o(($event) => $options.goToPage("/pages/common/follow-oa")),
-    y: $data.overview.unreadMessages > 0
-  }, $data.overview.unreadMessages > 0 ? {
-    z: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
+    r: common_vendor.o(($event) => $options.goToPage("/pages/order/list")),
+    s: $data.recruitmentIcon,
+    t: common_vendor.o(($event) => $options.goToPage("/pages/recruitment/list")),
+    v: common_vendor.o(($event) => $options.goToPage("/pages-biz/user/collection")),
+    w: common_vendor.o(($event) => $options.goToPage("/pages/coupon/list")),
+    x: common_vendor.o(($event) => $options.goToPage("/pages-biz/user/profile")),
+    y: common_vendor.o(($event) => $options.goToPage("/pages/common/register")),
+    z: $data.inviteIcon,
+    A: common_vendor.t($data.myInviteCode || "--"),
+    B: common_vendor.o((...args) => $options.copyInviteCode && $options.copyInviteCode(...args)),
+    C: $data.inviteIcon,
+    D: $data.inviteBound || $data.boundInviteCode
+  }, $data.inviteBound || $data.boundInviteCode ? {
+    E: common_vendor.t($data.boundInviteCode ? "已填写 " + $data.boundInviteCode : "已填写")
   } : {}, {
-    A: common_vendor.o(($event) => $options.goToPage("/pages/user/messages")),
-    B: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
-    C: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
-    D: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args)),
-    E: common_vendor.p({
+    F: common_vendor.o((...args) => $options.openInviteInput && $options.openInviteInput(...args)),
+    G: common_vendor.o(($event) => $options.goToPage("/pages/common/follow-oa")),
+    H: $data.overview.unreadMessages > 0
+  }, $data.overview.unreadMessages > 0 ? {
+    I: common_vendor.t($data.overview.unreadMessages > 99 ? "99+" : $data.overview.unreadMessages)
+  } : {}, {
+    J: common_vendor.o(($event) => $options.goToPage("/pages-biz/user/messages")),
+    K: common_vendor.t($data.adminWechat),
+    L: common_vendor.o((...args) => $options.contactService && $options.contactService(...args)),
+    M: common_vendor.o((...args) => $options.handleLogout && $options.handleLogout(...args)),
+    N: common_vendor.o((...args) => $options.handleDeleteAccount && $options.handleDeleteAccount(...args))
+  }) : {}, {
+    O: common_vendor.p({
       current: "user"
     })
   });

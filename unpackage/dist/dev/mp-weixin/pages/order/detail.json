@@ -1,9 +1,4 @@
 {
   "navigationBarTitleText": "订单详情",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
-  "usingComponents": {
-    "card": "../../components/common/card",
-    "divider": "../../components/common/divider"
-  }
+  "usingComponents": {}
 }

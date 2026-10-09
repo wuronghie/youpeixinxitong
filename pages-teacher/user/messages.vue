@@ -1,101 +1,71 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3 text-white">
-			<view class="d-flex flex-column mb-3">
-				<text class="font-lg font-weight mb-1">系统消息</text>
-				<text class="font-sm" style="opacity: 0.85;">及时查看平台通知，掌握最新状态</text>
+	<view class="page">
+		<view class="metrics-card">
+			<view class="metric">
+				<text class="metric-num">{{ stats.total || 0 }}</text>
+				<text class="metric-label">全部</text>
 			</view>
-			<view class="stat-card rounded px-3 py-2">
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ stats.total || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">全部消息</text>
-				</view>
-				<view style="width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.2);"></view>
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ stats.unread || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">未读</text>
-				</view>
-			</view>
-			<view class="d-flex a-center mt-3">
-				<view
-					v-for="tab in tabs"
-					:key="tab.value"
-					class="flex-1 text-center rounded py-2 mr-2 font-sm d-flex a-center j-center"
-					:class="currentTab === tab.value ? 'tab-active' : 'tab-inactive'"
-					@click="switchTab(tab.value)"
-				>
-					<text>{{ tab.label }}</text>
-					<view v-if="tab.unread > 0" class="rounded-circle bg-danger text-white d-flex a-center j-center font-xs ml-1" style="min-width: 32rpx; height: 32rpx; padding: 0 8rpx;">{{ tab.unread > 99 ? '99+' : tab.unread }}</view>
-				</view>
+			<view class="metric">
+				<text class="metric-num">{{ stats.unread || 0 }}</text>
+				<text class="metric-label">未读</text>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll" @scrolltolower="loadMore">
-			<view class="px-2 py-3">
-				<view v-if="list.length" class="d-flex a-center j-sb mb-3">
-					<text class="font-xs text-light-muted">共 {{ pagination.total }} 条</text>
-					<text class="font-xs main-text-color" @click="markAllRead">全部标记已读</text>
-				</view>
+		<view class="tabs">
+			<view
+				v-for="tab in tabs"
+				:key="tab.value"
+				class="tab"
+				:class="{ on: currentTab === tab.value }"
+				@click="switchTab(tab.value)"
+			>
+				{{ tab.label }}
+				<text v-if="tab.unread > 0" class="tab-badge">{{ tab.unread > 99 ? '99+' : tab.unread }}</text>
+			</view>
+		</view>
 
-				<view v-if="loading && !list.length" class="d-flex flex-column">
-					<view v-for="n in 4" :key="n" class="card mb-3">
-						<view class="d-flex a-center">
-							<view class="rounded bg-light-secondary mr-3" style="width: 88rpx; height: 88rpx;"></view>
-							<view class="flex-1">
-								<view class="bg-light-secondary rounded mb-2" style="width: 40%; height: 30rpx;"></view>
-								<view class="bg-light-secondary rounded" style="width: 70%; height: 30rpx;"></view>
-							</view>
-						</view>
-					</view>
-				</view>
-				<view v-else>
-					<view v-for="item in list" :key="item.message_id" class="card mb-3" :class="{ 'border border-primary': !item.is_read }" @click="goToDetail(item)">
-						<view class="d-flex a-center">
-							<view class="rounded d-flex a-center j-center mr-3" :class="getTypeClass(item.type)" style="width: 88rpx; height: 88rpx;">
-								<view :class="getTypeIcon(item.type)" style="width: 48rpx; height: 48rpx;"></view>
-							</view>
-							<view class="flex-1">
-								<view class="d-flex a-center j-sb mb-1">
-									<text class="font-sm font-weight">{{ item.title }}</text>
-									<text class="font-xs text-light-muted">{{ formatTime(item.create_time) }}</text>
-								</view>
-								<text class="font-xs text-light-muted d-block mb-2" style="line-height: 1.6;">{{ item.content }}</text>
-								<view class="d-flex flex-wrap">
-									<text class="bg-light-secondary rounded px-2 py-1 mr-2 mb-2 font-xs main-text-color" v-if="item.type === 'appointment'">预约通知</text>
-									<text class="bg-light-secondary rounded px-2 py-1 mr-2 mb-2 font-xs main-text-color" v-if="item.type === 'payment'">交易提醒</text>
-									<text class="bg-light-secondary rounded px-2 py-1 mr-2 mb-2 font-xs main-text-color" v-if="item.type === 'system'">系统通知</text>
-									<text class="bg-danger rounded px-2 py-1 mr-2 mb-2 font-xs text-white" v-if="!item.is_read">未读</text>
-								</view>
-							</view>
-						</view>
-					</view>
+		<view class="mark-row">
+			<text class="mark-all" @click="markAllRead">全部标记已读</text>
+		</view>
 
-					<view v-if="!loading && !list.length" class="d-flex flex-column a-center j-center py-5">
-						<view class="icon-empty" style="color: #ddd;"></view>
-						<text class="text-light-muted font-md mt-3">暂无相关消息</text>
-						<text class="text-light-muted font-xs mt-2">等待平台发布新的通知</text>
-					</view>
+		<scroll-view scroll-y class="list-scroll" @scrolltolower="loadMore">
+			<view v-if="loading && !list.length" class="footer-tip">加载中...</view>
 
-					<view v-if="loading && list.length" class="text-center text-light-muted font py-3">加载中...</view>
-					<view v-else-if="finished && list.length" class="text-center text-light-muted font py-3">已经到底啦</view>
+			<view
+				v-for="item in list"
+				:key="item.message_id"
+				class="conv-item"
+				:class="{ unread: !item.is_read }"
+				@click="goToDetail(item)"
+			>
+				<view class="avatar" :class="avatarClass(item.type)">{{ typeMark(item.type) }}</view>
+				<view class="conv-main">
+					<view class="conv-head">
+						<text class="conv-title">{{ item.title }}</text>
+						<text class="conv-time">{{ formatTime(item.create_time) }}</text>
+					</view>
+					<text class="conv-msg">{{ item.content }}</text>
 				</view>
 			</view>
+
+			<view v-if="!loading && !list.length" class="empty">
+				<text class="empty-title">暂无相关消息</text>
+			</view>
+			<view v-if="loading && list.length" class="footer-tip">加载中...</view>
+			<view v-else-if="finished && list.length" class="footer-tip">已经到底啦</view>
 		</scroll-view>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 export default {
 	name: 'TeacherMessages',
-	components: {
-		card
-	},
-	mixins: [pullRefreshMixin],
+	mixins: [pullRefreshMixin, createAppPushMixin([APP_PUSH_TYPES.SYSTEM_MESSAGE, APP_PUSH_TYPES.APPOINTMENT_UPDATE])],
 	data() {
 		return {
 			tabs: [
@@ -133,6 +103,9 @@ export default {
 		async refreshData() {
 			console.log('[teacher-messages] 下拉刷新：重新加载消息')
 			await this.resetAndLoad()
+		},
+		onAppPushPayload() {
+			this.resetAndLoad()
 		},
 		resetAndLoad() {
 			this.pagination.page = 1
@@ -250,6 +223,16 @@ export default {
 				uni.showToast({ title: '操作失败，请稍后再试', icon: 'none' })
 			}
 		},
+		typeMark(type) {
+			if (type === 'appointment') return '约'
+			if (type === 'payment') return '交'
+			return '通'
+		},
+		avatarClass(type) {
+			if (type === 'appointment') return 'av-amber'
+			if (type === 'payment') return 'av-ok'
+			return 'av-brand'
+		},
 		getTypeIcon(type) {
 			const icons = {
 				system: 'icon-bell',
@@ -310,192 +293,184 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
-	flex: 1;
-	height: calc(100vh - 400rpx);
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
 }
 
-/* 统计卡片样式 */
-.stat-card {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
+.metrics-card {
+	margin: 24rpx 32rpx 0;
+	padding: 28rpx 12rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+	display: flex;
+}
+
+.metric {
+	flex: 1;
+	text-align: center;
+}
+
+.metric-num {
+	display: block;
+	font-size: 40rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.metric-label {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.tabs {
+	display: flex;
+	margin-top: 16rpx;
+	background: #FFFFFF;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+
+.tab {
+	flex: 1;
+	height: 88rpx;
 	display: flex;
 	align-items: center;
+	justify-content: center;
+	font-size: 26rpx;
+	color: #5C6370;
+	position: relative;
 }
 
-/* 选中状态的选项卡样式 */
-.tab-active {
-	background-color: #FFFFFF;
-	color: #07C160;
+.tab.on {
+	color: #2563EB;
 	font-weight: 600;
 }
 
-/* 未选中状态的选项卡样式 */
-.tab-inactive {
-	background-color: rgba(255, 255, 255, 0.2);
-	color: #FFFFFF;
-}
-
-/* CSS图标样式 */
-.icon-empty {
-	width: 240rpx;
-	height: 240rpx;
-	position: relative;
-	display: inline-block;
-	border: 4rpx dashed #ddd;
-	border-radius: 20rpx;
-}
-.icon-empty::before {
-	content: '';
+.tab.on::after {
+	content: "";
 	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -60%);
-	width: 60rpx;
-	height: 60rpx;
-	border: 4rpx solid #ddd;
-	border-radius: 50%;
-}
-.icon-empty::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -30%);
-	width: 80rpx;
+	left: 22%;
+	right: 22%;
+	bottom: 8rpx;
 	height: 4rpx;
-	background: #ddd;
-}
-
-.icon-bell {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-bell::before {
-	content: '';
-	position: absolute;
-	top: 4rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 20rpx;
-	height: 18rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 10rpx 10rpx 2rpx 2rpx;
-	background: transparent;
-}
-.icon-bell::after {
-	content: '';
-	position: absolute;
-	bottom: 2rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 4rpx;
-	height: 6rpx;
-	border: 2rpx solid currentColor;
-	border-top: none;
-	border-radius: 0 0 4rpx 4rpx;
-}
-
-.icon-calendar {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
+	background: #2563EB;
 	border-radius: 4rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-calendar::before {
-	content: '';
-	position: absolute;
-	top: -2rpx;
-	left: -2rpx;
-	right: -2rpx;
-	height: 8rpx;
-	background: currentColor;
-	border-radius: 4rpx 4rpx 0 0;
-}
-.icon-calendar::after {
-	content: '';
-	position: absolute;
-	top: 12rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 8rpx 0 0 currentColor, 0 6rpx 0 currentColor, 8rpx 6rpx 0 currentColor;
 }
 
-.icon-wallet {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-wallet::before {
-	content: '';
-	position: absolute;
-	top: 6rpx;
-	left: 6rpx;
-	width: 12rpx;
-	height: 8rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 2rpx;
-	background: transparent;
-}
-.icon-wallet::after {
-	content: '';
-	position: absolute;
-	bottom: 6rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 16rpx;
-	height: 3rpx;
-	background: currentColor;
+.tab-badge {
+	min-width: 28rpx;
+	height: 28rpx;
+	margin-left: 8rpx;
+	padding: 0 8rpx;
+	border-radius: 14rpx;
+	background: #FA5151;
+	color: #FFFFFF;
+	font-size: 18rpx;
+	line-height: 28rpx;
+	text-align: center;
 }
 
-.icon-chat {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
+.mark-row {
+	padding: 16rpx 32rpx 0;
+	text-align: right;
+}
+
+.mark-all {
+	font-size: 24rpx;
+	color: #2563EB;
+}
+
+.list-scroll {
+	height: calc(100vh - 380rpx);
+	margin-top: 8rpx;
+	background: #FFFFFF;
+}
+
+.conv-item {
+	display: flex;
+	gap: 24rpx;
+	padding: 24rpx 32rpx;
+	border-bottom: 1rpx solid #F2F3F5;
+	min-height: 144rpx;
 	box-sizing: border-box;
-	overflow: visible;
 }
-.icon-chat::before {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 28rpx;
-	height: 20rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx 6rpx 6rpx 0;
-	background: transparent;
+
+.conv-item.unread .conv-title {
+	font-weight: 600;
 }
-.icon-chat::after {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
+
+.avatar {
+	width: 88rpx;
+	height: 88rpx;
 	border-radius: 50%;
-	box-shadow: 6rpx 0 0 currentColor, 12rpx 0 0 currentColor;
+	color: #FFFFFF;
+	font-size: 28rpx;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.av-brand {
+	background: #2563EB;
+}
+
+.av-amber {
+	background: #FA9D3B;
+}
+
+.av-ok {
+	background: #07C160;
+}
+
+.conv-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.conv-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+
+.conv-title {
+	flex: 1;
+	min-width: 0;
+	font-size: 30rpx;
+	color: #1F2329;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.conv-time {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.conv-msg {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 26rpx;
+	color: #8B919C;
+	line-height: 1.4;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.empty,
+.footer-tip {
+	padding: 40rpx 32rpx;
+	text-align: center;
+	font-size: 26rpx;
+	color: #8B919C;
 }
 </style>

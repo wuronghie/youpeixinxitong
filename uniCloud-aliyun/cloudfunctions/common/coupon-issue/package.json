@@ -1,0 +1,10 @@
+{
+  "name": "coupon-issue",
+  "version": "1.0.0",
+  "description": "优惠券发放公共逻辑（注册/登录自动发、后台批量发）",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "notify-push": "file:../notify-push"
+  }
+}

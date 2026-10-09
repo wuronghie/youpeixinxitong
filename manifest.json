@@ -65,6 +65,9 @@
         },
         "requiredPrivateInfos" : [ "getLocation", "chooseLocation" ],
         "lazyCodeLoading" : "requiredComponents",
+        "optimization" : {
+            "subPackages" : true
+        },
         "unipush" : {
             "enable" : true
         }

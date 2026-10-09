@@ -1,134 +1,88 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3 text-white">
-			<view class="d-flex a-center mb-3">
-				<view class="stat-card rounded px-3 py-2 mr-3 d-flex flex-column a-center">
-					<text class="font-xl font-weight text-white d-block">{{ stats.averageRating || '0.0' }}</text>
-					<view class="d-flex a-center mt-1">
-						<text
-							v-for="i in 5"
-							:key="i"
-							class="font-xs text-white"
-							:style="i <= Math.round(stats.averageRating || 0) ? 'color: #ffd060;' : 'opacity: 0.4;'"
-						>★</text>
-					</view>
-				</view>
-				<view class="flex-1 d-flex a-center j-around">
-					<view class="text-center">
-						<text class="font-md font-weight text-white d-block mb-1">总评价</text>
-						<text class="font-sm text-white" style="opacity: 0.9;">{{ stats.total || 0 }}</text>
-					</view>
-					<view class="text-center">
-						<text class="font-md font-weight text-white d-block mb-1">已回复</text>
-						<text class="font-sm text-white" style="opacity: 0.9;">{{ stats.replied || 0 }}</text>
-					</view>
-					<view class="text-center">
-						<text class="font-md font-weight text-white d-block mb-1">待回复</text>
-						<text class="font-sm text-white" style="opacity: 0.9;">{{ stats.unreplied || 0 }}</text>
-					</view>
-				</view>
+	<view class="page">
+		<view class="metrics-card">
+			<view class="metric">
+				<text class="metric-num">{{ stats.averageRating || '0.0' }}</text>
+				<text class="metric-label">平均分</text>
 			</view>
-			<view class="stat-card rounded px-3 py-2">
-				<view v-for="item in stats.ratingStats" :key="item.star" class="d-flex a-center mb-2">
-					<text class="font-xs text-white mr-2" style="width: 70rpx; opacity: 0.9;">{{ item.star }} 星</text>
-					<view class="flex-1 bg-white rounded" style="height: 14rpx; overflow: hidden; opacity: 0.3;">
-						<view
-							class="bg-warning"
-							:style="{ width: distributionWidth(item.count), height: '100%' }"
-						></view>
-					</view>
-					<text class="font-xs text-white ml-2" style="width: 50rpx; text-align: right; opacity: 0.9;">{{ item.count || 0 }}</text>
-				</view>
+			<view class="metric">
+				<text class="metric-num">{{ stats.total || 0 }}</text>
+				<text class="metric-label">总评价</text>
+			</view>
+			<view class="metric">
+				<text class="metric-num">{{ stats.unreplied || 0 }}</text>
+				<text class="metric-label">待回复</text>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll" @scrolltolower="loadMore">
-			<view class="px-2 py-3">
-				<!-- 筛选栏 -->
-				<view class="d-flex a-center mb-3">
-					<view
-						v-for="tab in statusTabs"
-						:key="tab.value"
-						class="rounded px-3 py-2 mr-2 font-sm"
-						:class="currentStatus === tab.value ? 'tab-active-status' : 'tab-inactive-status'"
-						@click="changeStatus(tab.value)"
-					>
-						{{ tab.label }}<text v-if="tab.count" class="ml-1">{{ tab.count ? tab.count(stats) : '' }}</text>
-					</view>
+		<view class="tabs">
+			<view
+				v-for="tab in statusTabs"
+				:key="tab.value"
+				class="tab"
+				:class="{ on: currentStatus === tab.value }"
+				@click="changeStatus(tab.value)"
+			>
+				{{ tab.label }}<text v-if="tab.count && tab.count(stats)"> {{ tab.count(stats) }}</text>
+			</view>
+		</view>
+
+		<scroll-view scroll-x class="filters" :show-scrollbar="false">
+			<view class="filters-inner">
+				<text
+					v-for="rate in ratingTabs"
+					:key="rate.value"
+					class="filter"
+					:class="{ on: currentRating === rate.value }"
+					@click="changeRating(rate.value)"
+				>{{ rate.label }}</text>
+			</view>
+		</scroll-view>
+
+		<scroll-view scroll-y class="list-scroll" @scrolltolower="loadMore">
+			<view
+				v-for="item in list"
+				:key="item.review_id"
+				class="a-card"
+			>
+				<text class="a-name">{{ item.parent_name || '家长' }}</text>
+				<text class="a-time">
+					<text v-for="i in 5" :key="i" class="star" :class="{ on: i <= item.rating }">★</text>
+					 · {{ formatTime(item.create_time) }}
+				</text>
+				<text class="a-content">{{ item.content }}</text>
+				<view v-if="item.tags && item.tags.length" class="tags">
+					<text v-for="tag in item.tags" :key="tag" class="chip">{{ tag }}</text>
 				</view>
-				<scroll-view scroll-x class="mb-3">
-					<view class="d-flex a-center">
-						<view
-							v-for="rate in ratingTabs"
-							:key="rate.value"
-							class="rounded px-3 py-2 mr-2 font-sm"
-							:class="currentRating === rate.value ? 'tab-active-rating' : 'tab-inactive-rating'"
-							@click="changeRating(rate.value)"
-						>
-							{{ rate.label }}
-						</view>
+				<view v-if="item.teacher_reply" class="reply-box">
+					<view class="reply-head">
+						<text class="reply-label">我的回复</text>
+						<text class="reply-time">{{ formatTime(item.reply_time) }}</text>
 					</view>
-				</scroll-view>
-
-				<!-- 评价列表 -->
-				<view class="d-flex flex-column">
-					<view v-for="item in list" :key="item.review_id" class="card mb-3">
-						<view class="d-flex a-center mb-3">
-							<image class="rounded-circle mr-3" :src="item.parent_avatar || defaultAvatarUrl" mode="aspectFill" style="width: 96rpx; height: 96rpx;"></image>
-							<view class="flex-1">
-								<text class="font-sm font-weight d-block mb-1">{{ item.parent_name }}</text>
-								<view class="d-flex a-center">
-									<text
-										v-for="i in 5"
-										:key="i"
-										class="font-xs"
-										:style="i <= item.rating ? 'color: #ffd060;' : 'color: #ddd;'"
-									>★</text>
-								</view>
-							</view>
-							<text class="font-xs text-light-muted">{{ formatTime(item.create_time) }}</text>
-						</view>
-						<text class="font-sm text-light-muted d-block mb-2" style="line-height: 1.6;">{{ item.content }}</text>
-						<view v-if="item.tags && item.tags.length" class="d-flex flex-wrap mb-3">
-							<text v-for="tag in item.tags" :key="tag" class="bg-light-secondary rounded px-2 py-1 mr-2 mb-2 font-xs main-text-color">{{ tag }}</text>
-						</view>
-						<view v-if="item.teacher_reply" class="bg-light-secondary rounded px-3 py-2 mb-2">
-							<view class="d-flex a-center j-sb mb-2">
-								<text class="font-xs main-text-color font-weight">我的回复</text>
-								<text class="font-xs text-light-muted">{{ formatTime(item.reply_time) }}</text>
-							</view>
-							<text class="font-sm text-light-muted d-block mb-2" style="line-height: 1.6;">{{ item.teacher_reply }}</text>
-							<text class="font-xs main-text-color" @click="replyReview(item)">修改回复</text>
-						</view>
-						<button v-else class="w-100 main-bg-color text-white rounded px-3 py-2 font-sm" @click="replyReview(item)">回复</button>
-					</view>
-
-					<view v-if="!loading && !list.length" class="d-flex flex-column a-center j-center py-5">
-						<view class="icon-empty" style="color: #ddd;"></view>
-						<text class="text-light-muted font-md mt-3">暂时还没有评价记录</text>
-					</view>
-
-					<view v-if="loading" class="text-center text-light-muted font py-3">加载中...</view>
-					<view v-else-if="finished && list.length" class="text-center text-light-muted font py-3">没有更多了</view>
+					<text class="reply-text">{{ item.teacher_reply }}</text>
+					<text class="reply-edit" @click="replyReview(item)">修改回复</text>
+				</view>
+				<view v-else class="a-ops">
+					<text class="mini" @click="replyReview(item)">回复</text>
 				</view>
 			</view>
+
+			<view v-if="!loading && !list.length" class="empty">
+				<text class="empty-title">暂时还没有评价记录</text>
+			</view>
+			<view v-if="loading" class="footer-tip">加载中...</view>
+			<view v-else-if="finished && list.length" class="footer-tip">没有更多了</view>
 		</scroll-view>
 	</view>
 </template>
 
 <script>
 import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
-
-import card from '@/components/common/card.vue'
 import { useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 
 export default {
 	name: 'TeacherReviewList',
-	components: {
-		card
-	},
 	mixins: [pullRefreshMixin],
 		data() {
 			return {
@@ -305,7 +259,7 @@ export default {
 				title: item.teacher_reply ? '修改回复' : '回复评价',
 				editable: true,
 				placeholderText: '请输入回复内容（最多200字）',
-				confirmColor: '#667eea',
+				confirmColor: '#2563EB',
 				content: item.teacher_reply || '',
 				success: async res => {
 					if (!res.confirm || !res.content || !res.content.trim()) return
@@ -362,73 +316,223 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
+}
+
+.metrics-card {
+	margin: 24rpx 32rpx 0;
+	padding: 28rpx 12rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+	display: flex;
+}
+
+.metric {
 	flex: 1;
-	height: calc(100vh - 500rpx);
+	text-align: center;
 }
 
-/* 统计卡片样式 */
-.stat-card {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
-}
-
-/* 状态选项卡样式 */
-.tab-active-status {
-	background-color: #07C160;
-	color: #FFFFFF;
+.metric-num {
+	display: block;
+	font-size: 40rpx;
 	font-weight: 600;
+	color: #1F2329;
 }
 
-.tab-inactive-status {
-	background-color: #F1F1F1;
-	color: #333333;
+.metric-label {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 22rpx;
+	color: #8B919C;
 }
 
-/* 评分筛选选项卡样式 */
-.tab-active-rating {
-	background-color: #FFFFFF;
-	color: #07C160;
-	border: 2rpx solid #07C160;
-	font-weight: 600;
+.tabs {
+	display: flex;
+	margin-top: 16rpx;
+	background: #FFFFFF;
+	border-bottom: 1rpx solid #EBEDF0;
 }
 
-.tab-inactive-rating {
-	background-color: #F1F1F1;
-	color: #666666;
-}
-
-/* CSS图标样式 */
-.icon-empty {
-	width: 240rpx;
-	height: 240rpx;
+.tab {
+	flex: 1;
+	height: 88rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 26rpx;
+	color: #5C6370;
 	position: relative;
-	display: inline-block;
-	border: 4rpx dashed #ddd;
-	border-radius: 20rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
 }
-.icon-empty::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -60%);
-	width: 60rpx;
-	height: 60rpx;
-	border: 4rpx solid #ddd;
-	border-radius: 50%;
+
+.tab.on {
+	color: #2563EB;
+	font-weight: 600;
 }
-.icon-empty::after {
-	content: '';
+
+.tab.on::after {
+	content: "";
 	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -30%);
-	width: 80rpx;
+	left: 22%;
+	right: 22%;
+	bottom: 8rpx;
 	height: 4rpx;
-	background: #ddd;
+	background: #2563EB;
+	border-radius: 4rpx;
+}
+
+.filters {
+	white-space: nowrap;
+	background: #F4F6F9;
+}
+
+.filters-inner {
+	display: flex;
+	gap: 12rpx;
+	padding: 16rpx 32rpx 8rpx;
+}
+
+.filter {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 999rpx;
+	background: #FFFFFF;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
+	border: 1rpx solid #EBEDF0;
+}
+
+.filter.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	border-color: transparent;
+	font-weight: 600;
+}
+
+.list-scroll {
+	height: calc(100vh - 420rpx);
+}
+
+.a-card {
+	margin: 16rpx 32rpx 24rpx;
+	padding: 28rpx 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.a-name {
+	display: block;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.a-time {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.star {
+	color: #EBEDF0;
+}
+
+.star.on {
+	color: #F59E0B;
+}
+
+.a-content {
+	display: block;
+	margin-top: 16rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.6;
+}
+
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	margin-top: 16rpx;
+}
+
+.chip {
+	height: 44rpx;
+	padding: 0 16rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 22rpx;
+	line-height: 44rpx;
+}
+
+.reply-box {
+	margin-top: 20rpx;
+	padding: 20rpx;
+	background: #F4F6F9;
+	border-radius: 16rpx;
+}
+
+.reply-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.reply-label {
+	font-size: 22rpx;
+	font-weight: 600;
+	color: #2563EB;
+}
+
+.reply-time {
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.reply-text {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.6;
+}
+
+.reply-edit {
+	display: inline-block;
+	margin-top: 12rpx;
+	font-size: 24rpx;
+	color: #2563EB;
+}
+
+.a-ops {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 20rpx;
+}
+
+.mini {
+	height: 60rpx;
+	padding: 0 28rpx;
+	border-radius: 16rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+}
+
+.empty,
+.footer-tip {
+	padding: 40rpx 32rpx;
+	text-align: center;
+	font-size: 26rpx;
+	color: #8B919C;
 }
 </style>

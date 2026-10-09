@@ -4,15 +4,12 @@ const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_auth = require("../../utils/auth.js");
+const utils_wxPhone = require("../../utils/wxPhone.js");
 const utils_location = require("../../utils/location.js");
-const utils_wxContentSecurity = require("../../utils/wxContentSecurity.js");
-const card = () => "../../components/common/card.js";
+const pages_common_utils_wxContentSecurity = require("./utils/wxContentSecurity.js");
 const defaultAvatar = utils_imageConfig.getDefaultAvatarUrl();
 const _sfc_main = {
   mixins: [utils_pullRefreshMixin.pullRefreshMixin],
-  components: {
-    card
-  },
   name: "ParentRegister",
   data() {
     return {
@@ -21,6 +18,7 @@ const _sfc_main = {
       loading: false,
       avatarUploading: false,
       isSubmitting: false,
+      phoneBinding: false,
       gradeIndex: -1,
       gradeOptions: ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "高一", "高二", "高三"],
       subjectOptions: ["语文", "数学", "英语", "物理", "化学", "生物", "历史", "地理", "政治", "其他"],
@@ -28,9 +26,7 @@ const _sfc_main = {
       formData: {
         avatar: "",
         avatarFileId: "",
-        real_name: "",
-        gender: "",
-        // 家长性别（必填）：'male' | 'female'
+        nickname: "",
         phone: "",
         student_name: "",
         student_gender: "",
@@ -58,6 +54,12 @@ const _sfc_main = {
     },
     canEdit() {
       return this.role === "parent" && !this.loading;
+    },
+    hasBoundPhone() {
+      return utils_wxPhone.isValidCnMobile(this.formData.phone);
+    },
+    heroName() {
+      return this.formData.nickname || this.formData.student_name || "家长用户";
     },
     heroSubtitle() {
       if (this.role !== "parent") {
@@ -113,7 +115,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/common/register.vue:364", "[register] 下拉刷新：重新加载资料");
+      common_vendor.index.__f__("log", "at pages/common/register.vue:277", "[register] 下拉刷新：重新加载资料");
       await this.initPage(true);
     },
     async initPage(fromPullDown = false) {
@@ -123,7 +125,7 @@ const _sfc_main = {
       try {
         await this.fetchProfile();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:374", "初始化家长资料失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:287", "初始化家长资料失败:", error);
       } finally {
         if (fromPullDown) {
           common_vendor.index.stopPullDownRefresh();
@@ -159,7 +161,7 @@ const _sfc_main = {
           };
           common_vendor.index.setStorageSync("userInfo", nextStored);
         } else {
-          common_vendor.index.__f__("warn", "at pages/common/register.vue:411", "获取用户信息失败，使用本地存储信息:", res.message);
+          common_vendor.index.__f__("warn", "at pages/common/register.vue:324", "获取用户信息失败，使用本地存储信息:", res.message);
           if (stored.uid) {
             this.fillFormFromProfile({
               nickname: stored.nickname || "",
@@ -171,7 +173,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:424", "获取家长资料失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:337", "获取家长资料失败:", error);
         const stored2 = common_vendor.index.getStorageSync("userInfo") || {};
         if (stored2.uid) {
           this.fillFormFromProfile({
@@ -198,12 +200,6 @@ const _sfc_main = {
       const locationName = pInfo.location_name;
       const hasLocation = locationLat !== void 0 && locationLat !== null && locationLat !== "" || locationLon !== void 0 && locationLon !== null && locationLon !== "" || locationName;
       const finalAddressName = pInfo.address_detail || locationName || hasLegacyAddress && legacyAddress.name || "";
-      const rawGender = profile.gender;
-      let genderStr = "";
-      if (rawGender === 1 || rawGender === "1" || rawGender === "male")
-        genderStr = "male";
-      else if (rawGender === 2 || rawGender === "2" || rawGender === "female")
-        genderStr = "female";
       const rawStudentGender = pInfo.student_gender;
       let studentGenderStr = "";
       if (rawStudentGender === 1 || rawStudentGender === "1" || rawStudentGender === "male")
@@ -213,9 +209,8 @@ const _sfc_main = {
       this.formData = {
         avatar: avatarUrl || defaultAvatar,
         avatarFileId: avatarFileId || "",
-        real_name: profile.nickname || pInfo.real_name || "",
-        gender: genderStr,
-        phone: profile.phone || "",
+        nickname: profile.nickname || profile.wx_nickname || "",
+        phone: utils_wxPhone.pickUserPhone(profile) || profile.phone || "",
         student_name: pInfo.student_name || "",
         student_gender: studentGenderStr,
         student_grade: pInfo.student_grade || "",
@@ -240,6 +235,15 @@ const _sfc_main = {
         extra_notes: pInfo.extra_notes || ""
       };
       this.gradeIndex = this.gradeOptions.indexOf(this.formData.student_grade);
+      if (!this.formData.phone) {
+        try {
+          const bound = await utils_wxPhone.refreshBoundPhone();
+          if (bound)
+            this.formData.phone = bound;
+        } catch (e) {
+          common_vendor.index.__f__("warn", "at pages/common/register.vue:415", "[register] 读取已绑定手机号失败:", e);
+        }
+      }
     },
     chooseAvatar() {
       if (!this.canEdit || this.avatarUploading)
@@ -261,7 +265,7 @@ const _sfc_main = {
         this.avatarUploading = true;
         let uploadPath = localPath;
         try {
-          uploadPath = await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath, { scene: "avatar" });
+          uploadPath = await pages_common_utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath, { scene: "avatar" });
         } catch (secErr) {
           common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
           return;
@@ -282,7 +286,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:542", "上传头像失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:457", "上传头像失败:", error);
         common_vendor.index.showToast({ title: "上传失败，请稍后重试", icon: "none" });
       } finally {
         this.avatarUploading = false;
@@ -299,7 +303,7 @@ const _sfc_main = {
         const file = (_a = res.fileList) == null ? void 0 : _a[0];
         return (file == null ? void 0 : file.tempFileURL) || fileId;
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:556", "获取临时链接失败:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:471", "获取临时链接失败:", error);
         return fileId;
       }
     },
@@ -310,19 +314,33 @@ const _sfc_main = {
       this.gradeIndex = index;
       this.formData.student_grade = this.gradeOptions[index];
     },
-    selectGender(gender) {
-      if (!this.canEdit)
-        return;
-      if (gender !== "male" && gender !== "female")
-        return;
-      this.formData.gender = gender;
-    },
     selectStudentGender(gender) {
       if (!this.canEdit)
         return;
       if (gender !== "male" && gender !== "female")
         return;
       this.formData.student_gender = gender;
+    },
+    async onGetPhoneNumber(e) {
+      if (!this.canEdit || this.phoneBinding)
+        return;
+      this.phoneBinding = true;
+      try {
+        common_vendor.index.showLoading({ title: "获取中..." });
+        const phone = await utils_wxPhone.bindWeixinPhoneAndSync(e);
+        if (phone) {
+          this.formData.phone = phone;
+          common_vendor.index.showToast({ title: "已自动填入手机号", icon: "success" });
+        } else {
+          common_vendor.index.showToast({ title: "已授权，请确认号码", icon: "none" });
+        }
+      } catch (error) {
+        common_vendor.index.__f__("error", "at pages/common/register.vue:499", "[register] 获取本机号码失败:", error);
+        common_vendor.index.showToast({ title: error && error.message || "获取手机号失败", icon: "none" });
+      } finally {
+        common_vendor.index.hideLoading();
+        this.phoneBinding = false;
+      }
     },
     toggleSubject(subject) {
       if (!this.canEdit)
@@ -378,7 +396,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages/common/register.vue:634", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages/common/register.vue:564", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -408,17 +426,8 @@ const _sfc_main = {
       });
     },
     validateForm() {
-      if (!this.formData.real_name) {
-        common_vendor.index.showToast({ title: "请填写真实姓名", icon: "none" });
-        return false;
-      }
-      if (this.formData.gender !== "male" && this.formData.gender !== "female") {
-        common_vendor.index.showToast({ title: "请选择性别", icon: "none" });
-        return false;
-      }
-      const phoneReg = /^1[3-9]\d{9}$/;
-      if (!this.formData.phone || !phoneReg.test(this.formData.phone)) {
-        common_vendor.index.showToast({ title: "请填写正确的手机号", icon: "none" });
+      if (!utils_wxPhone.isValidCnMobile(this.formData.phone)) {
+        common_vendor.index.showToast({ title: "请填写或获取正确的手机号", icon: "none" });
         return false;
       }
       if (!this.formData.student_name) {
@@ -437,17 +446,16 @@ const _sfc_main = {
     },
     async submitForm() {
       if (!this.canEdit || this.isSubmitting) {
-        common_vendor.index.__f__("log", "at pages/common/register.vue:693", "[register] 保存被阻止:", { canEdit: this.canEdit, isSubmitting: this.isSubmitting });
+        common_vendor.index.__f__("log", "at pages/common/register.vue:614", "[register] 保存被阻止:", { canEdit: this.canEdit, isSubmitting: this.isSubmitting });
         return;
       }
       if (!this.validateForm()) {
-        common_vendor.index.__f__("log", "at pages/common/register.vue:697", "[register] 表单验证失败");
+        common_vendor.index.__f__("log", "at pages/common/register.vue:618", "[register] 表单验证失败");
         return;
       }
       try {
         this.isSubmitting = true;
-        common_vendor.index.__f__("log", "at pages/common/register.vue:702", "[register] 开始保存，payload:", {
-          real_name: this.formData.real_name,
+        common_vendor.index.__f__("log", "at pages/common/register.vue:623", "[register] 开始保存，payload:", {
           phone: this.formData.phone,
           student_name: this.formData.student_name,
           student_grade: this.formData.student_grade
@@ -459,9 +467,7 @@ const _sfc_main = {
           return;
         }
         const payload = {
-          real_name: this.formData.real_name,
           phone: this.formData.phone,
-          gender: this.formData.gender,
           avatar: this.formData.avatarFileId || this.formData.avatar,
           student_name: this.formData.student_name,
           student_gender: this.formData.student_gender,
@@ -478,20 +484,19 @@ const _sfc_main = {
           school_name: this.formData.school_name,
           extra_notes: this.formData.extra_notes
         };
-        common_vendor.index.__f__("log", "at pages/common/register.vue:739", "[register] 调用云函数 updateParentProfile");
+        common_vendor.index.__f__("log", "at pages/common/register.vue:657", "[register] 调用云函数 updateParentProfile");
         const userProfile = common_vendor.tr.importObject("user-profile", { customUI: true });
         const res = await userProfile.updateParentProfile(payload);
-        common_vendor.index.__f__("log", "at pages/common/register.vue:742", "[register] 云函数返回:", res);
+        common_vendor.index.__f__("log", "at pages/common/register.vue:660", "[register] 云函数返回:", res);
         if (res.code === 0) {
           try {
             const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
             await inviteCenter.getMyInviteCode();
           } catch (e) {
-            common_vendor.index.__f__("error", "at pages/common/register.vue:750", "[register] 生成邀请码失败（忽略，不影响资料保存）:", e);
+            common_vendor.index.__f__("error", "at pages/common/register.vue:668", "[register] 生成邀请码失败（忽略，不影响资料保存）:", e);
           }
           const stored = common_vendor.index.getStorageSync("userInfo") || {};
           const parentInfo = {
-            real_name: this.formData.real_name,
             student_name: this.formData.student_name,
             student_gender: this.formData.student_gender,
             student_grade: this.formData.student_grade,
@@ -510,15 +515,14 @@ const _sfc_main = {
           };
           const nextStored = {
             ...stored,
-            nickname: this.formData.real_name,
+            nickname: stored.nickname || this.formData.nickname,
             avatar: this.formData.avatarFileId || this.formData.avatar || stored.avatar,
             phone: this.formData.phone,
-            gender: this.formData.gender === "male" ? 1 : 2,
             parent_info: parentInfo,
             role: "parent"
           };
           common_vendor.index.setStorageSync("userInfo", nextStored);
-          common_vendor.index.__f__("log", "at pages/common/register.vue:783", "[register] 保存成功，已更新本地存储");
+          common_vendor.index.__f__("log", "at pages/common/register.vue:699", "[register] 保存成功，已更新本地存储");
           common_vendor.index.showToast({ title: "保存成功", icon: "success" });
           setTimeout(() => {
             const pages = getCurrentPages();
@@ -534,16 +538,16 @@ const _sfc_main = {
             }
           }, 1200);
         } else {
-          common_vendor.index.__f__("error", "at pages/common/register.vue:800", "[register] 保存失败:", res.message);
+          common_vendor.index.__f__("error", "at pages/common/register.vue:716", "[register] 保存失败:", res.message);
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none", duration: 3e3 });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/common/register.vue:804", "[register] 保存家长资料异常:", error);
+        common_vendor.index.__f__("error", "at pages/common/register.vue:720", "[register] 保存家长资料异常:", error);
         const errorMsg = error.message || error.errMsg || "保存失败，请稍后再试";
         common_vendor.index.showToast({ title: errorMsg, icon: "none", duration: 3e3 });
       } finally {
         this.isSubmitting = false;
-        common_vendor.index.__f__("log", "at pages/common/register.vue:809", "[register] 保存流程结束，isSubmitting:", this.isSubmitting);
+        common_vendor.index.__f__("log", "at pages/common/register.vue:725", "[register] 保存流程结束，isSubmitting:", this.isSubmitting);
       }
     },
     goRolePage() {
@@ -551,117 +555,91 @@ const _sfc_main = {
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: $data.formData.avatar || $data.defaultAvatar,
-    b: common_vendor.t($data.avatarUploading ? "上传中..." : "更换头像"),
-    c: common_vendor.o((...args) => $options.chooseAvatar && $options.chooseAvatar(...args)),
-    d: common_vendor.t($data.formData.real_name || "家长用户"),
-    e: common_vendor.t($options.heroSubtitle),
+    b: common_vendor.t($options.heroName),
+    c: common_vendor.t($data.avatarUploading ? "上传中..." : "点击更换头像"),
+    d: !$options.canEdit ? 1 : "",
+    e: common_vendor.o((...args) => $options.chooseAvatar && $options.chooseAvatar(...args)),
     f: $data.role !== "parent"
   }, $data.role !== "parent" ? {
-    g: common_vendor.t($options.roleText)
+    g: common_vendor.o((...args) => $options.goRolePage && $options.goRolePage(...args))
   } : {}, {
-    h: common_vendor.t($data.formData.phone || "未填写"),
-    i: common_vendor.t($data.formData.student_name || "未填写"),
-    j: common_vendor.t($data.formData.student_grade || "未选择"),
-    k: $data.role !== "parent"
-  }, $data.role !== "parent" ? {
-    l: common_vendor.o((...args) => $options.goRolePage && $options.goRolePage(...args))
+    h: !$options.canEdit,
+    i: $options.hasBoundPhone ? "" : "授权后自动填写",
+    j: $data.formData.phone,
+    k: common_vendor.o(common_vendor.m(($event) => $data.formData.phone = $event.detail.value, {
+      trim: true
+    })),
+    l: $options.canEdit && !$options.hasBoundPhone
+  }, $options.canEdit && !$options.hasBoundPhone ? {
+    m: $data.phoneBinding,
+    n: common_vendor.o((...args) => $options.onGetPhoneNumber && $options.onGetPhoneNumber(...args))
   } : {}, {
-    m: !$options.canEdit,
-    n: $data.formData.real_name,
-    o: common_vendor.o(common_vendor.m(($event) => $data.formData.real_name = $event.detail.value, {
+    o: !$options.canEdit ? 1 : "",
+    p: !$options.canEdit,
+    q: $data.formData.student_name,
+    r: common_vendor.o(common_vendor.m(($event) => $data.formData.student_name = $event.detail.value, {
       trim: true
     })),
-    p: common_vendor.n($data.formData.gender === "male" ? "gender-selected male" : "gender-default"),
-    q: common_vendor.o(($event) => $options.selectGender("male")),
-    r: common_vendor.n($data.formData.gender === "female" ? "gender-selected female" : "gender-default"),
-    s: common_vendor.o(($event) => $options.selectGender("female")),
-    t: !$options.canEdit,
-    v: $data.formData.phone,
-    w: common_vendor.o(common_vendor.m(($event) => $data.formData.phone = $event.detail.value, {
+    s: $data.formData.student_gender === "male" ? 1 : "",
+    t: common_vendor.o(($event) => $options.selectStudentGender("male")),
+    v: $data.formData.student_gender === "female" ? 1 : "",
+    w: common_vendor.o(($event) => $options.selectStudentGender("female")),
+    x: common_vendor.t($data.formData.student_grade || "请选择"),
+    y: !!$data.formData.student_grade ? 1 : "",
+    z: $data.gradeOptions,
+    A: $data.gradeIndex,
+    B: common_vendor.o((...args) => $options.onGradeChange && $options.onGradeChange(...args)),
+    C: !$options.canEdit,
+    D: !$options.canEdit,
+    E: $data.formData.student_age,
+    F: common_vendor.o(common_vendor.m(($event) => $data.formData.student_age = $event.detail.value, {
       trim: true
     })),
-    x: !$options.canEdit ? 1 : "",
-    y: common_vendor.p({
-      headTitle: "家长信息"
-    }),
-    z: !$options.canEdit,
-    A: $data.formData.student_name,
-    B: common_vendor.o(common_vendor.m(($event) => $data.formData.student_name = $event.detail.value, {
+    G: !$options.canEdit,
+    H: $data.formData.school_name,
+    I: common_vendor.o(common_vendor.m(($event) => $data.formData.school_name = $event.detail.value, {
       trim: true
     })),
-    C: common_vendor.n($data.formData.student_gender === "male" ? "gender-selected male" : "gender-default"),
-    D: common_vendor.o(($event) => $options.selectStudentGender("male")),
-    E: common_vendor.n($data.formData.student_gender === "female" ? "gender-selected female" : "gender-default"),
-    F: common_vendor.o(($event) => $options.selectStudentGender("female")),
-    G: common_vendor.t($data.formData.student_grade || "请选择年级"),
-    H: common_vendor.n($data.formData.student_grade ? "" : "text-light-muted"),
-    I: $data.gradeOptions,
-    J: $data.gradeIndex,
-    K: common_vendor.o((...args) => $options.onGradeChange && $options.onGradeChange(...args)),
-    L: !$options.canEdit,
-    M: !$options.canEdit,
-    N: $data.formData.student_age,
-    O: common_vendor.o(common_vendor.m(($event) => $data.formData.student_age = $event.detail.value, {
-      trim: true
-    })),
-    P: !$options.canEdit,
-    Q: $data.formData.school_name,
-    R: common_vendor.o(common_vendor.m(($event) => $data.formData.school_name = $event.detail.value, {
-      trim: true
-    })),
-    S: common_vendor.f($data.subjectOptions, (item, k0, i0) => {
+    J: common_vendor.f($data.subjectOptions, (item, k0, i0) => {
       return {
         a: common_vendor.t(item),
         b: item,
-        c: common_vendor.n($data.formData.student_subjects.includes(item) ? "main-bg-color text-white" : "bg-light-secondary"),
+        c: $data.formData.student_subjects.includes(item) ? 1 : "",
         d: common_vendor.o(($event) => $options.toggleSubject(item), item)
       };
     }),
-    T: !$options.canEdit ? 1 : "",
-    U: common_vendor.p({
-      headTitle: "学生信息"
-    }),
-    V: common_vendor.f($data.goalOptions, (item, k0, i0) => {
+    K: !$options.canEdit ? 1 : "",
+    L: common_vendor.f($data.goalOptions, (item, k0, i0) => {
       return {
         a: common_vendor.t(item),
         b: item,
-        c: common_vendor.n($data.formData.learning_goal === item ? "main-bg-color text-white" : "bg-light-secondary"),
+        c: $data.formData.learning_goal === item ? 1 : "",
         d: common_vendor.o(($event) => $options.selectGoal(item), item)
       };
     }),
-    W: !$options.canEdit,
-    X: $data.formData.extra_notes,
-    Y: common_vendor.o(common_vendor.m(($event) => $data.formData.extra_notes = $event.detail.value, {
+    M: !$options.canEdit,
+    N: $data.formData.extra_notes,
+    O: common_vendor.o(common_vendor.m(($event) => $data.formData.extra_notes = $event.detail.value, {
       trim: true
     })),
-    Z: common_vendor.t($data.formData.extra_notes.length),
-    aa: !$options.canEdit ? 1 : "",
-    ab: common_vendor.p({
-      headTitle: "学习目标"
-    }),
-    ac: common_vendor.t($options.addressDisplay || "点击选择地址"),
-    ad: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
-    ae: $data.formData.address.latitude && $data.formData.address.longitude
+    P: common_vendor.t($data.formData.extra_notes.length),
+    Q: !$options.canEdit ? 1 : "",
+    R: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
+    S: common_vendor.t($options.addressDisplay || "点击选择大致上课地点"),
+    T: $data.formData.address.latitude && $data.formData.address.longitude
   }, $data.formData.address.latitude && $data.formData.address.longitude ? {
-    af: parseFloat($data.formData.address.latitude),
-    ag: parseFloat($data.formData.address.longitude),
-    ah: $options.mapMarkers,
-    ai: common_vendor.o((...args) => $options.handleOpenLocation && $options.handleOpenLocation(...args))
+    U: parseFloat($data.formData.address.latitude),
+    V: parseFloat($data.formData.address.longitude),
+    W: $options.mapMarkers,
+    X: common_vendor.o((...args) => $options.handleOpenLocation && $options.handleOpenLocation(...args))
   } : {}, {
-    aj: !$options.canEdit ? 1 : "",
-    ak: common_vendor.p({
-      headTitle: "上课地址"
-    }),
-    al: common_vendor.t($data.isSubmitting ? "保存中..." : "保存信息"),
-    am: !$options.canEdit || $data.isSubmitting,
-    an: common_vendor.o((...args) => $options.submitForm && $options.submitForm(...args))
+    Y: !$options.canEdit ? 1 : "",
+    Z: common_vendor.t($data.isSubmitting ? "保存中..." : "保存信息"),
+    aa: !$options.canEdit || $data.isSubmitting,
+    ab: common_vendor.o((...args) => $options.submitForm && $options.submitForm(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-05030230"]]);

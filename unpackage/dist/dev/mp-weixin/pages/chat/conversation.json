@@ -1,6 +1,5 @@
 {
   "navigationBarTitleText": "聊天",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "enablePullDownRefresh": false,
   "usingComponents": {}
 }

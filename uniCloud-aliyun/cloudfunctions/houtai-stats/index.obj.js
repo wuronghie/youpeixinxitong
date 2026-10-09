@@ -162,7 +162,7 @@ module.exports = {
       //   overdueClockOut: 排课结束时间已过 24 小时但仍没下课打卡（异常情况，需要管理员关注）
       const overdueDeadline = Date.now() - 24 * 3600 * 1000
       const overdueDateStr = toDateStr(overdueDeadline)
-      const [needClockInRes, needClockOutRes, overdueClockOutRes] = await Promise.all([
+      const [needClockInRes, needClockOutRes, overdueClockOutRes, paidFlowRes, platformFeeRes, fundFailRes, teacherPayPendingRes] = await Promise.all([
         db.collection('appointments').where({
           status: dbCmd.in(['confirmed', 'in_progress']),
           deposit_paid: true,
@@ -183,8 +183,54 @@ module.exports = {
           class_started_at: dbCmd.exists(true),
           class_ended_at: dbCmd.exists(false),
           date: dbCmd.lte(overdueDateStr)
-        }).count()
+        }).count(),
+        db.collection('payment-orders').aggregate()
+          .match({
+            status: dbCmd.in(['paid', 'completed', 'success', 'refunded', 'refunding'])
+          })
+          .group({
+            _id: null,
+            totalAmount: $.sum('$total_amount'),
+            totalAmountAlt: $.sum('$amount')
+          })
+          .end(),
+        db.collection('payment-orders').aggregate()
+          .match({
+            status: dbCmd.in(['paid', 'completed', 'success', 'refunded', 'refunding'])
+          })
+          .group({
+            _id: null,
+            platformFee: $.sum('$platform_fee')
+          })
+          .end(),
+        db.collection('teacher-withdraw-requests').where(dbCmd.and([
+          { status: 'failed' },
+          dbCmd.or([
+            { handled: false },
+            { handled: dbCmd.exists(false) }
+          ])
+        ])).count(),
+        db.collection('payment-refunds').where(dbCmd.and([
+          { status: dbCmd.in(['success', 'completed']) },
+          { teacher_income: dbCmd.gt(0) },
+          dbCmd.or([
+            { teacher_settled: false },
+            { teacher_settled: dbCmd.exists(false) },
+            { teacher_pay_status: 'failed' },
+            { teacher_pay_status: '' },
+            { teacher_pay_status: dbCmd.exists(false) }
+          ])
+        ])).count()
       ]);
+
+      const paidFlowRow = paidFlowRes.data && paidFlowRes.data[0]
+      const cumulativeFlow = Number(
+        (paidFlowRow && (paidFlowRow.totalAmount || paidFlowRow.totalAmountAlt)) || 0
+      )
+      const platformFeeRow = platformFeeRes.data && platformFeeRes.data[0]
+      const cumulativePlatformIncome = Number((platformFeeRow && platformFeeRow.platformFee) || 0)
+      const payoutFailCount = fundFailRes.total || 0
+      const teacherPayPendingCount = teacherPayPendingRes.total || 0
 
       return success({
         totalUsers: totalUsersRes.total || 0,
@@ -201,7 +247,12 @@ module.exports = {
         studentRecruitmentFemaleCount: recruitmentFemaleRes.total || 0,
         needClockInCount: needClockInRes.total || 0,
         needClockOutCount: needClockOutRes.total || 0,
-        overdueClockOutCount: overdueClockOutRes.total || 0
+        overdueClockOutCount: overdueClockOutRes.total || 0,
+        cumulativeFlow,
+        cumulativePlatformIncome,
+        payoutFailCount,
+        teacherPayPendingCount,
+        merchantFundFailCount: payoutFailCount
       });
     } catch (e) {
       return fail(e.message || '获取仪表盘数据失败');
@@ -435,15 +486,37 @@ module.exports = {
           .get(),
         db.collection('parent-recruitments')
           .where({ audit_status: 'pending', status: 'open' })
-          .field({ _id: true, display_name: true, subject: true, student_grade: true, create_time: true })
+          .field({ _id: true, parent_id: true, display_name: true, student_name: true, subject: true, student_grade: true, budget_min: true, budget_max: true, create_time: true })
           .orderBy('create_time', 'desc')
           .limit(limit)
           .get()
       ]);
 
+      const pendingTeachers = teacherRes.data || (teacherRes.result && teacherRes.result.data) || []
+      let pendingRecruitments = recruitmentRes.data || (recruitmentRes.result && recruitmentRes.result.data) || []
+      const parentIds = Array.from(new Set(pendingRecruitments.map((row) => row.parent_id).filter(Boolean)))
+      const studentNameMap = {}
+      if (parentIds.length) {
+        const userRes = await db.collection('uni-id-users')
+          .where({ _id: db.command.in(parentIds) })
+          .field({ _id: true, parent_info: true })
+          .get()
+        ;(userRes.data || []).forEach((user) => {
+          studentNameMap[user._id] = String((user.parent_info && user.parent_info.student_name) || '').trim()
+        })
+      }
+      pendingRecruitments = pendingRecruitments.map((row) => {
+        const student_name = String(row.student_name || studentNameMap[row.parent_id] || '').trim()
+        return {
+          ...row,
+          student_name,
+          parent_label: student_name ? `${student_name}家长` : '家长'
+        }
+      })
+
       return success({
-        pendingTeachers: teacherRes.data || (teacherRes.result && teacherRes.result.data) || [],
-        pendingRecruitments: recruitmentRes.data || (recruitmentRes.result && recruitmentRes.result.data) || []
+        pendingTeachers,
+        pendingRecruitments
       });
     } catch (e) {
       return fail(e.message || '获取待办任务失败');

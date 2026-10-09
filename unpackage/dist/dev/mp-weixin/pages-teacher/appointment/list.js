@@ -1,9 +1,13 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
-const TeacherTabBar = () => "../../components/TeacherTabBar.js";
+const pagesTeacher_utils_appointmentClock = require("../utils/appointmentClock.js");
+const utils_appPushMixin = require("../../utils/appPushMixin.js");
+const utils_chatPush = require("../../utils/chatPush.js");
+const TeacherTabBar = () => "../components/TeacherTabBar.js";
 const _sfc_main = {
   name: "TeacherAppointmentList",
+  mixins: [utils_appPushMixin.createAppPushMixin(utils_chatPush.APP_PUSH_TYPES.APPOINTMENT_UPDATE)],
   components: {
     TeacherTabBar
   },
@@ -46,6 +50,10 @@ const _sfc_main = {
     async refreshData() {
       await this.loadAppointments();
     },
+    onAppPushPayload() {
+      this.page = 1;
+      this.loadAppointments();
+    },
     /**
      * 计算每条预约的"打卡待办"徽章
      * 返回 { text, className } 或 null
@@ -55,59 +63,7 @@ const _sfc_main = {
      *  - in_progress 已上课已下课 / completed → 绿色：打卡已完成
      */
     getClockBadge(item) {
-      if (!item)
-        return null;
-      const status = item.status;
-      if (!["confirmed", "in_progress", "completed"].includes(status))
-        return null;
-      if (!(item.deposit_paid === true || item.deposit_paid === "true"))
-        return null;
-      if (!(item.parent_paid === true || item.parent_paid === "true"))
-        return null;
-      const startTs = this.parseScheduleStart(item);
-      const endTs = this.parseScheduleEnd(item, startTs);
-      const now = Date.now();
-      const ALLOW_EARLY_MS = 15 * 60 * 1e3;
-      const started = !!item.class_started_at;
-      const ended = !!item.class_ended_at;
-      if (started && ended) {
-        return { text: "打卡已完成", className: "badge-success" };
-      }
-      if (started && !ended) {
-        if (endTs && now >= endTs) {
-          return { text: "待下课打卡", className: "badge-warning" };
-        }
-        return { text: "上课中", className: "badge-info" };
-      }
-      if (startTs && now >= startTs - ALLOW_EARLY_MS && (!endTs || now < endTs)) {
-        return { text: "待上课打卡", className: "badge-danger" };
-      }
-      if (endTs && now >= endTs) {
-        return { text: "已超时未打卡", className: "badge-danger" };
-      }
-      return { text: "未到打卡时间", className: "badge-muted" };
-    },
-    parseScheduleStart(item) {
-      const schedule = item.schedule || {};
-      const date = schedule.date || item.appointment_date || item.date;
-      const startTime = schedule.start_time || item.appointment_time || item.start_time;
-      if (!date || !startTime)
-        return 0;
-      const ts = (/* @__PURE__ */ new Date(`${date}T${startTime}:00`)).getTime();
-      return Number.isNaN(ts) ? 0 : ts;
-    },
-    parseScheduleEnd(item, startTs) {
-      if (!startTs)
-        return 0;
-      const schedule = item.schedule || {};
-      if (schedule.end_time) {
-        const date = schedule.date || item.appointment_date;
-        const ts = (/* @__PURE__ */ new Date(`${date}T${schedule.end_time}:00`)).getTime();
-        if (!Number.isNaN(ts))
-          return ts;
-      }
-      const duration = Number(schedule.duration || item.duration || 2);
-      return startTs + duration * 3600 * 1e3;
+      return pagesTeacher_utils_appointmentClock.getTeacherClockBadge(item);
     },
     /**
      * 将数据库状态映射到筛选状态
@@ -152,7 +108,7 @@ const _sfc_main = {
           let queryStatus = void 0;
           if (this.currentStatus === "pending_confirm") {
             queryStatus = ["pending_payment", "pending_confirm"];
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:259", "[teacher-appointment-list] 查询待确认状态，包含:", queryStatus);
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:212", "[teacher-appointment-list] 查询待确认状态，包含:", queryStatus);
           } else if (this.currentStatus === "confirmed") {
             queryStatus = ["confirmed", "in_progress"];
           } else if (this.currentStatus === "completed") {
@@ -164,9 +120,9 @@ const _sfc_main = {
             page: this.page,
             pageSize: this.pageSize
           });
-          common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:276", "[teacher-appointment-list] 查询结果:", res.code === 0 ? `成功，返回${((_b = (_a = res.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length) || 0}条` : res.message);
+          common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:229", "[teacher-appointment-list] 查询结果:", res.code === 0 ? `成功，返回${((_b = (_a = res.data) == null ? void 0 : _a.list) == null ? void 0 : _b.length) || 0}条` : res.message);
           if (res.code === 0 && ((_c = res.data) == null ? void 0 : _c.list)) {
-            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:278", "[teacher-appointment-list] 返回的状态分布:", res.data.list.map((item) => item.status));
+            common_vendor.index.__f__("log", "at pages-teacher/appointment/list.vue:231", "[teacher-appointment-list] 返回的状态分布:", res.data.list.map((item) => item.status));
           }
           if (res.code === 0) {
             const data = res.data || {};
@@ -187,7 +143,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:303", "加载失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:256", "加载失败:", error);
         common_vendor.index.showToast({ title: "加载失败", icon: "none" });
         this.appointmentList = [];
       } finally {
@@ -241,6 +197,26 @@ const _sfc_main = {
       };
       return map[status] || "";
     },
+    statusPillClass(status) {
+      const map = {
+        pending_payment: "s-pay",
+        pending_confirm: "s-wait",
+        contact_request: "s-wait",
+        confirmed: "s-ing",
+        in_progress: "s-ing",
+        completed: "s-done",
+        rejected: "s-muted",
+        cancelled: "s-muted",
+        refunding: "s-wait",
+        refunded: "s-muted"
+      };
+      return map[status] || "s-muted";
+    },
+    cardTitle(item) {
+      const name = item.student_info && item.student_info.name || item.student_name || "学生";
+      const subject = item.subject || item.student_info && item.student_info.subject;
+      return subject ? `${name} · ${subject}` : name;
+    },
     async handleReject(id) {
       common_vendor.index.showModal({
         title: "提示",
@@ -271,7 +247,7 @@ const _sfc_main = {
                 });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:385", "拒绝失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/appointment/list.vue:358", "拒绝失败:", error);
               common_vendor.index.showToast({ title: "操作失败", icon: "none" });
             }
           }
@@ -300,50 +276,63 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       return {
         a: common_vendor.t(tab.label),
         b: tab.value,
-        c: common_vendor.n($data.currentStatus === tab.value ? "tab-active" : "tab-inactive"),
+        c: $data.currentStatus === tab.value ? 1 : "",
         d: common_vendor.o(($event) => $options.switchStatus(tab.value), tab.value)
       };
     }),
-    b: common_vendor.f($data.appointmentList, (item, k0, i0) => {
+    b: $data.loading && $data.appointmentList.length === 0
+  }, $data.loading && $data.appointmentList.length === 0 ? {
+    c: common_vendor.f(4, (n, k0, i0) => {
+      return {
+        a: n
+      };
+    })
+  } : common_vendor.e({
+    d: common_vendor.f($data.appointmentList, (item, k0, i0) => {
       return common_vendor.e({
-        a: common_vendor.t(item.student_info && item.student_info.name || item.student_name || "学生"),
+        a: common_vendor.t($options.cardTitle(item)),
         b: item.status !== "contact_request"
-      }, item.status !== "contact_request" ? {
+      }, item.status !== "contact_request" ? common_vendor.e({
         c: common_vendor.t(item.schedule && item.schedule.date || item.appointment_date || ""),
-        d: common_vendor.t(item.schedule && item.schedule.start_time || item.appointment_time || "")
-      } : {}, {
-        e: item.status !== "contact_request"
-      }, item.status !== "contact_request" ? {
-        f: common_vendor.t(item.type === "trial" || item.course_type === "trial" ? "试课" : "正式课程"),
-        g: common_vendor.t(item.total_amount || item.total_fee || 300)
+        d: common_vendor.t(item.schedule && item.schedule.start_time || item.appointment_time || ""),
+        e: item.schedule && item.schedule.end_time
+      }, item.schedule && item.schedule.end_time ? {
+        f: common_vendor.t(item.schedule.end_time)
+      } : {}) : {}, {
+        g: common_vendor.t($options.getStatusText(item.status)),
+        h: common_vendor.n($options.statusPillClass(item.status)),
+        i: item.status === "contact_request"
+      }, item.status === "contact_request" ? {
+        j: common_vendor.t(item.student_info && item.student_info.grade || "待确认"),
+        k: common_vendor.t(item.student_info && item.student_info.subject || "待确认")
       } : {
-        h: common_vendor.t(item.student_info && item.student_info.grade || "待确认"),
-        i: common_vendor.t(item.student_info && item.student_info.subject || "待确认")
+        l: common_vendor.t(item.type === "trial" || item.course_type === "trial" ? "试课" : "正式课程"),
+        m: common_vendor.t(item.total_amount || item.total_fee || 300),
+        n: item.type === "trial" || item.course_type === "trial" ? 1 : ""
       }, {
-        j: common_vendor.t($options.getStatusText(item.status)),
-        k: common_vendor.n($options.getStatusClass(item.status)),
-        l: $options.getClockBadge(item)
+        o: $options.getClockBadge(item)
       }, $options.getClockBadge(item) ? {
-        m: common_vendor.t($options.getClockBadge(item).text),
-        n: common_vendor.n($options.getClockBadge(item).className)
+        p: common_vendor.t($options.getClockBadge(item).text),
+        q: common_vendor.n($options.getClockBadge(item).className)
       } : {}, {
-        o: item.status === "pending_confirm" || item.status === "contact_request" || item.status === "pending_payment"
+        r: item.status === "pending_confirm" || item.status === "contact_request" || item.status === "pending_payment"
       }, item.status === "pending_confirm" || item.status === "contact_request" || item.status === "pending_payment" ? {
-        p: common_vendor.o(($event) => $options.handleReject(item._id), item._id),
-        q: common_vendor.t(item.status === "contact_request" ? "查看详情" : "确认"),
-        r: common_vendor.o(($event) => $options.handleConfirm(item._id), item._id)
+        s: common_vendor.o(($event) => $options.handleReject(item._id), item._id),
+        t: common_vendor.t(item.status === "contact_request" ? "查看详情" : "确认"),
+        v: common_vendor.o(($event) => $options.handleConfirm(item._id), item._id)
       } : {}, {
-        s: item._id,
-        t: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
+        w: item._id,
+        x: common_vendor.o(($event) => $options.goToDetail(item._id), item._id)
       });
     }),
-    c: $data.appointmentList.length === 0
-  }, $data.appointmentList.length === 0 ? {} : {}, {
-    d: $data.loading && $data.appointmentList.length
+    e: !$data.appointmentList.length && !$data.loading
+  }, !$data.appointmentList.length && !$data.loading ? {} : {}, {
+    f: $data.loading && $data.appointmentList.length
   }, $data.loading && $data.appointmentList.length ? {} : !$data.hasMore && $data.appointmentList.length ? {} : {}, {
-    e: !$data.hasMore && $data.appointmentList.length,
-    f: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
-    g: common_vendor.p({
+    g: !$data.hasMore && $data.appointmentList.length
+  }), {
+    h: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
+    i: common_vendor.p({
       current: "appointment"
     })
   });

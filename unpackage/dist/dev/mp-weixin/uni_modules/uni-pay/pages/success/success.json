@@ -2,7 +2,5 @@
   "navigationBarTitleText": "",
   "backgroundColor": "#F8F8F8",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {}
 }

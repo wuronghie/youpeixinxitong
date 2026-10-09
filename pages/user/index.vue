@@ -21,196 +21,156 @@
  *   - 修改客服信息：修改 contactService() 方法中的联系方式
 -->
 <template>
-	<view>
-		<!-- 头部区域：显示用户信息和统计 -->
-		<view class="position-relative d-flex a-center animated fadeIn faster" style="height: 320rpx;">
-			<view class="main-bg-color" style="height: 320rpx;width: 100%;position: absolute;top: 0;left: 0;"></view>
-			
-			<view class="d-flex a-center position-absolute left-0 right-0" style="bottom: 50rpx;">
-				<image :src="displayAvatar" style="height: 145rpx;width: 145rpx;border: 5rpx solid;" class="rounded-circle border-light ml-4"></image>
-				<view class="ml-2 text-white">
-					<view class="font-md mb-1" @click="handleHeaderClick">
-						{{ displayName }}
-					</view>
-					<view v-if="!isLoggedIn" class="guest-login-btn rounded px-3 py-1 d-inline-flex a-center" @click="goLogin">
-						<text class="font-sm">点击登录</text>
-					</view>
-					<template v-else>
-						<view class="font-sm" style="opacity: 0.88;" @click="goToPage('/pages/common/register')">
-							查看或完善资料
-						</view>
-						<text
-							v-if="userInfo.uid"
-							class="font-xs user-id-copy d-block mt-1"
-							style="opacity: 0.85;"
-							@click.stop="copyUserId"
-						>ID: {{ userInfo.uid }}</text>
-					</template>
+	<view class="page">
+		<view class="me-band">
+			<text class="me-greet">{{ greetText }}</text>
+			<text class="me-title">我的</text>
+		</view>
+
+		<view class="id-card">
+			<view class="id-top">
+				<image class="id-avatar" :src="displayAvatar" mode="aspectFill" @click="handleHeaderClick"></image>
+				<view class="id-meta" @click="handleHeaderClick">
+					<text class="id-name">{{ displayName }}</text>
+					<text class="id-hint">{{ isLoggedIn ? '资料可随时修改' : '登录后可完善资料' }}</text>
 				</view>
+				<button v-if="isLoggedIn" class="me-edit" @click.stop="goToPage('/pages/common/register')">完善资料</button>
+				<button v-else class="me-edit" @click.stop="goLogin">点击登录</button>
+			</view>
+			<view v-if="isLoggedIn && userInfo.uid" class="id-copy" @click.stop="copyUserId">
+				<text class="id-copy-text">ID {{ userInfo.uid }}</text>
+				<text class="id-copy-btn">复制</text>
 			</view>
 		</view>
 
-		<view v-if="!isLoggedIn" class="bg-white mx-2 mt-3 rounded px-3 py-3 guest-card">
-			<view class="font-md font-weight mb-2">游客浏览中</view>
-			<text class="font-sm text-light-muted d-block mb-3">当前可先浏览教师列表、教师详情等内容。登录后可使用预约、收藏、消息、优惠券和个人资料功能。</text>
-			<button class="main-bg-color text-white rounded px-3 py-2 font-md" @click="goLogin">立即登录</button>
+		<view v-if="!isLoggedIn" class="welcome-card">
+			<text class="welcome-title">游客浏览中</text>
+			<text class="welcome-desc">可先浏览教师列表和详情。登录后可使用预约、收藏、消息、优惠券和个人资料。</text>
+			<button class="welcome-btn" @click="goLogin">立即登录</button>
 		</view>
-		
-		<!-- 图标分类 -->
-		<card>
-			<view slot="title" class="d-flex a-center j-sb w-100">
-				<text class="font-md font-weight">我的预约</text>
-				<view class="text-secondary font ml-auto" 
-				@click="goToPage('/pages/appointment/list')">
-					全部预约 <text class="iconfont icon-you font"></text>
+
+		<block v-if="isLoggedIn">
+			<view class="apt-card">
+				<view class="apt-head">
+					<text class="apt-title">我的预约</text>
+					<text class="apt-more" @click="goToPage('/pages/appointment/list')">全部 ›</text>
 				</view>
-			</view>
-			<view class="d-flex a-center">
-				<view 
-				class="flex-1 d-flex flex-column a-center j-center py-3"
-				hover-class="bg-light-secondary"
-				v-for="(item,index) in appointmentOrders" :key="index"
-				@click="openAppointment(item)">
-					<view class="iconfont font-lg line-h"
-					:class="item.icon"></view>
-					<view>{{item.name}}</view>
-				</view>
-			</view>
-		</card>
-		
-		<divider></divider>
-		
-		<view class="bg-white">
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/order/list')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-wallet_icon mr-2" style="color:#FDBF2E;font-size: 40rpx;"></view>
-					<text class="font-md">课程订单</text>
-				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/recruitment/list')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-bangzhu mr-2" style="color:#3C9CFF;font-size: 40rpx;"></view>
-					<text class="font-md">我的招募</text>
-				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<!-- 我的邀请码展示 -->
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" hover-class="bg-light-secondary" @click="copyInviteCode">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-yaoqing mr-2" style="color:#07C160;font-size: 40rpx;"></view>
-					<view class="d-flex flex-column">
-						<text class="font-md">我的邀请码</text>
-						<text class="font-sm text-light-muted" v-if="myInviteCode">长按复制或点击复制后分享给好友</text>
-						<text class="font-sm text-light-muted" v-else>生成中，如未出现请下拉刷新重试</text>
+				<view class="apt-grid">
+					<view
+						v-for="(item, index) in appointmentOrders"
+						:key="index"
+						class="apt-cell"
+						@click="openAppointment(item)"
+					>
+						<text class="apt-num">{{ overview.appointmentStats[item.index] || 0 }}</text>
+						<text class="apt-label">{{ item.name }}</text>
 					</view>
 				</view>
-				<view class="d-flex a-center">
-					<text class="font-md main-text-color mr-2">{{ myInviteCode || '--' }}</text>
-					<text class="iconfont icon-you text-light-muted"></text>
-				</view>
 			</view>
-			<!-- 手动填写好友邀请码 -->
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" hover-class="bg-light-secondary" @click="openInviteInput">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-yaoqing mr-2" style="color:#3C9CFF;font-size: 40rpx;"></view>
-					<view class="d-flex flex-column">
-						<text class="font-md">填写好友邀请码</text>
-						<text class="font-sm text-light-muted">每个账户只能填写一次，用于绑定邀请关系</text>
+
+			<view class="svc-card">
+				<view class="svc-item" @click="goToPage('/pages/order/list')">
+					<view class="svc-tile"><text class="iconfont icon-wallet_icon"></text></view>
+					<text class="svc-text">课程订单</text>
+				</view>
+				<view class="svc-item" @click="goToPage('/pages/recruitment/list')">
+					<view class="svc-tile">
+						<image class="svc-icon" :src="recruitmentIcon" mode="aspectFit"></image>
 					</view>
+					<text class="svc-text">我的招募</text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/user/collection')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-huangguan mr-2" style="color:#FCBE2D;font-size: 40rpx;"></view>
-					<text class="font-md">我的收藏</text>
+				<view class="svc-item" @click="goToPage('/pages-biz/user/collection')">
+					<view class="svc-tile"><text class="iconfont icon-huangguan"></text></view>
+					<text class="svc-text">我的收藏</text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/coupon/list')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-wallet_icon mr-2" style="color:#FF8F1F;font-size: 40rpx;"></view>
-					<text class="font-md">我的优惠券</text>
+				<view class="svc-item" @click="goToPage('/pages/coupon/list')">
+					<view class="svc-tile"><text class="iconfont icon-wallet_icon"></text></view>
+					<text class="svc-text">我的优惠券</text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
 			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/common/register')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-service mr-2" style="color:#FA6C5E;font-size: 40rpx;"></view>
-					<text class="font-md">完善资料</text>
+
+			<view class="menu-card">
+				<view class="menu-item" hover-class="menu-item--hover" @click="goToPage('/pages-biz/user/profile')">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-service"></text></view>
+						<text class="menu-text">个人信息</text>
+					</view>
+					<text class="iconfont icon-you menu-arrow"></text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/common/follow-oa')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-xiaoxi mr-2" style="color:#07C160;font-size: 40rpx;"></view>
-					<text class="font-md">关注服务号</text>
-					<text class="font-xs text-light-muted ml-2">接收预约/消息通知</text>
+				<view class="menu-item" hover-class="menu-item--hover" @click="goToPage('/pages/common/register')">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-service"></text></view>
+						<text class="menu-text">完善资料</text>
+					</view>
+					<text class="iconfont icon-you menu-arrow"></text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="goToPage('/pages/user/messages')">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-xiaoxi mr-2" style="color:#07C160;font-size: 40rpx;"></view>
-					<text class="font-md">系统消息</text>
-					<view v-if="overview.unreadMessages > 0" class="rounded-circle bg-danger text-white d-flex a-center j-center font-xs ml-2" style="min-width: 32rpx; height: 32rpx; padding: 0 8rpx;">{{ overview.unreadMessages > 99 ? '99+' : overview.unreadMessages }}</view>
+				<view class="menu-item" hover-class="menu-item--hover" @click="copyInviteCode">
+					<view class="menu-left">
+						<view class="menu-ico">
+							<image class="menu-ico-img" :src="inviteIcon" mode="aspectFit"></image>
+						</view>
+						<text class="menu-text">我的邀请码</text>
+					</view>
+					<text class="code-pill">{{ myInviteCode || '--' }} 复制</text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="contactService">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-home mr-2" style="color:#FE8B42;font-size: 40rpx;"></view>
-					<text class="font-md">联系客服</text>
+				<view class="menu-item" hover-class="menu-item--hover" @click="openInviteInput">
+					<view class="menu-left">
+						<view class="menu-ico">
+							<image class="menu-ico-img" :src="inviteIcon" mode="aspectFit"></image>
+						</view>
+						<text class="menu-text">填写好友邀请码</text>
+					</view>
+					<text v-if="inviteBound || boundInviteCode" class="code-pill">{{ boundInviteCode ? ('已填写 ' + boundInviteCode) : '已填写' }}</text>
+					<text v-else class="iconfont icon-you menu-arrow"></text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-		</view>
-		
-		<divider></divider>
-		
-		<view class="bg-white mb-3">
-			<view class="d-flex a-center j-sb py-3 px-3 border-bottom" 
-			hover-class="bg-light-secondary"
-			@click="handleLogout">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-icon_set_up mr-2" style="color:#808C98;font-size: 40rpx;"></view>
-					<text class="font-md">退出登录</text>
+				<view class="menu-item" hover-class="menu-item--hover" @click="goToPage('/pages/common/follow-oa')">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-xiaoxi"></text></view>
+						<text class="menu-text">关注服务号</text>
+					</view>
+					<text class="iconfont icon-you menu-arrow"></text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
-			</view>
-			<view class="d-flex a-center j-sb py-3 px-3" 
-			hover-class="bg-light-secondary"
-			@click="handleDeleteAccount">
-				<view class="d-flex a-center">
-					<view class="iconfont icon-icon_set_up mr-2" style="color:#ff9500;font-size: 40rpx;"></view>
-					<text class="font-md" style="color:#ff9500;">注销账号</text>
+				<view class="menu-item" hover-class="menu-item--hover" @click="goToPage('/pages-biz/user/messages')">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-xiaoxi"></text></view>
+						<text class="menu-text">系统消息</text>
+					</view>
+					<view v-if="overview.unreadMessages > 0" class="badge">
+						{{ overview.unreadMessages > 99 ? '99+' : overview.unreadMessages }}
+					</view>
+					<text v-else class="iconfont icon-you menu-arrow"></text>
 				</view>
-				<text class="iconfont icon-you text-light-muted"></text>
+				<view class="menu-item" hover-class="menu-item--hover" @click="contactService">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-home"></text></view>
+						<text class="menu-text">联系客服</text>
+					</view>
+					<text class="code-pill">{{ adminWechat }} 复制</text>
+				</view>
 			</view>
-		</view>
-		
-		<!-- 备案信息 -->
+
+			<view class="menu-card">
+				<view class="menu-item" hover-class="menu-item--hover" @click="handleLogout">
+					<view class="menu-left">
+						<view class="menu-ico"><text class="iconfont icon-icon_set_up"></text></view>
+						<text class="menu-text">退出登录</text>
+					</view>
+					<text class="iconfont icon-you menu-arrow"></text>
+				</view>
+				<view class="menu-item" hover-class="menu-item--hover" @click="handleDeleteAccount">
+					<view class="menu-left">
+						<view class="menu-ico danger"><text class="iconfont icon-icon_set_up"></text></view>
+						<text class="menu-text danger">注销账号</text>
+					</view>
+					<text class="iconfont icon-you menu-arrow"></text>
+				</view>
+			</view>
+		</block>
+
 		<view class="icp-footer">
 			<text class="icp-text">蜀ICP备2026004236号-1X</text>
 		</view>
-		
+
 		<view class="tabbar-spacer"></view>
 		<ParentTabBar current="user" />
 	</view>
@@ -220,22 +180,23 @@
 import { mockUserInfo, useMockData } from '@/utils/mockData.js'
 import { clearStoredAuth, setStoredUserInfo } from '@/utils/auth.js'
 import ParentTabBar from '@/components/ParentTabBar.vue'
-import card from '@/components/common/card.vue'
-import divider from '@/components/common/divider.vue'
-import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
+import { getDefaultAvatarUrl, getRecruitmentIconUrl, getInviteIconUrl } from '@/utils/imageConfig.js'
 import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
 export default {
 	name: 'ParentUserCenter',
+	mixins: [createAppPushMixin([APP_PUSH_TYPES.SYSTEM_MESSAGE, APP_PUSH_TYPES.APPOINTMENT_UPDATE])],
 	components: {
-		ParentTabBar,
-		card,
-		divider
+		ParentTabBar
 	},
 	data() {
 		return {
+			recruitmentIcon: getRecruitmentIconUrl(),
+			inviteIcon: getInviteIconUrl(),
 			// 是否使用模拟数据（开发测试用）
 			useMock: false,
 			// 用户基本信息
@@ -265,7 +226,10 @@ export default {
 				unreadMessages: 0
 			},
 			// 当前用户的邀请码（用于分享）
-			myInviteCode: ''
+			myInviteCode: '',
+			boundInviteCode: '',
+			inviteBound: false,
+			adminWechat: 'chen18148503231'
 		}
 	},
 	computed: {
@@ -294,6 +258,12 @@ export default {
 				this.userInfo?.nickname ||
 				(this.isLoggedIn ? '微信用户' : '游客')
 			)
+		},
+		greetText() {
+			const hour = new Date().getHours()
+			if (hour < 12) return '上午好'
+			if (hour < 18) return '下午好'
+			return '晚上好'
 		},
 		/**
 		 * 头部统计数据
@@ -386,6 +356,10 @@ export default {
 			await this.initPage(true)
 			await this.loadInviteCode()
 		},
+		onAppPushPayload() {
+			if (!this.hasValidParentSession()) return
+			this.loadOverview()
+		},
 		hasValidParentSession() {
 			const token = uni.getStorageSync('uni_id_token')
 			const stored = uni.getStorageSync('userInfo') || {}
@@ -395,6 +369,8 @@ export default {
 			this.userInfo = {}
 			this.profile = null
 			this.myInviteCode = ''
+			this.boundInviteCode = ''
+			this.inviteBound = false
 			this.overview = {
 				appointmentStats: {
 					total: 0,
@@ -452,16 +428,41 @@ export default {
 		/**
 		 * 加载当前用户的邀请码（用于分享）
 		 */
+		applyInviteBind(data = {}) {
+			const uid = (this.userInfo && this.userInfo.uid) || (uni.getStorageSync('userInfo') || {}).uid
+			const bound = data.bound === true || !!data.bound_invite_code
+			if (data.bound_invite_code) {
+				this.boundInviteCode = data.bound_invite_code
+			}
+			if (bound) {
+				this.inviteBound = true
+				if (uid && this.boundInviteCode) {
+					uni.setStorageSync(`bound_invite_code_${uid}`, this.boundInviteCode)
+				}
+			} else if (data.bound === false) {
+				this.inviteBound = false
+				this.boundInviteCode = ''
+			}
+		},
 		async loadInviteCode() {
 			try {
 				if (this.useMock) {
 					this.myInviteCode = 'DEMO88'
+					this.boundInviteCode = ''
+					this.inviteBound = false
 					return
+				}
+				const uid = (this.userInfo && this.userInfo.uid) || (uni.getStorageSync('userInfo') || {}).uid
+				const cached = uid ? uni.getStorageSync(`bound_invite_code_${uid}`) : ''
+				if (cached) {
+					this.boundInviteCode = cached
+					this.inviteBound = true
 				}
 				const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
 				const res = await inviteCenter.getMyInviteCode()
-				if (res.code === 0 && res.data && res.data.invite_code) {
-					this.myInviteCode = res.data.invite_code
+				if (res.code === 0 && res.data) {
+					if (res.data.invite_code) this.myInviteCode = res.data.invite_code
+					this.applyInviteBind(res.data)
 				}
 			} catch (error) {
 				console.error('加载邀请码失败:', error)
@@ -596,11 +597,19 @@ export default {
 		 *   - 可以添加复制联系方式到剪贴板的功能
 		 */
 		contactService() {
-			uni.showModal({
-				title: '联系客服',
-				content: '请添加客服微信：jiajiabang_service 或拨打 400-123-4567',
-				showCancel: false,
-				confirmText: '我知道了'
+			const wechat = this.adminWechat
+			if (!wechat) {
+				uni.showToast({ title: '暂无客服微信', icon: 'none' })
+				return
+			}
+			uni.setClipboardData({
+				data: wechat,
+				success: () => {
+					uni.showToast({ title: '微信号已复制', icon: 'success' })
+				},
+				fail: () => {
+					uni.showToast({ title: '复制失败', icon: 'none' })
+				}
 			})
 		},
 		copyUserId() {
@@ -632,6 +641,7 @@ export default {
 					const res = await inviteCenter.getMyInviteCode()
 					if (res.code === 0 && res.data && res.data.invite_code) {
 						this.myInviteCode = res.data.invite_code
+						this.applyInviteBind(res.data)
 					} else {
 						uni.showToast({ title: res.message || '生成邀请码失败', icon: 'none' })
 						return
@@ -661,6 +671,15 @@ export default {
 			if (!this.ensureLoginBeforeAction()) return
 			if (this.useMock) {
 				uni.showToast({ title: '演示模式下不支持填写邀请码', icon: 'none' })
+				return
+			}
+			if (this.inviteBound || this.boundInviteCode) {
+				uni.showModal({
+					title: '已填写邀请码',
+					content: this.boundInviteCode ? `您已填写邀请码：${this.boundInviteCode}` : '您已填写过邀请码，不能再次填写',
+					showCancel: false,
+					confirmText: '知道了'
+				})
 				return
 			}
 			try {
@@ -698,11 +717,11 @@ export default {
 				console.log('[user-index] 绑定邀请码返回结果:', res)
 
 				if (res.code === 0) {
+					this.applyInviteBind({
+						bound: true,
+						bound_invite_code: (res.data && res.data.bound_invite_code) || inviteCode
+					})
 					uni.showToast({ title: res.message || '邀请码填写成功', icon: 'success' })
-					// 绑定成功后提示刷新优惠券列表，便于联调排查
-					setTimeout(() => {
-						console.log('[user-index] 邀请码绑定成功，建议前往“我的优惠券”页查看是否到账')
-					}, 300)
 				} else {
 					uni.showToast({ title: res.message || '邀请码无效', icon: 'none', duration: 3000 })
 				}
@@ -779,12 +798,360 @@ export default {
 </script>
 
 <style scoped>
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
+}
+
+.me-band {
+	background: linear-gradient(160deg, #1D4ED8 0%, #2563EB 58%, #4F7DF3 100%);
+	padding: 20rpx 32rpx 72rpx;
+	color: #FFFFFF;
+}
+
+.me-greet {
+	display: block;
+	font-size: 24rpx;
+	opacity: 0.82;
+}
+
+.me-title {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 40rpx;
+	font-weight: 600;
+}
+
+.id-card,
+.welcome-card,
+.apt-card,
+.svc-card,
+.menu-card {
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.id-card {
+	margin-top: -48rpx;
+	padding: 32rpx;
+}
+
+.id-top {
+	display: flex;
+	align-items: center;
+	gap: 24rpx;
+}
+
+.id-avatar {
+	width: 112rpx;
+	height: 112rpx;
+	border-radius: 50%;
+	background: #93B4FF;
+	flex-shrink: 0;
+	box-shadow: 0 0 0 6rpx #EEF3FF;
+}
+
+.id-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.id-name {
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.3;
+}
+
+.id-hint {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.me-edit {
+	flex-shrink: 0;
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+	border: none;
+}
+
+.me-edit::after {
+	border: none;
+}
+
+.id-copy {
+	margin-top: 24rpx;
+	padding: 16rpx 20rpx;
+	background: #F4F6F9;
+	border-radius: 16rpx;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+
+.id-copy-text {
+	flex: 1;
+	min-width: 0;
+	font-size: 22rpx;
+	color: #8B919C;
+	line-height: 1.45;
+	word-break: break-all;
+}
+
+.id-copy-btn {
+	flex-shrink: 0;
+	font-size: 24rpx;
+	font-weight: 600;
+	color: #2563EB;
+}
+
+.welcome-card {
+	padding: 32rpx;
+}
+
+.welcome-title {
+	display: block;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.welcome-desc {
+	display: block;
+	margin: 16rpx 0 28rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.6;
+}
+
+.welcome-btn {
+	height: 80rpx;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 30rpx;
+	font-weight: 600;
+	line-height: 80rpx;
+	border: none;
+}
+
+.welcome-btn::after {
+	border: none;
+}
+
+.apt-card {
+	padding: 28rpx 20rpx 16rpx;
+}
+
+.apt-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 12rpx 20rpx;
+}
+
+.apt-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.apt-more {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.apt-grid {
+	display: flex;
+}
+
+.apt-cell {
+	flex: 1;
+	text-align: center;
+	position: relative;
+	padding: 8rpx 0 12rpx;
+}
+
+.apt-cell + .apt-cell::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 16rpx;
+	bottom: 24rpx;
+	width: 1rpx;
+	background: #EBEDF0;
+}
+
+.apt-num {
+	display: block;
+	font-size: 40rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.2;
+}
+
+.apt-label {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.svc-card {
+	padding: 28rpx 16rpx 20rpx;
+	display: flex;
+}
+
+.svc-item {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.svc-tile {
+	width: 80rpx;
+	height: 80rpx;
+	border-radius: 24rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 12rpx;
+}
+
+.svc-tile .iconfont {
+	font-size: 36rpx;
+}
+
+.svc-icon {
+	width: 40rpx;
+	height: 40rpx;
+}
+
+.svc-text {
+	font-size: 22rpx;
+	color: #5C6370;
+}
+
+.menu-card {
+	padding: 0;
+	overflow: hidden;
+}
+
+.menu-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 104rpx;
+	padding: 20rpx 32rpx;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.menu-item:last-child {
+	border-bottom: none;
+}
+
+.menu-item--hover {
+	background: #F8FAFC;
+}
+
+.menu-left {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	flex: 1;
+}
+
+.menu-ico {
+	width: 56rpx;
+	height: 56rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-right: 20rpx;
+	flex-shrink: 0;
+}
+
+.menu-ico .iconfont {
+	font-size: 30rpx;
+}
+
+.menu-ico-img {
+	width: 32rpx;
+	height: 32rpx;
+}
+
+.menu-ico.danger {
+	background: #FFF1F0;
+	color: #FA5151;
+}
+
+.menu-text {
+	font-size: 30rpx;
+	color: #1F2329;
+}
+
+.menu-text.danger {
+	color: #FA5151;
+}
+
+.menu-arrow {
+	color: #C5C8CE;
+	font-size: 24rpx;
+	margin-left: 12rpx;
+}
+
+.code-pill {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 22rpx;
+	font-weight: 600;
+	line-height: 56rpx;
+	max-width: 360rpx;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.badge {
+	min-width: 32rpx;
+	height: 32rpx;
+	padding: 0 8rpx;
+	border-radius: 16rpx;
+	background: #FA5151;
+	color: #FFFFFF;
+	font-size: 20rpx;
+	line-height: 32rpx;
+	text-align: center;
+}
+
 .tabbar-spacer {
 	height: 140rpx;
 }
 
 .icp-footer {
-	padding: 16rpx 0 24rpx;
+	padding: 8rpx 0 24rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -792,15 +1159,6 @@ export default {
 
 .icp-text {
 	font-size: 22rpx;
-	color: #aaaaaa;
-}
-
-.guest-card {
-	box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.05);
-}
-
-.guest-login-btn {
-	background: rgba(255, 255, 255, 0.18);
-	border: 1rpx solid rgba(255, 255, 255, 0.35);
+	color: #B0B4BA;
 }
 </style>

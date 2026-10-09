@@ -9,34 +9,25 @@ const utils_pagePullDownRefresh = require("./utils/pagePullDownRefresh.js");
 if (!Math) {
   "./pages/index/index.js";
   "./pages/login/index.js";
-  "./pages/common/register.js";
-  "./pages/common/agreement.js";
-  "./pages/common/webview.js";
-  "./pages/common/follow-oa.js";
   "./pages/teacher/list.js";
   "./pages/teacher/detail.js";
   "./pages/appointment/create.js";
   "./pages/appointment/list.js";
   "./pages/appointment/detail.js";
-  "./pages/recruitment/list.js";
-  "./pages/recruitment/edit.js";
-  "./pages/order/list.js";
-  "./pages/order/detail.js";
-  "./pages/order/refund.js";
-  "./pages/review/create.js";
   "./pages/chat/list.js";
   "./pages/chat/conversation.js";
   "./pages/user/index.js";
-  "./pages/user/profile.js";
-  "./pages/user/collection.js";
-  "./pages/user/messages.js";
-  "./pages/coupon/list.js";
-  "./pages/teacher-profiles/add.js";
-  "./pages/teacher-profiles/edit.js";
-  "./pages/teacher-profiles/list.js";
-  "./pages/payment/result.js";
-  "./uni_modules/uni-pay/pages/success/success.js";
-  "./uni_modules/uni-pay/pages/pay-desk/pay-desk.js";
+  "./pages-biz/teacher/detail.js";
+  "./pages-biz/appointment/create.js";
+  "./pages-biz/appointment/detail.js";
+  "./pages-biz/chat/conversation.js";
+  "./pages-biz/user/profile.js";
+  "./pages-biz/user/collection.js";
+  "./pages-biz/user/messages.js";
+  "./pages/common/register.js";
+  "./pages/common/agreement.js";
+  "./pages/common/webview.js";
+  "./pages/common/follow-oa.js";
   "./pages-teacher/index/index.js";
   "./pages-teacher/appointment/list.js";
   "./pages-teacher/appointment/detail.js";
@@ -55,6 +46,19 @@ if (!Math) {
   "./pages-teacher/chat/conversation.js";
   "./pages-teacher/user/index.js";
   "./pages-teacher/user/messages.js";
+  "./pages/order/list.js";
+  "./pages/order/detail.js";
+  "./pages/order/refund.js";
+  "./pages/recruitment/list.js";
+  "./pages/recruitment/edit.js";
+  "./pages/coupon/list.js";
+  "./pages/review/create.js";
+  "./pages/payment/result.js";
+  "./uni_modules/uni-pay/pages/success/success.js";
+  "./uni_modules/uni-pay/pages/pay-desk/pay-desk.js";
+  "./pages/teacher-profiles/add.js";
+  "./pages/teacher-profiles/edit.js";
+  "./pages/teacher-profiles/list.js";
 }
 const _sfc_main = {
   onLaunch: function() {
@@ -66,19 +70,22 @@ const _sfc_main = {
     utils_oaBind.syncOaBind({ force: true });
   },
   onShow: function() {
-    common_vendor.index.__f__("log", "at App.vue:17", "[App] Show → 重新绑定 cid");
+    common_vendor.index.__f__("log", "at App.vue:17", "[App] Show → 重新绑定 cid，拉取一次未读");
     utils_chatPush.bindPushClientId().then((ok) => {
       common_vendor.index.__f__("log", "at App.vue:19", "[App] Show 绑定 cid 结果=", ok);
     });
+    if (common_vendor.index.getStorageSync("uni_id_token")) {
+      utils_chatPush.refreshChatBadge("app-show");
+    }
     utils_oaBind.syncOaBind().then(() => {
-      utils_oaFollow.promptFollowOfficialAccount({ delayMs: 1500 });
+      utils_oaFollow.promptFollowOfficialAccount({ delayMs: 400 });
     });
     setTimeout(() => {
       utils_trialConfirmReminder.checkPendingTrialConfirmReminder();
     }, 600);
   },
   onHide: function() {
-    common_vendor.index.__f__("log", "at App.vue:31", "App Hide");
+    common_vendor.index.__f__("log", "at App.vue:34", "App Hide");
   }
 };
 function createApp() {

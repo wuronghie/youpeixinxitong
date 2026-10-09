@@ -82,36 +82,29 @@ const _sfc_main = {
   methods: {
     bindChatPush() {
       if (this._onChatPush) {
-        common_vendor.index.__f__("log", "at pages/chat/list.vue:173", "[parent-chat-list] push 已绑定，跳过");
+        common_vendor.index.__f__("log", "at pages/chat/list.vue:165", "[parent-chat-list] push 已绑定，跳过");
         return;
       }
       this._onChatPush = (payload) => {
-        common_vendor.index.__f__("log", "at pages/chat/list.vue:177", "[parent-chat-list] 收到 push，刷新列表", payload);
+        common_vendor.index.__f__("log", "at pages/chat/list.vue:169", "[parent-chat-list] 收到 push，刷新列表", payload);
         this.refreshConversationsSilently();
       };
       utils_chatPush.onChatPush(this._onChatPush);
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:181", "[parent-chat-list] 已订阅 chat:push");
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:173", "[parent-chat-list] 已订阅 chat:push");
     },
     unbindChatPush() {
       if (!this._onChatPush)
         return;
       utils_chatPush.offChatPush(this._onChatPush);
       this._onChatPush = null;
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:187", "[parent-chat-list] 已取消订阅 chat:push");
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:179", "[parent-chat-list] 已取消订阅 chat:push");
     },
     /**
      * 启动会话列表轮询
      */
     startPolling() {
       this.stopPolling();
-      if (!this.useMock) {
-        this.pollTimer = setInterval(() => {
-          if (this.loading) {
-            return;
-          }
-          this.refreshConversationsSilently();
-        }, this.pollInterval);
-      }
+      return;
     },
     /**
      * 停止会话列表轮询
@@ -123,7 +116,7 @@ const _sfc_main = {
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:218", "[chat-list] 下拉刷新：重新加载会话列表");
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:210", "[chat-list] 下拉刷新：重新加载会话列表");
       await this.loadConversations(true);
     },
     handleScroll(e) {
@@ -205,7 +198,7 @@ const _sfc_main = {
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/list.vue:299", "静默刷新会话列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/list.vue:291", "静默刷新会话列表失败:", error);
       } finally {
         this.silentPolling = false;
       }
@@ -282,7 +275,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "加载会话失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/chat/list.vue:375", "加载会话列表失败:", error);
+        common_vendor.index.__f__("error", "at pages/chat/list.vue:367", "加载会话列表失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后重试", icon: "none" });
       } finally {
         this.loading = false;
@@ -306,7 +299,7 @@ const _sfc_main = {
         unreadConversations: unreadConversations || 0,
         unreadMessages: unreadMessages || 0
       };
-      common_vendor.index.__f__("log", "at pages/chat/list.vue:399", "[chat-list] 统计数据更新:", this.stats);
+      common_vendor.index.__f__("log", "at pages/chat/list.vue:391", "[chat-list] 统计数据更新:", this.stats);
     },
     filterList() {
       let filtered = [...this.list];
@@ -393,7 +386,12 @@ const _sfc_main = {
           return "老师已下课打卡";
         return "老师已上课打卡";
       }
-      return message;
+      if (trimmed.includes("review_result")) {
+        if (trimmed.includes("is_auto") && trimmed.includes("true"))
+          return "系统默认好评";
+        return "家长已评价";
+      }
+      return message.replace(/\s+/g, " ").trim();
     },
     goToConversation(item) {
       const params = [`conversationId=${item.conversation_id}`];
@@ -401,7 +399,7 @@ const _sfc_main = {
         params.push(`appointmentId=${item.appointment_id}`);
       }
       common_vendor.index.navigateTo({
-        url: `/pages/chat/conversation?${params.join("&")}`
+        url: `/pages-biz/chat/conversation?${params.join("&")}`
       });
     }
   }

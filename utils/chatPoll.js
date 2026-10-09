@@ -1,10 +1,9 @@
 /**
- * 聊天轻量轮询工具
- * push 到达前/失败时的可靠兜底：会话 5s、列表 10s、角标 15s
+ * 聊天轮询开关。已接 uni-push：进入小程序 / 打开页面读一次，之后靠推送刷新。
+ * 需要兜底时再把 CHAT_POLL_ENABLED 设为 true。
  */
 
-/** push 失败时的可靠兜底；会话页依赖此开关刷新试课邀请状态 */
-export const CHAT_POLL_ENABLED = true
+export const CHAT_POLL_ENABLED = false
 
 export const CHAT_POLL_INTERVAL = {
 	conversation: 5000,

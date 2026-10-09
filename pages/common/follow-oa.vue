@@ -1,23 +1,26 @@
+<!-- 家长/教师：关注服务号。utils/oaFollow.js、oaBind.js -->
 <template>
 	<view class="page">
-		<view class="hero">
-			<text class="title">关注服务号，及时收通知</text>
-			<text class="desc">预约、聊天、打卡等重要消息将通过服务号提醒你，避免错过。</text>
+		<view class="section-card">
+			<text class="section-title">关注服务号，及时收通知</text>
+			<text class="intro">预约、聊天、打卡等重要消息会通过服务号提醒，避免错过。</text>
 		</view>
 
-		<view class="card">
-			<view class="row">
-				<text class="label">服务号</text>
-				<text class="value">{{ oaName || '服务号' }}</text>
+		<view class="form-card">
+			<view class="form-row">
+				<text class="form-label">服务号</text>
+				<text class="form-val">{{ oaName || '服务号' }}</text>
 			</view>
-			<view class="row">
-				<text class="label">绑定状态</text>
-				<text class="value" :class="bound ? 'ok' : 'warn'">{{ boundText }}</text>
+			<view class="form-row last">
+				<text class="form-label">绑定状态</text>
+				<text class="form-em" :class="{ ok: bound, warn: boundChecked && !bound }">{{ boundText }}</text>
 			</view>
 		</view>
 
-		<button class="btn-primary" :loading="opening" @click="onFollow">一键关注服务号</button>
-		<button class="btn-ghost" :loading="syncing" @click="onSync">我已关注，刷新绑定</button>
+		<view class="btn-wrap">
+			<button class="btn-primary" :loading="opening" @click="onFollow">一键关注服务号</button>
+			<button class="btn-ghost" :loading="syncing" @click="onSync">我已关注，刷新绑定</button>
+		</view>
 
 		<!-- 扫小程序码进入等场景下，原生关注组件可直接点关注 -->
 		<!-- #ifdef MP-WEIXIN -->
@@ -27,8 +30,8 @@
 		</view>
 		<!-- #endif -->
 
-		<view class="steps">
-			<text class="steps-title">关注后请确认</text>
+		<view class="section-card">
+			<text class="section-title">关注后请确认</text>
 			<text class="step">1. 使用登录小程序的同一微信关注</text>
 			<text class="step">2. 关注后返回本页，点「刷新绑定」</text>
 			<text class="step">3. 绑定成功后即可接收模板消息</text>
@@ -45,6 +48,7 @@ export default {
 		return {
 			oaName: '服务号',
 			bound: false,
+			bindReason: '',
 			opening: false,
 			syncing: false,
 			boundChecked: false
@@ -53,7 +57,9 @@ export default {
 	computed: {
 		boundText() {
 			if (!this.boundChecked) return '检测中…'
-			return this.bound ? '已绑定，可接收通知' : '未绑定，请先关注'
+			if (this.bound) return '已绑定，可接收通知'
+			if (this.bindReason === 'unsubscribed') return '已取消关注'
+			return '未绑定，请先关注'
 		}
 	},
 	onShow() {
@@ -70,8 +76,10 @@ export default {
 			try {
 				const res = await syncOaBind({ force: true, minIntervalMs: 0 })
 				this.bound = !!(res && res.code === 0 && res.data && res.data.bound)
+				this.bindReason = (res && res.data && res.data.reason) || ''
 			} catch (e) {
 				this.bound = false
+				this.bindReason = ''
 			} finally {
 				this.boundChecked = true
 				this.syncing = false
@@ -89,7 +97,9 @@ export default {
 		async onSync() {
 			await this.refreshBind()
 			uni.showToast({
-				title: this.bound ? '绑定成功' : '尚未检测到关注',
+				title: this.bound
+					? '绑定成功'
+					: (this.bindReason === 'unsubscribed' ? '已取消关注' : '尚未检测到关注'),
 				icon: this.bound ? 'success' : 'none'
 			})
 		},
@@ -106,106 +116,141 @@ export default {
 <style scoped>
 .page {
 	min-height: 100vh;
-	padding: 40rpx 32rpx 80rpx;
-	background: #f5f6fa;
+	padding: 24rpx 0 80rpx;
+	background: #F4F6F9;
 	box-sizing: border-box;
 }
-.hero {
-	margin-bottom: 32rpx;
+
+.section-card,
+.form-card {
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
-.title {
-	display: block;
-	font-size: 40rpx;
-	font-weight: 700;
-	color: #1f2430;
-	margin-bottom: 12rpx;
+
+.section-card {
+	padding: 28rpx 32rpx;
 }
-.desc {
+
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
+}
+
+.section-title {
 	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.intro {
+	display: block;
+	margin-top: 12rpx;
 	font-size: 26rpx;
+	color: #5C6370;
 	line-height: 1.6;
-	color: #7a7f90;
 }
-.card {
-	background: #fff;
-	border-radius: 16rpx;
-	padding: 8rpx 28rpx;
-	margin-bottom: 32rpx;
-}
-.row {
+
+.form-row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 28rpx 0;
-	border-bottom: 1rpx solid #eef0f5;
+	gap: 24rpx;
+	min-height: 96rpx;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
 }
-.row:last-child {
+
+.form-row.last {
 	border-bottom: none;
 }
-.label {
+
+.form-label {
+	flex-shrink: 0;
 	font-size: 28rpx;
-	color: #7a7f90;
+	color: #5C6370;
 }
-.value {
+
+.form-val {
+	flex: 1;
+	min-width: 0;
 	font-size: 28rpx;
-	color: #1f2430;
+	color: #1F2329;
+	font-weight: 500;
+	text-align: right;
+}
+
+.form-em {
+	flex: 1;
+	min-width: 0;
+	font-size: 28rpx;
+	color: #8B919C;
+	text-align: right;
+}
+
+.form-em.ok {
+	color: #07C160;
+}
+
+.form-em.warn {
+	color: #C47A12;
+}
+
+.btn-wrap {
+	padding: 8rpx 32rpx 0;
+}
+
+.btn-primary,
+.btn-ghost {
+	width: 100%;
+	height: 88rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	font-size: 32rpx;
 	font-weight: 600;
+	line-height: 88rpx;
 }
-.value.ok {
-	color: #07c160;
-}
-.value.warn {
-	color: #fa9d3b;
-}
+
 .btn-primary {
-	background: #5a6ff0;
-	color: #fff;
-	border-radius: 12rpx;
-	font-size: 30rpx;
-	font-weight: 600;
-	margin-bottom: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
 }
+
+.btn-ghost {
+	margin-top: 20rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
 .btn-primary::after,
 .btn-ghost::after {
 	border: none;
 }
-.btn-ghost {
-	background: #fff;
-	color: #5a6ff0;
-	border: 1rpx solid #5a6ff0;
-	border-radius: 12rpx;
-	font-size: 28rpx;
-	margin-bottom: 40rpx;
-}
+
 .oa-wrap {
-	margin-bottom: 40rpx;
+	margin: 32rpx 32rpx 24rpx;
 }
+
 .oa-tip {
 	display: block;
-	font-size: 24rpx;
-	color: #9aa0b0;
 	margin-bottom: 16rpx;
+	font-size: 24rpx;
+	color: #8B919C;
 }
+
 .oa-comp {
 	width: 100%;
 	min-width: 300px;
 }
-.steps {
-	background: #fff;
-	border-radius: 16rpx;
-	padding: 28rpx;
-}
-.steps-title {
-	display: block;
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #1f2430;
-	margin-bottom: 16rpx;
-}
+
 .step {
 	display: block;
+	margin-top: 12rpx;
 	font-size: 26rpx;
-	color: #7a7f90;
+	color: #5C6370;
 	line-height: 1.8;
 }
 </style>

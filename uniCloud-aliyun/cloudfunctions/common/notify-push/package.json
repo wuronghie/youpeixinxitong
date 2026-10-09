@@ -1,0 +1,6 @@
+{
+  "name": "notify-push",
+  "version": "1.0.0",
+  "description": "uni-push 2.0 业务通知：聊天、系统消息、预约状态",
+  "main": "index.js"
+}

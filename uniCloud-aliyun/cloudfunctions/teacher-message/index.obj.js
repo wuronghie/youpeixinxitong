@@ -1,4 +1,5 @@
 const uniID = require('uni-id-common')
+const { notifySystemMessage } = require('notify-push')
 
 const COLLECTION = 'system-messages'
 
@@ -301,6 +302,18 @@ module.exports = {
       }
 
       console.log(`已向教师 ${teacher_id} 发送系统消息：${title}`)
+
+      try {
+        await notifySystemMessage({
+          userId: teacher_id,
+          title,
+          content,
+          messageType: type,
+          relatedId: related_id
+        })
+      } catch (pushErr) {
+        console.warn('[teacher-message] push 失败:', pushErr)
+      }
 
       return success({
         message_id: result.id,

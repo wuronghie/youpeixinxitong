@@ -22,32 +22,32 @@
  *   - 修改筛选逻辑：修改 switchStatus() 方法
 -->
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 状态选项卡：用于筛选不同状态的预约 -->
-		<view class="status-tabs-bar d-flex a-center font-md">
-			<view 
-				class="flex-1 d-flex a-center j-center py-2 status-tab"
-				:class="currentStatus === tab.value ? 'status-tab--active' : 'status-tab--inactive'"
-				v-for="(tab,index) in statusTabs" 
-				:key="index"
-				@click="switchStatus(tab.value)"
-			>
-				{{tab.label}}
+	<view class="page">
+		<scroll-view scroll-x class="tabs" :show-scrollbar="false">
+			<view class="tabs-inner">
+				<view
+					v-for="(tab, index) in statusTabs"
+					:key="index"
+					class="tab"
+					:class="{ on: currentStatus === tab.value }"
+					@click="switchStatus(tab.value)"
+				>
+					{{ tab.label }}
+				</view>
 			</view>
-		</view>
-		
-		<!-- 预约列表：支持滚动和加载更多 -->
+		</scroll-view>
+
 		<scroll-view
 			scroll-y
 			@scrolltolower="loadMore"
 			class="list-scroll"
 		>
-			<view class="px-2 py-3">
-				<view v-if="isLoading && appointmentList.length === 0" class="d-flex flex-column">
-					<view v-for="n in 4" :key="n" class="appointment-card mb-3">
-						<view class="bg-light-secondary rounded mb-2" style="width: 200rpx;height: 30rpx;"></view>
-						<view class="bg-light-secondary rounded mb-2" style="width: 150rpx;height: 24rpx;"></view>
-						<view class="bg-light-secondary rounded" style="width: 180rpx;height: 24rpx;"></view>
+			<view class="list-body">
+				<view v-if="isLoading && appointmentList.length === 0">
+					<view v-for="n in 4" :key="n" class="a-card skeleton">
+						<view class="sk sk-title"></view>
+						<view class="sk sk-line"></view>
+						<view class="sk sk-line short"></view>
 					</view>
 				</view>
 
@@ -55,67 +55,49 @@
 					<view
 						v-for="item in appointmentList"
 						:key="item._id"
-						class="appointment-card mb-3"
+						class="a-card"
 						@click="goToDetail(item._id)"
 					>
-						<view class="appointment-card-header">
-							<view class="appointment-card-title">
-								<view class="appointment-card-title-row">
-									<text class="appointment-card-teacher-name">{{ item.teacher_name || '教师' }}</text>
-									<text class="appointment-card-course-type">{{ formatCourseType(item.course_type) }}</text>
-								</view>
-								<view class="appointment-card-time">
-									<text class="appointment-card-time-label">上课时间：</text>
-									<text class="appointment-card-time-value">{{ item.date }} {{ item.time }}</text>
-								</view>
+						<view class="a-head">
+							<view class="a-head-main">
+								<text class="a-name">{{ item.teacher_name || '教师' }} · {{ formatCourseType(item.course_type) }}</text>
+								<text class="a-time">{{ item.date }} {{ item.time }}</text>
 							</view>
-							<view class="status-badge font-sm" :class="statusClass(item.status)">
-								{{ formatStatus(item.status) }}
-							</view>
+							<text class="status" :class="statusClass(item.status)">{{ formatStatus(item.status) }}</text>
 						</view>
-						<view class="appointment-card-content">
-							<view class="appointment-card-info-row">
-								<text class="appointment-card-info-label">学习科目</text>
-								<text class="appointment-card-info-value">{{ item.subject || '未填写' }}</text>
-							</view>
-							<view class="appointment-card-info-row">
-								<text class="appointment-card-info-label">课程费用</text>
-								<text class="appointment-card-price">¥{{ item.amount || 0 }}</text>
-							</view>
+						<view class="a-row">
+							<text class="a-label">学习科目</text>
+							<text class="a-value">{{ item.subject || '未填写' }}</text>
 						</view>
-						<view class="appointment-card-footer">
+						<view class="a-row">
+							<text class="a-label">费用</text>
+							<text class="a-price" :class="{ trial: item.course_type === 'trial' }">
+								¥{{ item.amount || 0 }}<text v-if="item.course_type === 'trial'"> 试课</text>
+							</text>
+						</view>
+						<view class="a-ops">
 							<text
-								class="appointment-card-action mr-3"
 								v-if="canPay(item)"
+								class="mini mini-primary"
 								@click.stop="goToPayment(item)"
-							>
-								去支付课程费
-							</text>
-							<text 
-								class="appointment-card-action" 
-								v-if="item.status === 'pending_confirm'" 
+							>去支付</text>
+							<text
+								v-if="item.status === 'pending_confirm'"
+								class="mini mini-ghost"
 								@click.stop="goToDetail(item._id)"
-							>
-								查看详情
-							</text>
-							<text 
-								class="appointment-card-status-text" 
-								v-if="item.status === 'completed'"
-							>
-								已完成
-							</text>
+							>查看详情</text>
 						</view>
 					</view>
 
-					<view v-if="!appointmentList.length && !isLoading" class="d-flex flex-column a-center j-center py-5">
-						<text class="iconfont icon-dingdan" style="font-size: 120rpx;color: #ddd;"></text>
-						<text class="text-light-muted font-md mt-3">还没有预约记录</text>
-						<text class="text-light-muted font-sm mt-2">快去挑选老师开始体验吧</text>
-						<button class="main-bg-color text-white rounded px-4 py-2 mt-3 font-sm" @click="goSearch">去找老师</button>
+					<view v-if="!appointmentList.length && !isLoading" class="empty">
+						<text class="iconfont icon-dingdan empty-icon"></text>
+						<text class="empty-title">还没有预约记录</text>
+						<text class="empty-sub">快去挑选老师开始体验吧</text>
+						<button class="empty-btn" @click="goSearch">去找老师</button>
 					</view>
 
-					<view v-if="isLoading && appointmentList.length" class="text-center text-light-muted font py-3">加载中...</view>
-					<view v-else-if="!hasMore && appointmentList.length" class="text-center text-light-muted font py-3">已经到底啦</view>
+					<view v-if="isLoading && appointmentList.length" class="list-tip">加载中...</view>
+					<view v-else-if="!hasMore && appointmentList.length" class="list-tip">已经到底啦</view>
 				</view>
 			</view>
 		</scroll-view>
@@ -128,10 +110,12 @@
 <script>
 import ParentTabBar from '@/components/ParentTabBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 export default {
 	name: 'AppointmentList',
-	mixins: [pullRefreshMixin],
+	mixins: [pullRefreshMixin, createAppPushMixin(APP_PUSH_TYPES.APPOINTMENT_UPDATE)],
 	components: {
 		ParentTabBar
 	},
@@ -140,7 +124,7 @@ export default {
 			// 状态选项卡配置
 			// 修改提示：可以在这里添加更多状态，如"已取消"、"退款中"等
 			statusTabs: [
-				{ label: '全部预约', value: 'all' },
+				{ label: '全部', value: 'all' },
 				{ label: '待支付', value: 'pending_payment' },
 				{ label: '待确认', value: 'pending_confirm' },
 				{ label: '已确认', value: 'confirmed' },
@@ -203,6 +187,9 @@ export default {
 		async refreshData() {
 			console.log('[appointment-list] 下拉刷新：重新加载列表')
 			await this.loadAppointments(true)
+		},
+		onAppPushPayload() {
+			this.loadAppointments(true)
 		},
 		/**
 		 * 加载预约列表
@@ -335,18 +322,18 @@ export default {
 		 */
 		statusClass(status) {
 			const map = {
-				pending_payment: 'status-badge--warning',
-				pending_confirm: 'status-badge--warning',
-				contact_request: 'status-badge--warning',
-				confirmed: 'status-badge--primary',
-				in_progress: 'status-badge--primary',
-				completed: 'status-badge--success',
-				rejected: 'status-badge--muted',
-				cancelled: 'status-badge--muted',
-				refunding: 'status-badge--warning',
-				refunded: 'status-badge--muted'
+				pending_payment: 's-pay',
+				pending_confirm: 's-wait',
+				contact_request: 's-wait',
+				confirmed: 's-ing',
+				in_progress: 's-ing',
+				completed: 's-done',
+				rejected: 's-muted',
+				cancelled: 's-muted',
+				refunding: 's-wait',
+				refunded: 's-muted'
 			}
-			return map[status] || 'status-badge--muted'
+			return map[status] || 's-muted'
 		},
 		/**
 		 * 格式化课程类型
@@ -354,7 +341,7 @@ export default {
 		 * @returns {String} 课程类型中文描述
 		 */
 		formatCourseType(type) {
-			return type === 'regular' ? '正式课程' : '试课体验'
+			return type === 'regular' ? '正式课' : '试课'
 		},
 		/**
 		 * 判断是否可以支付
@@ -381,7 +368,7 @@ export default {
 		 */
 		goToDetail(id) {
 			if (!id) return
-			uni.navigateTo({ url: `/pages/appointment/detail?id=${id}` })
+			uni.navigateTo({ url: `/pages-biz/appointment/detail?id=${id}` })
 		},
 		/**
 		 * 跳转到支付页面
@@ -404,185 +391,251 @@ export default {
 </script>
 
 <style scoped>
-/* 顶部状态选项卡容器 */
-.status-tabs-bar {
-	margin: 16rpx 24rpx 0;
-	padding: 4rpx;
-	background-color: #FFFFFF;
-	box-shadow: 0 8rpx 20rpx rgba(0, 0, 0, 0.04);
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
 }
 
-.status-tab {
-	border-radius: 8rpx;
+.tabs {
+	background: #FFFFFF;
+	white-space: nowrap;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+
+.tabs-inner {
+	display: flex;
+	padding: 0 16rpx;
+}
+
+.tab {
+	flex-shrink: 0;
+	height: 88rpx;
+	padding: 0 24rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	font-size: 26rpx;
+	color: #5C6370;
+	position: relative;
 }
 
-.status-tab--active {
-	background-color: #4A90E2;
-	color: #FFFFFF;
+.tab.on {
+	color: #2563EB;
 	font-weight: 600;
 }
 
-.status-tab--inactive {
-	color: #666666;
-}
-
-/* 预约卡片样式 */
-.appointment-card {
-	background-color: #FFFFFF;
-	border-radius: 16rpx;
-	padding: 32rpx;
-	overflow: hidden;
-	box-sizing: border-box;
-}
-
-.appointment-card-header {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	margin-bottom: 24rpx;
-	padding-bottom: 24rpx;
-	border-bottom: 1rpx solid #F0F0F0;
-}
-
-.appointment-card-title {
-	flex: 1;
-	min-width: 0;
-	margin-right: 16rpx;
-}
-
-.appointment-card-title-row {
-	display: flex;
-	align-items: center;
-	margin-bottom: 12rpx;
-	flex-wrap: wrap;
-}
-
-.appointment-card-teacher-name {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #333333;
-	margin-right: 12rpx;
-	flex-shrink: 0;
-}
-
-.appointment-card-course-type {
-	font-size: 24rpx;
-	color: #999999;
-	flex-shrink: 0;
-}
-
-.appointment-card-time {
-	display: flex;
-	align-items: center;
-	font-size: 24rpx;
-}
-
-.appointment-card-time-label {
-	color: #999999;
-	margin-right: 8rpx;
-	flex-shrink: 0;
-}
-
-.appointment-card-time-value {
-	color: #666666;
-	word-break: break-all;
-}
-
-.appointment-card-content {
-	display: flex;
-	flex-direction: column;
-	margin-bottom: 24rpx;
-}
-
-.appointment-card-info-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-bottom: 16rpx;
-}
-
-.appointment-card-info-row:last-child {
-	margin-bottom: 0;
-}
-
-.appointment-card-info-label {
-	font-size: 24rpx;
-	color: #999999;
-	flex-shrink: 0;
-}
-
-.appointment-card-info-value {
-	font-size: 24rpx;
-	color: #666666;
-	flex: 1;
-	text-align: right;
-	word-break: break-all;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	margin-left: 16rpx;
-}
-
-.appointment-card-price {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #4A90E2;
-	flex-shrink: 0;
-}
-
-.appointment-card-footer {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	padding-top: 24rpx;
-	border-top: 1rpx solid #F0F0F0;
-}
-
-.appointment-card-action {
-	font-size: 24rpx;
-	color: #4A90E2;
-	flex-shrink: 0;
-}
-
-.appointment-card-status-text {
-	font-size: 24rpx;
-	color: #999999;
-}
-
-/* 状态徽章样式 */
-.status-badge {
-	border-radius: 999rpx;
-	padding: 6rpx 20rpx;
-	min-width: 120rpx;
-	text-align: center;
-	flex-shrink: 0;
-	white-space: nowrap;
-}
-
-.status-badge--warning {
-	background-color: #FFF7E6;
-	color: #FA8C16;
-}
-
-.status-badge--primary {
-	background-color: #E6F4FF;
-	color: #1890FF;
-}
-
-.status-badge--success {
-	background-color: #E6FFFB;
-	color: #13C2C2;
-}
-
-.status-badge--muted {
-	background-color: #F5F5F5;
-	color: #8C8C8C;
+.tab.on::after {
+	content: "";
+	position: absolute;
+	left: 22%;
+	right: 22%;
+	bottom: 8rpx;
+	height: 4rpx;
+	background: #2563EB;
+	border-radius: 4rpx;
 }
 
 .list-scroll {
 	flex: 1;
-	height: calc(100vh - 200rpx);
+	height: calc(100vh - 228rpx);
+}
+
+.list-body {
+	padding: 8rpx 0 24rpx;
+}
+
+.a-card {
+	margin: 24rpx 32rpx;
+	padding: 28rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.a-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16rpx;
+}
+
+.a-head-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.a-name {
+	display: block;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.4;
+}
+
+.a-time {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1.4;
+}
+
+.status {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	padding: 4rpx 16rpx;
+	border-radius: 999rpx;
+	line-height: 1.4;
+}
+
+.s-pay {
+	background: #FFF1F0;
+	color: #FA5151;
+}
+
+.s-wait {
+	background: #FFF6E8;
+	color: #C47A12;
+}
+
+.s-ing {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.s-done {
+	background: #E8F8EF;
+	color: #07C160;
+}
+
+.s-muted {
+	background: #F4F6F9;
+	color: #8B919C;
+}
+
+.a-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 16rpx;
+}
+
+.a-label {
+	font-size: 26rpx;
+	color: #8B919C;
+}
+
+.a-value {
+	font-size: 26rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.a-price {
+	font-size: 26rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.a-price.trial {
+	color: #FA5151;
+}
+
+.a-ops {
+	display: flex;
+	justify-content: flex-end;
+	gap: 16rpx;
+	margin-top: 24rpx;
+}
+
+.mini {
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+	text-align: center;
+}
+
+.mini-primary {
+	background: #2563EB;
+	color: #FFFFFF;
+}
+
+.mini-ghost {
+	background: #FFFFFF;
+	color: #2563EB;
+	border: 1rpx solid #D7E3FF;
+}
+
+.skeleton .sk {
+	background: #EBEDF0;
+	border-radius: 8rpx;
+}
+
+.sk-title {
+	width: 280rpx;
+	height: 32rpx;
+	margin-bottom: 16rpx;
+}
+
+.sk-line {
+	width: 360rpx;
+	height: 24rpx;
+	margin-bottom: 12rpx;
+}
+
+.sk-line.short {
+	width: 200rpx;
+	margin-bottom: 0;
+}
+
+.empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 32rpx;
+}
+
+.empty-icon {
+	font-size: 120rpx;
+	color: #EBEDF0;
+}
+
+.empty-title {
+	margin-top: 24rpx;
+	font-size: 30rpx;
+	color: #5C6370;
+}
+
+.empty-sub {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.empty-btn {
+	margin-top: 32rpx;
+	height: 72rpx;
+	padding: 0 40rpx;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 26rpx;
+	line-height: 72rpx;
+	border: none;
+}
+
+.empty-btn::after {
+	border: none;
+}
+
+.list-tip {
+	text-align: center;
+	padding: 24rpx 0;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
 .tabbar-spacer {

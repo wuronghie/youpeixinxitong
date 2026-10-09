@@ -22,114 +22,84 @@
  *   - 添加新的统计：在 stats 中添加新字段，在 statItems 中添加新项
 -->
 <template>
-	<view class="page-container">
-		<!-- 头部区域：显示教师信息和本月收入 -->
-		<view class="header-section">
-			<view class="header-bg"></view>
-			<view class="header-content">
-				<view class="teacher-info">
-					<image 
-						:src="profile.avatar || defaultAvatar" 
-						class="teacher-avatar"
-						mode="aspectFill"
-					/>
-					<view class="teacher-details">
-						<view class="teacher-name">{{ profile.display_name || '教师' }}</view>
-					</view>
-				</view>
-				<view class="income-card">
-					<view class="income-label">本月收入</view>
-					<view class="income-amount">¥{{ formatCurrency(stats.monthIncome) }}</view>
-				</view>
+	<view class="page">
+		<view class="dash-band">
+			<text class="dash-greet">{{ greetText }}</text>
+			<text class="dash-name">{{ profile.display_name || '教师' }}</text>
+		</view>
+
+		<view class="income-card">
+			<view class="income-main">
+				<text class="income-label">本月收入</text>
+				<text class="income-amount">¥{{ formatCurrency(stats.monthIncome) }}</text>
+			</view>
+			<button class="income-btn" @click="goToPage('/pages-teacher/wallet/index')">查看流水</button>
+		</view>
+
+		<view class="stats-row">
+			<view class="stat-card" v-for="(item, index) in statItems" :key="index">
+				<text class="stat-value">{{ item.value }}</text>
+				<text class="stat-label">{{ item.label }}</text>
 			</view>
 		</view>
-		
-		<!-- 数据统计：今日预约、总学生数、即将开课等 -->
-		<view class="stats-section">
-			<view class="stats-container">
-				<view 
-					class="stat-item"
-					v-for="(item,index) in statItems" 
-					:key="index"
-				>
-					<image :src="item.icon" class="stat-icon" mode="aspectFit" />
-					<view class="stat-value">{{item.value}}</view>
-					<view class="stat-label">{{item.label}}</view>
-				</view>
-			</view>
-		</view>
-		
-		<!-- 打卡待办横幅（仅在有待打卡预约时展示） -->
+
 		<view
 			v-if="(stats.needClockIn || 0) + (stats.needClockOut || 0) > 0"
-			class="clock-todo-banner"
+			class="todo-card"
 			@click="goToAppointments"
 		>
-			<view class="clock-todo-banner__main">
-				<text class="clock-todo-banner__title">课堂打卡待办</text>
-				<text class="clock-todo-banner__sub">
+			<view class="todo-main">
+				<text class="todo-title">课堂打卡待办</text>
+				<text class="todo-sub">
 					<text v-if="stats.needClockIn">{{ stats.needClockIn }} 节待上课打卡</text>
-					<text v-if="stats.needClockIn && stats.needClockOut">　·　</text>
+					<text v-if="stats.needClockIn && stats.needClockOut"> · </text>
 					<text v-if="stats.needClockOut">{{ stats.needClockOut }} 节待下课打卡</text>
 				</text>
 			</view>
-			<text class="clock-todo-banner__arrow">→</text>
+			<text class="todo-arrow">›</text>
 		</view>
 
-		<!-- 待处理预约 -->
-		<view class="appointments-section">
-			<view class="section-header">
+		<view class="section-card">
+			<view class="section-head">
 				<text class="section-title">待处理预约</text>
-				<view class="section-more" @click="goToAppointments">
-					<text class="more-text">全部预约</text>
-					<text class="iconfont icon-arrow-right more-icon"></text>
-				</view>
+				<text class="section-more" @click="goToAppointments">全部 ›</text>
 			</view>
-			<view v-if="pendingAppointments.length" class="appointments-list">
+			<view v-if="pendingAppointments.length" class="apt-list">
 				<view
 					v-for="apt in pendingAppointments"
 					:key="apt._id"
-					class="appointment-card"
+					class="apt-row"
 					@click="goToAppointmentDetail(apt._id)"
 				>
-					<view class="appointment-time">
-						<text class="time-date">{{ apt.appointment_date || '--' }}</text>
-						<text class="time-clock">{{ apt.appointment_time || '--:--' }}</text>
+					<view class="apt-main">
+						<text class="apt-name">{{ apt.student_name || '学生' }} · {{ apt.subject || '未填写科目' }}</text>
+						<text class="apt-time">{{ apt.appointment_date || '--' }} {{ apt.appointment_time || '--:--' }}</text>
 					</view>
-					<view class="appointment-info">
-						<text class="info-student">{{ apt.student_name || '学生' }}</text>
-						<text class="info-subject">{{ apt.subject || '未填写科目' }}</text>
-					</view>
-					<view class="appointment-status" :class="statusClass(apt.status)">
-						{{ formatStatus(apt.status) }}
-					</view>
+					<text class="status" :class="statusClass(apt.status)">{{ formatStatus(apt.status) }}</text>
 				</view>
 			</view>
-			<view v-else class="empty-state">
+			<view v-else class="empty">
 				<text class="empty-text">当前没有待处理预约</text>
 			</view>
 		</view>
-		
-		<!-- 常用功能 -->
-		<view class="quick-actions-section">
-			<view class="section-header">
-				<text class="section-title">常用功能</text>
-			</view>
-			<view class="actions-grid">
-				<view 
-					class="action-item"
-					v-for="(item,index) in quickActions" 
+
+		<view class="section-card">
+			<text class="section-title">常用功能</text>
+			<view class="acts">
+				<view
+					class="act"
+					v-for="(item, index) in quickActions"
 					:key="index"
 					@click="goToPage(item.path)"
 				>
-					<view class="action-icon-wrapper">
-						<image :src="item.icon" class="action-icon" mode="aspectFit" />
+					<view class="act-tile">
+						<image :src="item.icon" class="act-icon" mode="aspectFit" />
 					</view>
-					<text class="action-label">{{item.label}}</text>
+					<text class="act-label">{{ item.label }}</text>
 				</view>
 			</view>
 		</view>
-		
+
 		<view class="tabbar-spacer"></view>
 		<TeacherTabBar current="dashboard" />
 	</view>
@@ -137,13 +107,16 @@
 
 <script>
 import { mockAppointments, useMockData } from '@/utils/mockData.js'
-import TeacherTabBar from '@/components/TeacherTabBar.vue'
-import { getDefaultAvatarUrl, getIconUrl } from '@/utils/imageConfig.js'
+import TeacherTabBar from '@/pages-teacher/components/TeacherTabBar.vue'
+import { getDefaultAvatarUrl, getIconUrl, getRecruitmentIconUrl } from '@/utils/imageConfig.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 const defaultAvatar = getDefaultAvatarUrl()
 
 export default {
 	name: 'TeacherDashboard',
+	mixins: [createAppPushMixin([APP_PUSH_TYPES.APPOINTMENT_UPDATE, APP_PUSH_TYPES.SYSTEM_MESSAGE])],
 	components: {
 		TeacherTabBar
 	},
@@ -172,6 +145,7 @@ export default {
 			useMock: false,
 			// 是否正在加载
 			loading: false,
+			_reloadQueued: false,
 			// 默认头像路径
 			defaultAvatar,
 			// 信息完善状态
@@ -183,6 +157,12 @@ export default {
 		}
 	},
 	computed: {
+		greetText() {
+			const hour = new Date().getHours()
+			if (hour < 12) return '上午好'
+			if (hour < 18) return '下午好'
+			return '晚上好'
+		},
 		/**
 		 * 统计项配置
 		 * 功能：将统计数据转换为显示配置
@@ -225,13 +205,14 @@ export default {
 					path: '/pages-teacher/profile/edit',
 					icon: getIconUrl('edit.png')
 				},
+				// 时间设置功能暂未就绪，入口先隐藏
+				// {
+				// 	label: '时间设置',
+				// 	path: '/pages-teacher/profile/schedule',
+				// 	icon: getIconUrl('clock.png')
+				// },
 				{
-					label: '时间设置',
-					path: '/pages-teacher/profile/schedule',
-					icon: getIconUrl('clock.png')
-				},
-				{
-					label: '收款确认',
+					label: '我的课酬',
 					path: '/pages-teacher/wallet/index',
 					icon: getIconUrl('wallet.png')
 				},
@@ -243,7 +224,7 @@ export default {
 				{
 					label: '招募广场',
 					path: '/pages-teacher/recruitment/list',
-					icon: getIconUrl('chat.png')
+					icon: getRecruitmentIconUrl()
 				},
 				{
 					label: '家长沟通',
@@ -304,6 +285,9 @@ export default {
 		async refreshData() {
 			await this.loadData(true)
 		},
+		onAppPushPayload() {
+			this.loadData()
+		},
 		/**
 		 * 加载工作台数据
 		 * @param {Boolean} fromPullDown - 是否来自下拉刷新
@@ -319,10 +303,12 @@ export default {
 		async loadData(fromPullDown = false) {
 			console.log('[首页] loadData 被调用, fromPullDown:', fromPullDown, 'loading:', this.loading)
 			if (this.loading) {
-				console.log('[首页] 正在加载中，跳过本次调用')
+				this._reloadQueued = true
+				console.log('[首页] 正在加载中，排队刷新')
 				return
 			}
 			this.loading = true
+			this._reloadQueued = false
 			console.log('[首页] 开始加载数据...')
 			try {
 				if (this.useMock) {
@@ -430,6 +416,10 @@ export default {
 				if (fromPullDown) {
 					uni.stopPullDownRefresh()
 				}
+				if (this._reloadQueued) {
+					this._reloadQueued = false
+					this.loadData()
+				}
 			}
 		},
 
@@ -508,648 +498,301 @@ export default {
 </script>
 
 <style scoped>
-/* 页面容器 */
-.page-container {
+.page {
 	min-height: 100vh;
-	background-color: #F5F5F5;
+	background: #F4F6F9;
 	padding-bottom: 140rpx;
 }
 
-/* 头部区域 */
-.header-section {
-	position: relative;
-	height: 360rpx;
-	overflow: hidden;
-}
-
-.header-bg {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-}
-
-.header-content {
-	position: relative;
-	z-index: 1;
-	padding: 120rpx 32rpx 40rpx;
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-}
-
-.teacher-info {
-	display: flex;
-	align-items: center;
-	flex: 1;
-}
-
-.teacher-avatar {
-	width: 140rpx;
-	height: 140rpx;
-	border-radius: 50%;
-	border: 6rpx solid rgba(255, 255, 255, 0.3);
-	background-color: #fff;
-}
-
-.teacher-details {
-	margin-left: 24rpx;
-	flex: 1;
-}
-
-.teacher-name {
-	font-size: 36rpx;
-	font-weight: 600;
+.dash-band {
+	background: linear-gradient(160deg, #1D4ED8 0%, #2563EB 58%, #4F7DF3 100%);
+	padding: 20rpx 32rpx 72rpx;
 	color: #FFFFFF;
-	margin-bottom: 8rpx;
 }
 
-.teacher-title {
-	font-size: 26rpx;
-	color: rgba(255, 255, 255, 0.85);
+.dash-greet {
+	display: block;
+	font-size: 24rpx;
+	opacity: 0.82;
+}
+
+.dash-name {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 40rpx;
+	font-weight: 600;
+}
+
+.income-card,
+.stat-card,
+.todo-card,
+.section-card {
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
 .income-card {
-	background: linear-gradient(135deg, #FFD43F 0%, #FFC107 100%);
-	border-radius: 24rpx;
-	padding: 24rpx 32rpx;
-	box-shadow: 0 8rpx 24rpx rgba(255, 212, 63, 0.3);
-	min-width: 200rpx;
+	margin: -48rpx 32rpx 24rpx;
+	padding: 32rpx 24rpx 32rpx 32rpx;
 	display: flex;
-	flex-direction: column;
 	align-items: center;
+	justify-content: space-between;
+	position: relative;
+	z-index: 1;
+}
+
+.income-main {
+	flex: 1;
+	min-width: 0;
 }
 
 .income-label {
-	font-size: 22rpx;
-	color: #CC4A00;
-	margin-bottom: 8rpx;
-	opacity: 0.9;
+	display: block;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
 .income-amount {
-	font-size: 32rpx;
-	font-weight: 700;
-	color: #CC4A00;
+	display: block;
+	margin-top: 8rpx;
+	font-size: 48rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.2;
 }
 
-/* 数据统计区域 */
-.stats-section {
-	padding: 32rpx 24rpx;
-	background-color: #FFFFFF;
-	margin-top: -40rpx;
-	position: relative;
-	z-index: 2;
+.income-btn {
+	flex-shrink: 0;
+	margin: 0 0 0 auto;
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+	border: none;
 }
 
-.stats-container {
-	background-color: #FFFFFF;
-	border-radius: 24rpx;
-	padding: 32rpx 0;
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+.income-btn::after {
+	border: none;
+}
+
+.stats-row {
 	display: flex;
-	align-items: center;
-	justify-content: space-around;
+	gap: 16rpx;
+	margin: 0 32rpx 24rpx;
 }
 
-.stat-item {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
+.stat-card {
 	flex: 1;
-}
-
-.stat-icon {
-	width: 48rpx;
-	height: 48rpx;
-	margin-bottom: 16rpx;
+	padding: 24rpx 8rpx;
+	text-align: center;
 }
 
 .stat-value {
-	font-size: 40rpx;
-	font-weight: 700;
-	color: #333333;
-	margin-bottom: 8rpx;
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
 .stat-label {
-	font-size: 24rpx;
-	color: #999999;
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
 }
 
-/* 打卡待办横幅 */
-.clock-todo-banner {
+.todo-card {
+	margin: 0 32rpx 24rpx;
+	padding: 24rpx 28rpx;
+	background: #FFF7ED;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin: 0 24rpx 0 24rpx;
-	padding: 24rpx 32rpx;
-	border-radius: 20rpx;
-	background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-	box-shadow: 0 4rpx 16rpx rgba(217, 119, 6, 0.15);
+	min-height: 88rpx;
+	box-sizing: border-box;
 }
 
-.clock-todo-banner__main {
-	display: flex;
-	flex-direction: column;
+.todo-main {
 	flex: 1;
+	min-width: 0;
 }
 
-.clock-todo-banner__title {
-	font-size: 30rpx;
+.todo-title {
+	display: block;
+	font-size: 28rpx;
 	font-weight: 600;
-	color: #92400e;
+	color: #1F2329;
 }
 
-.clock-todo-banner__sub {
+.todo-sub {
+	display: block;
+	margin-top: 6rpx;
 	font-size: 24rpx;
-	color: #b45309;
-	margin-top: 4rpx;
+	color: #9A6B2F;
 }
 
-.clock-todo-banner__arrow {
+.todo-arrow {
 	font-size: 36rpx;
-	color: #b45309;
+	color: #FA9D3B;
 	margin-left: 16rpx;
 }
 
-/* 预约列表区域 */
-.appointments-section {
-	background-color: #FFFFFF;
-	margin: 24rpx;
-	border-radius: 24rpx;
+.section-card {
+	margin: 0 32rpx 24rpx;
 	padding: 32rpx;
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
 }
 
-.section-header {
+.section-head {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 32rpx;
+	margin-bottom: 8rpx;
 }
 
 .section-title {
+	display: block;
 	font-size: 32rpx;
 	font-weight: 600;
-	color: #333333;
+	color: #1F2329;
 }
 
 .section-more {
-	display: flex;
-	align-items: center;
-	color: #4A90E2;
 	font-size: 26rpx;
+	color: #2563EB;
 }
 
-.more-text {
-	margin-right: 8rpx;
+.apt-list {
+	margin-top: 8rpx;
 }
 
-.more-icon {
-	font-size: 24rpx;
-}
-
-.appointments-list {
-	display: flex;
-	flex-direction: column;
-	gap: 24rpx;
-}
-
-.appointment-card {
-	background-color: #F8F9FA;
-	border-radius: 20rpx;
-	padding: 32rpx;
+.apt-row {
 	display: flex;
 	align-items: center;
-	gap: 24rpx;
-	transition: all 0.3s ease;
+	justify-content: space-between;
+	gap: 16rpx;
+	padding: 24rpx 0;
+	min-height: 88rpx;
+	box-sizing: border-box;
 }
 
-.appointment-card:active {
-	transform: scale(0.98);
-	background-color: #F0F0F0;
+.apt-row + .apt-row {
+	border-top: 1rpx solid #EBEDF0;
 }
 
-.appointment-time {
-	width: 160rpx;
-	display: flex;
-	flex-direction: column;
-	gap: 8rpx;
-}
-
-.time-date {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #333333;
-}
-
-.time-clock {
-	font-size: 24rpx;
-	color: #999999;
-}
-
-.appointment-info {
+.apt-main {
 	flex: 1;
-	display: flex;
-	flex-direction: column;
-	gap: 8rpx;
+	min-width: 0;
 }
 
-.info-student {
+.apt-name {
+	display: block;
 	font-size: 30rpx;
 	font-weight: 600;
-	color: #333333;
-}
-
-.info-subject {
-	font-size: 24rpx;
-	color: #999999;
-}
-
-.appointment-status {
-	font-size: 24rpx;
-	padding: 12rpx 24rpx;
-	border-radius: 999rpx;
-	font-weight: 500;
+	color: #1F2329;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.appointment-status.pending-payment,
-.appointment-status.pending-confirm {
-	background-color: rgba(74, 144, 226, 0.15);
-	color: #4A90E2;
+.apt-time {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
-.appointment-status.confirmed,
-.appointment-status.in-progress {
-	background-color: rgba(46, 213, 115, 0.15);
-	color: #2ED573;
+.status {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	padding: 4rpx 16rpx;
+	border-radius: 999rpx;
+	line-height: 1.4;
+	background: #EEF3FF;
+	color: #2563EB;
 }
 
-.appointment-status.completed {
-	background-color: rgba(102, 126, 234, 0.15);
-	color: #667EEA;
+.status.pending-payment {
+	background: #FFF1F0;
+	color: #FA5151;
 }
 
-.appointment-status.cancelled,
-.appointment-status.rejected {
-	background-color: rgba(255, 107, 129, 0.15);
-	color: #FF6B81;
+.status.pending-confirm {
+	background: #FFF7ED;
+	color: #FA9D3B;
 }
 
-.empty-state {
+.status.confirmed,
+.status.in-progress {
+	background: #E8F8EF;
+	color: #07C160;
+}
+
+.status.completed {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.status.cancelled,
+.status.rejected {
+	background: #F4F6F9;
+	color: #8B919C;
+}
+
+.empty {
+	padding: 48rpx 0 16rpx;
 	text-align: center;
-	padding: 80rpx 0;
 }
 
 .empty-text {
-	font-size: 28rpx;
-	color: #CCCCCC;
+	font-size: 26rpx;
+	color: #8B919C;
 }
 
-/* 快捷功能区域 */
-.quick-actions-section {
-	background-color: #FFFFFF;
-	margin: 24rpx;
-	border-radius: 24rpx;
-	padding: 32rpx;
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.06);
+.acts {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	margin-top: 20rpx;
 }
 
-.actions-grid {
-	display: grid;
-	grid-template-columns: repeat(3, 1fr);
-	gap: 32rpx;
-	margin-top: 24rpx;
-}
-
-.action-item {
+.act {
+	flex: 0 0 25%;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 24rpx;
-	border-radius: 20rpx;
-	transition: all 0.3s ease;
+	padding: 16rpx 8rpx 12rpx;
+	box-sizing: border-box;
 }
 
-.action-item:active {
-	transform: scale(0.95);
-	background-color: #F8F9FA;
-}
-
-.action-icon-wrapper {
-	width: 96rpx;
-	height: 96rpx;
-	background: linear-gradient(135deg, #F0F7FF 0%, #E6F2FF 100%);
+.act-tile {
+	width: 80rpx;
+	height: 80rpx;
 	border-radius: 24rpx;
+	background: #EEF3FF;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-bottom: 16rpx;
+	margin-bottom: 12rpx;
 }
 
-.action-icon {
-	width: 48rpx;
-	height: 48rpx;
+.act-icon {
+	width: 40rpx;
+	height: 40rpx;
 }
 
-.action-label {
-	font-size: 26rpx;
-	color: #333333;
-	font-weight: 500;
+.act-label {
+	font-size: 22rpx;
+	color: #5C6370;
+	line-height: 1.35;
+	text-align: center;
 }
 
 .tabbar-spacer {
 	height: 140rpx;
 }
-
-/* CSS图标样式 */
-.icon-calendar {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 4rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-calendar::before {
-	content: '';
-	position: absolute;
-	top: -2rpx;
-	left: -2rpx;
-	right: -2rpx;
-	height: 8rpx;
-	background: currentColor;
-	border-radius: 4rpx 4rpx 0 0;
-}
-.icon-calendar::after {
-	content: '';
-	position: absolute;
-	top: 12rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 8rpx 0 0 currentColor, 0 6rpx 0 currentColor, 8rpx 6rpx 0 currentColor;
-}
-
-.icon-users {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-users::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 4rpx;
-	width: 12rpx;
-	height: 12rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 50%;
-	background: transparent;
-}
-.icon-users::after {
-	content: '';
-	position: absolute;
-	top: 0;
-	right: 4rpx;
-	width: 12rpx;
-	height: 12rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 50%;
-	background: transparent;
-	box-shadow: -6rpx 16rpx 0 -2rpx currentColor, 0 16rpx 0 -2rpx currentColor, 6rpx 16rpx 0 -2rpx currentColor;
-}
-
-.icon-edit {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-edit::before {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 4rpx;
-	width: 24rpx;
-	height: 24rpx;
-	border: 2rpx solid currentColor;
-	border-top: none;
-	border-left: none;
-	background: transparent;
-}
-.icon-edit::after {
-	content: '';
-	position: absolute;
-	bottom: 28rpx;
-	left: 24rpx;
-	width: 12rpx;
-	height: 3rpx;
-	background: currentColor;
-	transform: rotate(45deg);
-	transform-origin: left center;
-}
-
-.icon-clock {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 50%;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-clock::before {
-	content: '';
-	position: absolute;
-	top: 12rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 3rpx;
-	height: 10rpx;
-	background: currentColor;
-}
-.icon-clock::after {
-	content: '';
-	position: absolute;
-	top: 12rpx;
-	left: 50%;
-	transform: translate(-50%, -50%) rotate(45deg);
-	transform-origin: top center;
-	width: 3rpx;
-	height: 8rpx;
-	background: currentColor;
-}
-
-.icon-wallet {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-wallet::before {
-	content: '';
-	position: absolute;
-	top: 6rpx;
-	left: 6rpx;
-	width: 12rpx;
-	height: 8rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 2rpx;
-	background: transparent;
-}
-.icon-wallet::after {
-	content: '';
-	position: absolute;
-	bottom: 6rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 16rpx;
-	height: 3rpx;
-	background: currentColor;
-}
-
-.icon-star {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-star::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	width: 0;
-	height: 0;
-	border-left: 10rpx solid transparent;
-	border-right: 10rpx solid transparent;
-	border-bottom: 7rpx solid currentColor;
-}
-.icon-star::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%) rotate(180deg);
-	width: 0;
-	height: 0;
-	border-left: 10rpx solid transparent;
-	border-right: 10rpx solid transparent;
-	border-bottom: 7rpx solid currentColor;
-}
-
-.icon-chat {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-chat::before {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 28rpx;
-	height: 20rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx 6rpx 6rpx 0;
-	background: transparent;
-}
-.icon-chat::after {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 6rpx 0 0 currentColor, 12rpx 0 0 currentColor;
-}
-
-.icon-crown {
-	width: 32rpx;
-	height: 32rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-crown::before {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 0;
-	right: 0;
-	height: 8rpx;
-	background: currentColor;
-	border-radius: 4rpx 4rpx 0 0;
-}
-.icon-crown::after {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 0;
-	height: 0;
-	border-left: 8rpx solid transparent;
-	border-right: 8rpx solid transparent;
-	border-bottom: 12rpx solid currentColor;
-	box-shadow: -12rpx 12rpx 0 -4rpx currentColor, 12rpx 12rpx 0 -4rpx currentColor;
-}
-
-.icon-arrow-right {
-	width: 32rpx;
-	height: 32rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-arrow-right::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%) rotate(-45deg);
-	width: 16rpx;
-	height: 16rpx;
-	border-right: 3rpx solid currentColor;
-	border-top: 3rpx solid currentColor;
-}
-
 </style>

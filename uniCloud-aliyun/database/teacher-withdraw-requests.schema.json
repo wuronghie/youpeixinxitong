@@ -73,6 +73,19 @@
       "bsonType": "string",
       "description": "失败原因"
     },
+    "handled": {
+      "bsonType": "bool",
+      "description": "后台是否已重新打款处理",
+      "defaultValue": false
+    },
+    "handled_time": {
+      "bsonType": "timestamp",
+      "description": "后台处理时间"
+    },
+    "handled_remark": {
+      "bsonType": "string",
+      "description": "后台处理备注"
+    },
     "create_time": {
       "bsonType": "timestamp",
       "description": "创建时间",

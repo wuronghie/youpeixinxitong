@@ -4,9 +4,8 @@
 			"path": "pages/index/index",
 			"style": {
 				"navigationBarTitleText": "优培信息通",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"navigationStyle": "custom",
+				"enablePullDownRefresh": false
 			}
 		},
 		{
@@ -14,289 +13,175 @@
 			"style": {
 				"navigationBarTitleText": "登录",
 				"navigationStyle": "custom",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/common/register",
-			"style": {
-				"navigationBarTitleText": "完善信息",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/common/agreement",
-			"style": {
-				"navigationBarTitleText": "用户协议",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/common/webview",
-			"style": {
-				"navigationBarTitleText": "网页浏览",
-				"enablePullDownRefresh": false
-			}
-		},
-		{
-			"path": "pages/common/follow-oa",
-			"style": {
-				"navigationBarTitleText": "关注服务号",
 				"enablePullDownRefresh": false
 			}
 		},
 		{
 			"path": "pages/teacher/list",
 			"style": {
-				"navigationBarTitleText": "找教师",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"navigationBarTitleText": "找教师"
 			}
 		},
 		{
 			"path": "pages/teacher/detail",
 			"style": {
 				"navigationBarTitleText": "教师详情",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"enablePullDownRefresh": false
 			}
 		},
 		{
 			"path": "pages/appointment/create",
 			"style": {
 				"navigationBarTitleText": "创建预约",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"enablePullDownRefresh": false
 			}
 		},
 		{
 			"path": "pages/appointment/list",
 			"style": {
-				"navigationBarTitleText": "我的预约",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"navigationBarTitleText": "我的预约"
 			}
 		},
 		{
 			"path": "pages/appointment/detail",
 			"style": {
 				"navigationBarTitleText": "预约详情",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/recruitment/list",
-			"style": {
-				"navigationBarTitleText": "我的招募",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/recruitment/edit",
-			"style": {
-				"navigationBarTitleText": "发布招募",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/order/list",
-			"style": {
-				"navigationBarTitleText": "订单列表",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/order/detail",
-			"style": {
-				"navigationBarTitleText": "订单详情",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/order/refund",
-			"style": {
-				"navigationBarTitleText": "申请退款",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/review/create",
-			"style": {
-				"navigationBarTitleText": "发表评价",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"enablePullDownRefresh": false
 			}
 		},
 		{
 			"path": "pages/chat/list",
 			"style": {
-				"navigationBarTitleText": "消息",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"navigationBarTitleText": "老师沟通"
 			}
 		},
 		{
 			"path": "pages/chat/conversation",
 			"style": {
 				"navigationBarTitleText": "聊天",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"enablePullDownRefresh": false
 			}
 		},
 		{
 			"path": "pages/user/index",
 			"style": {
-				"navigationBarTitleText": "个人中心",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/user/profile",
-			"style": {
-				"navigationBarTitleText": "个人信息",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/user/collection",
-			"style": {
-				"navigationBarTitleText": "我的收藏",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/user/messages",
-			"style": {
-				"navigationBarTitleText": "系统消息",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/coupon/list",
-			"style": {
-				"navigationBarTitleText": "我的优惠券",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/teacher-profiles/add",
-			"style": {
-				"navigationBarTitleText": "新增",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/teacher-profiles/edit",
-			"style": {
-				"navigationBarTitleText": "编辑",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/teacher-profiles/list",
-			"style": {
-				"navigationBarTitleText": "列表",
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "pages/payment/result",
-			"style": {
-				"navigationBarTitleText": "支付结果",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "uni_modules/uni-pay/pages/success/success",
-			"style": {
-				"navigationBarTitleText": "",
-				"backgroundColor": "#F8F8F8",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
-			}
-		},
-		{
-			"path": "uni_modules/uni-pay/pages/pay-desk/pay-desk",
-			"style": {
-				"navigationBarTitleText": "收银台",
-				"backgroundColor": "#F8F8F8",
-				"enablePullDownRefresh": false,
-				"enableShareAppMessage": true,
-				"enableShareTimeline": true
+				"navigationBarTitleText": "我的"
 			}
 		}
 	],
 	"subPackages": [
+		{
+			"root": "pages-biz",
+			"pages": [
+				{
+					"path": "teacher/detail",
+					"style": {
+						"navigationBarTitleText": "教师详情"
+					}
+				},
+				{
+					"path": "appointment/create",
+					"style": {
+						"navigationBarTitleText": "创建预约",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "appointment/detail",
+					"style": {
+						"navigationBarTitleText": "预约详情"
+					}
+				},
+				{
+					"path": "chat/conversation",
+					"style": {
+						"navigationBarTitleText": "聊天"
+					}
+				},
+				{
+					"path": "user/profile",
+					"style": {
+						"navigationBarTitleText": "个人信息",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "user/collection",
+					"style": {
+						"navigationBarTitleText": "我的收藏"
+					}
+				},
+				{
+					"path": "user/messages",
+					"style": {
+						"navigationBarTitleText": "系统消息"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/common",
+			"pages": [
+				{
+					"path": "register",
+					"style": {
+						"navigationBarTitleText": "完善信息",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "agreement",
+					"style": {
+						"navigationBarTitleText": "用户协议"
+					}
+				},
+				{
+					"path": "webview",
+					"style": {
+						"navigationBarTitleText": "网页浏览",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "follow-oa",
+					"style": {
+						"navigationBarTitleText": "关注服务号",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
 		{
 			"root": "pages-teacher",
 			"pages": [
 				{
 					"path": "index/index",
 					"style": {
-						"navigationBarTitleText": "工作台",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "工作台"
 					}
 				},
 				{
 					"path": "appointment/list",
 					"style": {
-						"navigationBarTitleText": "预约管理",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "预约管理"
 					}
 				},
 				{
 					"path": "appointment/detail",
 					"style": {
-						"navigationBarTitleText": "预约详情",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "预约详情"
 					}
 				},
 				{
 					"path": "appointment/calendar",
 					"style": {
-						"navigationBarTitleText": "课程日历",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "课程日历"
 					}
 				},
 				{
 					"path": "profile/index",
 					"style": {
-						"navigationBarTitleText": "我的主页",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "我的主页"
 					}
 				},
 				{
@@ -316,90 +201,191 @@
 				{
 					"path": "wallet/index",
 					"style": {
-						"navigationBarTitleText": "我的钱包",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "我的课酬"
 					}
 				},
 				{
 					"path": "wallet/income",
 					"style": {
-						"navigationBarTitleText": "收入明细",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "课酬流水"
 					}
 				},
 				{
 					"path": "wallet/withdraw",
 					"style": {
 						"navigationBarTitleText": "提现",
-						"enablePullDownRefresh": false,
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"enablePullDownRefresh": false
 					}
 				},
 				{
 					"path": "coupon/list",
 					"style": {
-						"navigationBarTitleText": "我的优惠券",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "我的优惠券"
 					}
 				},
 				{
 					"path": "review/list",
 					"style": {
-						"navigationBarTitleText": "评价管理",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "评价管理"
 					}
 				},
 				{
 					"path": "recruitment/list",
 					"style": {
-						"navigationBarTitleText": "招募广场",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "招募广场"
 					}
 				},
 				{
 					"path": "recruitment/detail",
 					"style": {
-						"navigationBarTitleText": "招募详情",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "招募详情"
 					}
 				},
 				{
 					"path": "chat/list",
 					"style": {
-						"navigationBarTitleText": "聊天列表",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "家长沟通"
 					}
 				},
 				{
 					"path": "chat/conversation",
 					"style": {
-						"navigationBarTitleText": "聊天",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "聊天"
 					}
 				},
 				{
 					"path": "user/index",
 					"style": {
-						"navigationBarTitleText": "个人中心",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "我的"
 					}
 				},
 				{
 					"path": "user/messages",
 					"style": {
-						"navigationBarTitleText": "系统消息",
-						"enableShareAppMessage": true,
-						"enableShareTimeline": true
+						"navigationBarTitleText": "系统消息"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/order",
+			"pages": [
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "课程订单"
+					}
+				},
+				{
+					"path": "detail",
+					"style": {
+						"navigationBarTitleText": "订单详情"
+					}
+				},
+				{
+					"path": "refund",
+					"style": {
+						"navigationBarTitleText": "申请退款",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/recruitment",
+			"pages": [
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "我的招募"
+					}
+				},
+				{
+					"path": "edit",
+					"style": {
+						"navigationBarTitleText": "发布招募",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/coupon",
+			"pages": [
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "我的优惠券"
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/review",
+			"pages": [
+				{
+					"path": "create",
+					"style": {
+						"navigationBarTitleText": "发表评价",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/payment",
+			"pages": [
+				{
+					"path": "result",
+					"style": {
+						"navigationBarTitleText": "支付结果",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
+		{
+			"root": "uni_modules/uni-pay/pages",
+			"pages": [
+				{
+					"path": "success/success",
+					"style": {
+						"navigationBarTitleText": "",
+						"backgroundColor": "#F8F8F8",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "pay-desk/pay-desk",
+					"style": {
+						"navigationBarTitleText": "收银台",
+						"backgroundColor": "#F8F8F8",
+						"enablePullDownRefresh": false
+					}
+				}
+			]
+		},
+		{
+			"root": "pages/teacher-profiles",
+			"pages": [
+				{
+					"path": "add",
+					"style": {
+						"navigationBarTitleText": "新增",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "edit",
+					"style": {
+						"navigationBarTitleText": "编辑",
+						"enablePullDownRefresh": false
+					}
+				},
+				{
+					"path": "list",
+					"style": {
+						"navigationBarTitleText": "列表"
 					}
 				}
 			]
@@ -414,5 +400,27 @@
 		"backgroundTextStyle": "dark"
 	},
 	"lazyCodeLoading": "requiredComponents",
-	"uniIdRouter": {}
+	"preloadRule": {
+		"pages/teacher/list": {
+			"network": "wifi",
+			"packages": ["pages-biz"]
+		},
+		"pages/appointment/list": {
+			"network": "wifi",
+			"packages": ["pages-biz"]
+		},
+		"pages/chat/list": {
+			"network": "wifi",
+			"packages": ["pages-biz"]
+		},
+		"pages/user/index": {
+			"network": "wifi",
+			"packages": ["pages-biz", "pages/common"]
+		}
+	},
+	"uniIdRouter": {
+		"loginPage": "pages/login/index",
+		"needLogin": [],
+		"resToLogin": true
+	}
 }

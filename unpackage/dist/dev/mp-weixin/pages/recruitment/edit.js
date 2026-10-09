@@ -1,6 +1,7 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_location = require("../../utils/location.js");
+const utils_auth = require("../../utils/auth.js");
 const _sfc_main = {
   data() {
     return {
@@ -8,6 +9,7 @@ const _sfc_main = {
       gradeOptions: ["一年级", "二年级", "三年级", "四年级", "五年级", "六年级", "初一", "初二", "初三", "高一", "高二", "高三"],
       gradeIndex: -1,
       validDays: 14,
+      studentGender: "",
       /** 地图选点：与预约创建页一致 */
       pickPoi: {
         latitude: "",
@@ -32,6 +34,14 @@ const _sfc_main = {
     };
   },
   computed: {
+    studentGenderText() {
+      const g = this.studentGender;
+      if (g === "male" || g === 1 || g === "1")
+        return "男";
+      if (g === "female" || g === 2 || g === "2")
+        return "女";
+      return "与个人资料一致";
+    },
     hasMapPoint() {
       const p = this.pickPoi;
       return !!(p.latitude && p.longitude);
@@ -70,10 +80,6 @@ const _sfc_main = {
         return name;
       return "";
     },
-    addressPreviewLines() {
-      const s = (this.fullAddressDisplay || "").trim();
-      return s ? [s] : [];
-    },
     mapCenterLat() {
       const v = parseFloat(this.pickPoi.latitude);
       return Number.isNaN(v) ? 0 : v;
@@ -103,12 +109,20 @@ const _sfc_main = {
     }
   },
   onLoad(options) {
+    this.syncStudentGenderFromProfile();
     if (options.id) {
       this.recruitmentId = options.id;
+      common_vendor.index.setNavigationBarTitle({ title: "编辑招募" });
       this.loadOne();
     }
   },
   methods: {
+    syncStudentGenderFromProfile() {
+      const info = utils_auth.getStoredUserInfo();
+      const g = info.parent_info && info.parent_info.student_gender || "";
+      if (g)
+        this.studentGender = g;
+    },
     onGrade(e) {
       const i = Number(e.detail.value);
       this.gradeIndex = i;
@@ -216,6 +230,8 @@ const _sfc_main = {
       this.form.time_note = row.time_note || "";
       this.form.budget_min = row.budget_min != null ? String(row.budget_min) : "";
       this.form.budget_max = row.budget_max != null ? String(row.budget_max) : "";
+      if (row.student_gender)
+        this.studentGender = row.student_gender;
       const loc = row.location || {};
       const r = row.region || {};
       let dispName = (r.name || "").trim();
@@ -262,6 +278,18 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "请在地图上选择上课地点", icon: "none" });
         return;
       }
+      const budgetMin = Number(this.form.budget_min);
+      if (!Number.isFinite(budgetMin) || budgetMin < 120) {
+        common_vendor.index.showToast({ title: "最低预算不能低于 120 元/小时", icon: "none" });
+        return;
+      }
+      if (this.form.budget_max !== "") {
+        const budgetMax = Number(this.form.budget_max);
+        if (!Number.isFinite(budgetMax) || budgetMax < budgetMin) {
+          common_vendor.index.showToast({ title: "最高预算不能低于最低预算", icon: "none" });
+          return;
+        }
+      }
       this.submitting = true;
       try {
         const rc = common_vendor.tr.importObject("recruitment-center", { customUI: true });
@@ -281,10 +309,9 @@ const _sfc_main = {
           goal: this.form.goal,
           remark: this.form.remark,
           time_note: this.form.time_note,
-          valid_days: this.validDays
+          valid_days: this.validDays,
+          budget_min: budgetMin
         };
-        if (this.form.budget_min !== "")
-          payload.budget_min = Number(this.form.budget_min);
         if (this.form.budget_max !== "")
           payload.budget_max = Number(this.form.budget_max);
         let res;
@@ -317,32 +344,25 @@ const _sfc_main = {
 };
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.t($data.recruitmentId ? "编辑招募" : "发布招募"),
-    b: $data.form.subject,
-    c: common_vendor.o(common_vendor.m(($event) => $data.form.subject = $event.detail.value, {
+    a: $data.form.subject,
+    b: common_vendor.o(common_vendor.m(($event) => $data.form.subject = $event.detail.value, {
       trim: true
     })),
-    d: common_vendor.t($data.form.student_grade || "请选择年级"),
-    e: !$data.form.student_grade ? 1 : "",
-    f: $data.gradeOptions,
-    g: $data.gradeIndex,
-    h: common_vendor.o((...args) => $options.onGrade && $options.onGrade(...args)),
-    i: $data.form.lesson_mode === "online" ? 1 : "",
-    j: common_vendor.o(($event) => $data.form.lesson_mode = "online"),
-    k: $data.form.lesson_mode === "offline" ? 1 : "",
-    l: common_vendor.o(($event) => $data.form.lesson_mode = "offline"),
-    m: $data.form.lesson_mode === "offline"
+    c: common_vendor.t($data.form.student_grade || "请选择"),
+    d: !!$data.form.student_grade ? 1 : "",
+    e: $data.gradeOptions,
+    f: $data.gradeIndex,
+    g: common_vendor.o((...args) => $options.onGrade && $options.onGrade(...args)),
+    h: common_vendor.t($options.studentGenderText),
+    i: $options.studentGenderText !== "与个人资料一致" ? 1 : "",
+    j: $data.form.lesson_mode === "online" ? 1 : "",
+    k: common_vendor.o(($event) => $data.form.lesson_mode = "online"),
+    l: $data.form.lesson_mode === "offline" ? 1 : "",
+    m: common_vendor.o(($event) => $data.form.lesson_mode = "offline"),
+    n: $data.form.lesson_mode === "offline"
   }, $data.form.lesson_mode === "offline" ? common_vendor.e({
-    n: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
-    o: $options.addressPreviewLines.length
-  }, $options.addressPreviewLines.length ? {
-    p: common_vendor.f($options.addressPreviewLines, (line, idx, i0) => {
-      return {
-        a: common_vendor.t(line),
-        b: idx
-      };
-    })
-  } : {}, {
+    o: common_vendor.o((...args) => $options.handleChooseLocation && $options.handleChooseLocation(...args)),
+    p: common_vendor.t($options.fullAddressDisplay || "仅展示大致位置，请选择线下辅导地址"),
     q: $options.hasMapPoint
   }, $options.hasMapPoint ? {
     r: $options.mapCenterLat,
@@ -369,15 +389,16 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
     E: common_vendor.o(($event) => $data.form.budget_min = $event.detail.value),
     F: $data.form.budget_max,
     G: common_vendor.o(($event) => $data.form.budget_max = $event.detail.value),
-    H: $data.validDays === 7 ? 1 : "",
-    I: common_vendor.o(($event) => $data.validDays = 7),
-    J: $data.validDays === 14 ? 1 : "",
-    K: common_vendor.o(($event) => $data.validDays = 14),
-    L: $data.validDays === 30 ? 1 : "",
-    M: common_vendor.o(($event) => $data.validDays = 30),
-    N: common_vendor.t($data.submitting ? "提交中..." : $data.recruitmentId ? "保存并重新审核" : "提交审核"),
-    O: $data.submitting,
-    P: common_vendor.o((...args) => $options.submit && $options.submit(...args))
+    H: common_vendor.t($data.validDays),
+    I: $data.validDays === 7 ? 1 : "",
+    J: common_vendor.o(($event) => $data.validDays = 7),
+    K: $data.validDays === 14 ? 1 : "",
+    L: common_vendor.o(($event) => $data.validDays = 14),
+    M: $data.validDays === 30 ? 1 : "",
+    N: common_vendor.o(($event) => $data.validDays = 30),
+    O: common_vendor.t($data.submitting ? "提交中..." : $data.recruitmentId ? "保存并重新审核" : "提交审核"),
+    P: $data.submitting,
+    Q: common_vendor.o((...args) => $options.submit && $options.submit(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-de3cdd3d"]]);

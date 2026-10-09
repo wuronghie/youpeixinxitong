@@ -1,4 +1,5 @@
 import { clearBoundPushClientId } from '@/utils/chatPush.js'
+import { promptFollowOfficialAccount } from '@/utils/oaFollow.js'
 
 const DEFAULT_ROLE = 'parent'
 
@@ -11,7 +12,8 @@ function normalizeUserInfoFromDb(data = {}) {
     avatar: data.avatar || data.wx_avatarUrl || '',
     role: activeRole,
     status: data.status || 'active',
-    phone: data.phone || '',
+    phone: data.phone || data.mobile || (data.parent_info && data.parent_info.phone) || '',
+    mobile: data.mobile || data.phone || '',
     // 性别（uni-id 约定：0=未知, 1=男, 2=女）
     gender: data.gender != null ? data.gender : 0,
     parent_info: data.parent_info || {},
@@ -33,11 +35,24 @@ export function setStoredUserInfo(info = {}) {
   }
 }
 
+export function persistAuthToken(token, tokenExpired) {
+  if (token) {
+    uni.setStorageSync('uni_id_token', token)
+    uni.setStorageSync('token', token)
+  }
+  if (tokenExpired) {
+    uni.setStorageSync('uni_id_token_expired', tokenExpired)
+  }
+}
+
 export function clearStoredAuth() {
   uni.removeStorageSync('uni_id_token')
+  uni.removeStorageSync('uni_id_token_expired')
   uni.removeStorageSync('token')
   uni.removeStorageSync('userInfo')
   uni.removeStorageSync('last_role')
+  uni.removeStorageSync('just_issued_coupons')
+  uni.removeStorageSync('cached_available_coupons')
   clearBoundPushClientId()
 }
 
@@ -46,7 +61,13 @@ export function redirectByRole(role) {
   const url = role === 'teacher' ? '/pages-teacher/index/index' : '/pages/teacher/list'
   // 延迟执行，避免在回调中直接调用导致超时
   setTimeout(() => {
-    uni.reLaunch({ url })
+    uni.reLaunch({
+      url,
+      success: () => {
+        // 进到主页后再提醒关注，避免启动页跳转把弹窗关掉
+        promptFollowOfficialAccount({ delayMs: 400 })
+      }
+    })
   }, 100)
 }
 
@@ -61,25 +82,17 @@ export async function checkProfileComplete(userInfo) {
   }
 
   if (userInfo.role === 'parent') {
-    // 检查家长信息：家长姓名、性别、手机号、学生信息必须补齐，方便后台/老师联系
-    // 注意：phone 存储在 uni-id-users 顶层（userInfo.phone），不是 parent_info.phone
-    // 性别存储在 uni-id-users.gender（1=男, 2=女, 0/空=未填）
+    // 检查家长信息：手机号、学生信息必须补齐
     const parentInfo = userInfo.parent_info || {}
     const phone = userInfo.phone || userInfo.mobile || parentInfo.phone || ''
-    const genderCode = userInfo.gender
-    const genderFilled = genderCode === 1 || genderCode === 2 || genderCode === '1' || genderCode === '2' || genderCode === 'male' || genderCode === 'female'
     const studentGender = parentInfo.student_gender
     const studentGenderFilled = studentGender === 'male' || studentGender === 'female' || studentGender === 1 || studentGender === 2 || studentGender === '1' || studentGender === '2'
     const missing = []
-    if (!parentInfo.real_name) missing.push('家长姓名')
-    if (!genderFilled) missing.push('性别')
     if (!phone) missing.push('手机号')
     if (!parentInfo.student_name) missing.push('学生姓名')
     if (!studentGenderFilled) missing.push('孩子性别')
     if (!parentInfo.student_grade) missing.push('学生年级')
     console.log('[auth] 家长信息检查:', {
-      real_name: parentInfo.real_name,
-      gender: genderCode,
       phone,
       student_name: parentInfo.student_name,
       student_gender: studentGender,

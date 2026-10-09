@@ -1,0 +1,225 @@
+
+.page.data-v-2dfa780d {
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+	background: #F4F6F9;
+}
+.tabs.data-v-2dfa780d {
+	background: #FFFFFF;
+	white-space: nowrap;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+.tabs-inner.data-v-2dfa780d {
+	display: flex;
+	padding: 0 16rpx;
+}
+.tab.data-v-2dfa780d {
+	flex-shrink: 0;
+	height: 88rpx;
+	padding: 0 24rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 26rpx;
+	color: #5C6370;
+	position: relative;
+}
+.tab.on.data-v-2dfa780d {
+	color: #2563EB;
+	font-weight: 600;
+}
+.tab.on.data-v-2dfa780d::after {
+	content: "";
+	position: absolute;
+	left: 22%;
+	right: 22%;
+	bottom: 8rpx;
+	height: 4rpx;
+	background: #2563EB;
+	border-radius: 4rpx;
+}
+.tab-badge.data-v-2dfa780d {
+	min-width: 28rpx;
+	height: 28rpx;
+	margin-left: 8rpx;
+	padding: 0 8rpx;
+	border-radius: 14rpx;
+	background: #FA5151;
+	color: #FFFFFF;
+	font-size: 18rpx;
+	line-height: 28rpx;
+	text-align: center;
+}
+.mark-row.data-v-2dfa780d {
+	padding: 16rpx 32rpx 8rpx;
+	text-align: right;
+	background: #FFFFFF;
+}
+.mark-all.data-v-2dfa780d {
+	font-size: 24rpx;
+	color: #2563EB;
+}
+.list-scroll.data-v-2dfa780d {
+	flex: 1;
+	height: calc(100vh - 160rpx);
+	background: #FFFFFF;
+}
+.conv-item.data-v-2dfa780d {
+	position: relative;
+	display: flex;
+	gap: 24rpx;
+	padding: 24rpx 32rpx;
+	border-bottom: 1rpx solid #F2F3F5;
+	min-height: 144rpx;
+	box-sizing: border-box;
+}
+.conv-item.unread .conv-title.data-v-2dfa780d {
+	font-weight: 600;
+}
+.avatar.data-v-2dfa780d {
+	width: 88rpx;
+	height: 88rpx;
+	border-radius: 50%;
+	color: #FFFFFF;
+	font-size: 28rpx;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+.av-brand.data-v-2dfa780d {
+	background: #2563EB;
+}
+.av-amber.data-v-2dfa780d {
+	background: #FA9D3B;
+}
+.av-ok.data-v-2dfa780d {
+	background: #07C160;
+}
+.av-danger.data-v-2dfa780d {
+	background: #FA5151;
+}
+.conv-main.data-v-2dfa780d {
+	flex: 1;
+	min-width: 0;
+}
+.conv-head.data-v-2dfa780d {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+.title-wrap.data-v-2dfa780d {
+	display: flex;
+	align-items: center;
+	gap: 10rpx;
+	flex: 1;
+	min-width: 0;
+}
+.conv-title.data-v-2dfa780d {
+	flex: 1;
+	min-width: 0;
+	font-size: 30rpx;
+	color: #1F2329;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.unread-dot.data-v-2dfa780d {
+	width: 12rpx;
+	height: 12rpx;
+	border-radius: 50%;
+	background: #FA5151;
+	flex-shrink: 0;
+}
+.conv-time.data-v-2dfa780d {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+.conv-msg.data-v-2dfa780d {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 26rpx;
+	color: #8B919C;
+	line-height: 1.4;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.conv-ops.data-v-2dfa780d {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 16rpx;
+	margin-top: 12rpx;
+}
+.chip-warn.data-v-2dfa780d {
+	height: 36rpx;
+	padding: 0 12rpx;
+	border-radius: 8rpx;
+	background: #FFF6E8;
+	color: #C47A12;
+	font-size: 20rpx;
+	line-height: 36rpx;
+}
+.link.data-v-2dfa780d {
+	font-size: 24rpx;
+	color: #2563EB;
+	font-weight: 500;
+}
+.more.data-v-2dfa780d {
+	flex-shrink: 0;
+	width: 48rpx;
+	height: 48rpx;
+	line-height: 40rpx;
+	text-align: center;
+	font-size: 32rpx;
+	color: #8B919C;
+	letter-spacing: 2rpx;
+}
+.action-panel.data-v-2dfa780d {
+	position: absolute;
+	top: 72rpx;
+	right: 24rpx;
+	z-index: 10;
+	min-width: 200rpx;
+	background: #FFFFFF;
+	border-radius: 16rpx;
+	box-shadow: 0 12rpx 28rpx rgba(31, 35, 41, 0.12);
+	overflow: hidden;
+}
+.action-item.data-v-2dfa780d {
+	padding: 22rpx 24rpx;
+	font-size: 24rpx;
+	color: #1F2329;
+}
+.action-item.danger.data-v-2dfa780d {
+	color: #FA5151;
+	border-top: 1rpx solid #F2F3F5;
+}
+.empty.data-v-2dfa780d {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 32rpx;
+}
+.empty-title.data-v-2dfa780d {
+	font-size: 30rpx;
+	color: #5C6370;
+}
+.empty-sub.data-v-2dfa780d {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	text-align: center;
+	line-height: 1.6;
+}
+.footer-tip.data-v-2dfa780d {
+	padding: 40rpx 32rpx;
+	text-align: center;
+	font-size: 26rpx;
+	color: #8B919C;
+}

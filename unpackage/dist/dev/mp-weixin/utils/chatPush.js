@@ -1,18 +1,25 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
+const utils_trialConfirmReminder = require("./trialConfirmReminder.js");
 const CHAT_PUSH_EVENT = "chat:push";
 const CHAT_BADGE_EVENT = "chat:badge";
 const CHAT_UNREAD_STORAGE_KEY = "chat_unread_count";
+const APP_PUSH_TYPES = {
+  CHAT_NEW: "chat_new",
+  SYSTEM_MESSAGE: "system_message",
+  APPOINTMENT_UPDATE: "appointment_update"
+};
 let bindInFlight = null;
 let lastBoundCid = "";
 let listenerReady = false;
 const listeners = /* @__PURE__ */ new Set();
 const badgeListeners = /* @__PURE__ */ new Set();
+const appPushListeners = /* @__PURE__ */ new Set();
 function log(...args) {
-  common_vendor.index.__f__("log", "at utils/chatPush.js:17", "[chatPush]", ...args);
+  common_vendor.index.__f__("log", "at utils/chatPush.js:25", "[chatPush]", ...args);
 }
 function warn(...args) {
-  common_vendor.index.__f__("warn", "at utils/chatPush.js:21", "[chatPush]", ...args);
+  common_vendor.index.__f__("warn", "at utils/chatPush.js:29", "[chatPush]", ...args);
 }
 function onChatPush(handler) {
   if (typeof handler !== "function")
@@ -26,6 +33,21 @@ function offChatPush(handler) {
   listeners.delete(handler);
   log("取消订阅 chat:push，当前监听数=", listeners.size);
 }
+function onAppPush(types, handler) {
+  if (typeof handler !== "function")
+    return;
+  const typeSet = new Set(Array.isArray(types) ? types : [types]);
+  appPushListeners.add({ types: typeSet, fn: handler });
+  log("订阅 app:push", [...typeSet], "当前监听数=", appPushListeners.size);
+}
+function offAppPush(handler) {
+  if (!handler)
+    return;
+  for (const item of appPushListeners) {
+    if (item.fn === handler)
+      appPushListeners.delete(item);
+  }
+}
 function onChatBadge(handler) {
   if (typeof handler !== "function")
     return;
@@ -35,6 +57,20 @@ function offChatBadge(handler) {
   if (!handler)
     return;
   badgeListeners.delete(handler);
+}
+function emitAppPush(payload) {
+  if (!payload || !payload.type)
+    return;
+  log("分发 app:push type=", payload.type, "页面监听数=", appPushListeners.size);
+  appPushListeners.forEach((item) => {
+    if (!item.types.has(payload.type) && !item.types.has("*"))
+      return;
+    try {
+      item.fn(payload);
+    } catch (e) {
+      warn("app:push 监听执行失败:", e);
+    }
+  });
 }
 function emitChatPush(payload) {
   log("分发 chat:push → 页面监听数=", listeners.size, "payload=", payload);
@@ -151,7 +187,7 @@ function bindPushClientId() {
 function clearBoundPushClientId() {
   lastBoundCid = "";
 }
-function parseChatPushPayload(res) {
+function parseAppPushPayload(res) {
   if (!res)
     return null;
   const candidates = [];
@@ -173,12 +209,32 @@ function parseChatPushPayload(res) {
     }
     if (!payload || typeof payload !== "object")
       continue;
+    const type = payload.type || "";
     const conversationId = payload.conversation_id || payload.conversationId || "";
-    if (payload.type === "chat_new" || conversationId) {
+    const appointmentId = payload.appointment_id || payload.appointmentId || "";
+    const sendTime = Number(payload.send_time || payload.sendTime || Date.now());
+    if (type === APP_PUSH_TYPES.SYSTEM_MESSAGE) {
       return {
-        type: "chat_new",
+        type: APP_PUSH_TYPES.SYSTEM_MESSAGE,
+        message_type: payload.message_type || payload.messageType || "system",
+        related_id: payload.related_id || payload.relatedId || "",
+        send_time: sendTime
+      };
+    }
+    if (type === APP_PUSH_TYPES.APPOINTMENT_UPDATE) {
+      return {
+        type: APP_PUSH_TYPES.APPOINTMENT_UPDATE,
+        appointment_id: appointmentId,
+        status: payload.status || "",
+        action: payload.action || "",
+        send_time: sendTime
+      };
+    }
+    if (type === APP_PUSH_TYPES.CHAT_NEW || conversationId) {
+      return {
+        type: APP_PUSH_TYPES.CHAT_NEW,
         conversation_id: conversationId,
-        send_time: Number(payload.send_time || payload.sendTime || 0)
+        send_time: sendTime
       };
     }
   }
@@ -193,21 +249,33 @@ function setupChatPushListener() {
   log("注册 uni.onPushMessage");
   common_vendor.index.onPushMessage((res) => {
     log("★ 收到推送 onPushMessage 原始数据=", typeof res === "object" ? JSON.stringify(res) : res);
-    const payload = parseChatPushPayload(res) || {
-      type: "chat_new",
-      conversation_id: "",
-      send_time: Date.now()
-    };
+    const payload = parseAppPushPayload(res);
+    if (!payload) {
+      log("无法识别的推送，忽略");
+      return;
+    }
     log("解析后 payload=", payload);
-    emitChatPush(payload);
-    refreshBadgeAfterPush("onPushMessage");
+    emitAppPush(payload);
+    if (payload.type === APP_PUSH_TYPES.CHAT_NEW) {
+      emitChatPush(payload);
+      refreshBadgeAfterPush("onPushMessage");
+    }
+    if (payload.type === APP_PUSH_TYPES.APPOINTMENT_UPDATE) {
+      const needRemind = payload.action === "clock_out" || payload.status === "in_progress";
+      if (needRemind) {
+        utils_trialConfirmReminder.checkPendingTrialConfirmReminder({ force: true });
+      }
+    }
   });
 }
+exports.APP_PUSH_TYPES = APP_PUSH_TYPES;
 exports.bindPushClientId = bindPushClientId;
 exports.clearBoundPushClientId = clearBoundPushClientId;
 exports.getCachedUnreadCount = getCachedUnreadCount;
+exports.offAppPush = offAppPush;
 exports.offChatBadge = offChatBadge;
 exports.offChatPush = offChatPush;
+exports.onAppPush = onAppPush;
 exports.onChatBadge = onChatBadge;
 exports.onChatPush = onChatPush;
 exports.refreshChatBadge = refreshChatBadge;

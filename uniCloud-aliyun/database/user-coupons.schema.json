@@ -79,7 +79,12 @@
       "bsonType": "string",
       "description": "邀请关系唯一标识，格式为 inviterId_inviteeId，用于保证同一邀请关系只发一次券",
       "title": "邀请关系标识"
-    }
+    },
+    "wx_openid": {
+      "bsonType": "string",
+      "description": "微信小程序 openid，用于注销重建账号后按微信号限领",
+      "title": "微信openid"
+    },
   },
   "required": [
     "user_id",

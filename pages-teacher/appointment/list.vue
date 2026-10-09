@@ -1,92 +1,86 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3">
-			<view class="d-flex flex-column text-white mb-3">
-				<text class="font-lg font-weight mb-1">预约管理</text>
-				<text class="font-sm" style="opacity: 0.85;">管理所有预约信息</text>
-			</view>
-			<view class="d-flex a-center">
+	<view class="page">
+		<scroll-view scroll-x class="tabs" :show-scrollbar="false">
+			<view class="tabs-inner">
 				<view
 					v-for="tab in statusTabs"
 					:key="tab.value"
-					class="flex-1 text-center rounded py-2 mr-2 font-sm"
-					:class="currentStatus === tab.value ? 'tab-active' : 'tab-inactive'"
+					class="tab"
+					:class="{ on: currentStatus === tab.value }"
 					@click="switchStatus(tab.value)"
 				>
 					{{ tab.label }}
 				</view>
 			</view>
-		</view>
+		</scroll-view>
 
-		<!-- 预约列表 -->
 		<scroll-view scroll-y class="list-scroll" @scrolltolower="loadMore">
-			<view class="px-2 py-3">
-				<view
-					v-for="item in appointmentList"
-					:key="item._id"
-					class="card mb-3"
-					@click="goToDetail(item._id)"
-				>
-					<view class="d-flex a-center j-sb mb-3">
-						<view class="flex-1">
-							<text class="font-md font-weight d-block mb-1">{{ (item.student_info && item.student_info.name) || item.student_name || '学生' }}</text>
-							<text v-if="item.status !== 'contact_request'" class="font-sm text-light-muted d-block mb-1">
-								时间：{{ (item.schedule && item.schedule.date) || item.appointment_date || '' }} {{ (item.schedule && item.schedule.start_time) || item.appointment_time || '' }}
-							</text>
-							<text v-else class="font-sm text-light-muted d-block mb-1">
-								联系请求：家长已发送联系请求，等待您确认
-							</text>
-							<view v-if="item.status !== 'contact_request'" class="d-flex a-center flex-wrap">
-								<text class="font-sm text-light-muted mr-2">
-									类型：{{ (item.type === 'trial' || item.course_type === 'trial') ? '试课' : '正式课程' }}
-								</text>
-								<text class="font-sm font-weight main-text-color">
-									费用：¥{{ item.total_amount || item.total_fee || 300 }}
-								</text>
-							</view>
-							<view v-else class="d-flex a-center flex-wrap">
-								<text class="font-sm text-light-muted">
-									学生：{{ (item.student_info && item.student_info.grade) || '待确认' }} | 科目：{{ (item.student_info && item.student_info.subject) || '待确认' }}
-								</text>
-							</view>
-						</view>
-						<view class="d-flex flex-column a-end">
-							<view class="bg-light-secondary rounded px-2 py-1 font-sm" :class="getStatusClass(item.status)">
-								{{ getStatusText(item.status) }}
-							</view>
-							<view
-								v-if="getClockBadge(item)"
-								class="rounded-pill px-2 py-1 font-xs mt-2"
-								:class="getClockBadge(item).className"
-							>
-								{{ getClockBadge(item).text }}
-							</view>
-						</view>
-					</view>
-					<view v-if="item.status === 'pending_confirm' || item.status === 'contact_request' || item.status === 'pending_payment'" class="d-flex a-center pt-3 border-top">
-						<button 
-							class="flex-1 border border-light-muted text-light-muted rounded px-3 py-2 font-sm mr-2"
-							@click.stop="handleReject(item._id)"
-						>
-							拒绝
-						</button>
-						<button 
-							class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
-							@click.stop="handleConfirm(item._id)"
-						>
-							{{ item.status === 'contact_request' ? '查看详情' : '确认' }}
-						</button>
+			<view class="list-body">
+				<view v-if="loading && appointmentList.length === 0">
+					<view v-for="n in 4" :key="n" class="a-card skeleton">
+						<view class="sk sk-title"></view>
+						<view class="sk sk-line"></view>
+						<view class="sk sk-line short"></view>
 					</view>
 				</view>
 
-				<view v-if="appointmentList.length === 0" class="d-flex flex-column a-center j-center py-5">
-					<view class="icon-empty" style="color: #ddd;"></view>
-					<text class="text-light-muted font-md mt-3">暂无预约</text>
-				</view>
+				<view v-else>
+					<view
+						v-for="item in appointmentList"
+						:key="item._id"
+						class="a-card"
+						@click="goToDetail(item._id)"
+					>
+						<view class="a-head">
+							<view class="a-head-main">
+								<text class="a-name">{{ cardTitle(item) }}</text>
+								<text v-if="item.status !== 'contact_request'" class="a-time">
+									{{ (item.schedule && item.schedule.date) || item.appointment_date || '' }}
+									{{ (item.schedule && item.schedule.start_time) || item.appointment_time || '' }}<text v-if="item.schedule && item.schedule.end_time">–{{ item.schedule.end_time }}</text>
+								</text>
+								<text v-else class="a-time">联系请求：家长已发送联系请求，等待您确认</text>
+							</view>
+							<text class="status" :class="statusPillClass(item.status)">{{ getStatusText(item.status) }}</text>
+						</view>
 
-				<view v-if="loading && appointmentList.length" class="text-center text-light-muted font py-3">加载中...</view>
-				<view v-else-if="!hasMore && appointmentList.length" class="text-center text-light-muted font py-3">没有更多数据了</view>
+						<view v-if="item.status === 'contact_request'" class="a-row">
+							<text class="a-label">学生</text>
+							<text class="a-value">{{ (item.student_info && item.student_info.grade) || '待确认' }} · {{ (item.student_info && item.student_info.subject) || '待确认' }}</text>
+						</view>
+						<block v-else>
+							<view class="a-row">
+								<text class="a-label">课型</text>
+								<text class="a-value">{{ (item.type === 'trial' || item.course_type === 'trial') ? '试课' : '正式课程' }}</text>
+							</view>
+							<view class="a-row">
+								<text class="a-label">费用</text>
+								<text class="a-price" :class="{ trial: item.type === 'trial' || item.course_type === 'trial' }">¥{{ item.total_amount || item.total_fee || 300 }}</text>
+							</view>
+						</block>
+						<view v-if="getClockBadge(item)" class="a-row">
+							<text class="a-label">打卡</text>
+							<text class="clock-badge" :class="getClockBadge(item).className">{{ getClockBadge(item).text }}</text>
+						</view>
+
+						<view
+							v-if="item.status === 'pending_confirm' || item.status === 'contact_request' || item.status === 'pending_payment'"
+							class="a-ops"
+						>
+							<text class="mini mini-danger" @click.stop="handleReject(item._id)">拒绝</text>
+							<text class="mini mini-primary" @click.stop="handleConfirm(item._id)">
+								{{ item.status === 'contact_request' ? '查看详情' : '确认' }}
+							</text>
+						</view>
+					</view>
+
+					<view v-if="!appointmentList.length && !loading" class="empty">
+						<text class="empty-title">暂无预约</text>
+						<text class="empty-sub">有新预约时会显示在这里</text>
+					</view>
+
+					<view v-if="loading && appointmentList.length" class="list-tip">加载中...</view>
+					<view v-else-if="!hasMore && appointmentList.length" class="list-tip">已经到底啦</view>
+				</view>
 			</view>
 		</scroll-view>
 
@@ -97,10 +91,14 @@
 
 <script>
 import { mockAppointments, useMockData } from '@/utils/mockData.js'
-import TeacherTabBar from '@/components/TeacherTabBar.vue'
+import TeacherTabBar from '@/pages-teacher/components/TeacherTabBar.vue'
+import { getTeacherClockBadge } from '@/pages-teacher/utils/appointmentClock.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 export default {
 	name: 'TeacherAppointmentList',
+	mixins: [createAppPushMixin(APP_PUSH_TYPES.APPOINTMENT_UPDATE)],
 	components: {
 		TeacherTabBar
 	},
@@ -143,6 +141,10 @@ export default {
 		async refreshData() {
 			await this.loadAppointments()
 		},
+		onAppPushPayload() {
+			this.page = 1
+			this.loadAppointments()
+		},
 		/**
 		 * 计算每条预约的"打卡待办"徽章
 		 * 返回 { text, className } 或 null
@@ -152,56 +154,7 @@ export default {
 		 *  - in_progress 已上课已下课 / completed → 绿色：打卡已完成
 		 */
 		getClockBadge(item) {
-			if (!item) return null
-			const status = item.status
-			if (!['confirmed', 'in_progress', 'completed'].includes(status)) return null
-			if (!(item.deposit_paid === true || item.deposit_paid === 'true')) return null
-			if (!(item.parent_paid === true || item.parent_paid === 'true')) return null
-
-			const startTs = this.parseScheduleStart(item)
-			const endTs = this.parseScheduleEnd(item, startTs)
-			const now = Date.now()
-			const ALLOW_EARLY_MS = 15 * 60 * 1000
-
-			const started = !!item.class_started_at
-			const ended = !!item.class_ended_at
-
-			if (started && ended) {
-				return { text: '打卡已完成', className: 'badge-success' }
-			}
-			if (started && !ended) {
-				if (endTs && now >= endTs) {
-					return { text: '待下课打卡', className: 'badge-warning' }
-				}
-				return { text: '上课中', className: 'badge-info' }
-			}
-			// 未上课打卡
-			if (startTs && now >= startTs - ALLOW_EARLY_MS && (!endTs || now < endTs)) {
-				return { text: '待上课打卡', className: 'badge-danger' }
-			}
-			if (endTs && now >= endTs) {
-				return { text: '已超时未打卡', className: 'badge-danger' }
-			}
-			return { text: '未到打卡时间', className: 'badge-muted' }
-		},
-		parseScheduleStart(item) {
-			const schedule = item.schedule || {}
-			const date = schedule.date || item.appointment_date || item.date
-			const startTime = schedule.start_time || item.appointment_time || item.start_time
-			if (!date || !startTime) return 0
-			const ts = new Date(`${date}T${startTime}:00`).getTime()
-			return Number.isNaN(ts) ? 0 : ts
-		},
-		parseScheduleEnd(item, startTs) {
-			if (!startTs) return 0
-			const schedule = item.schedule || {}
-			if (schedule.end_time) {
-				const date = schedule.date || item.appointment_date
-				const ts = new Date(`${date}T${schedule.end_time}:00`).getTime()
-				if (!Number.isNaN(ts)) return ts
-			}
-			const duration = Number(schedule.duration || item.duration || 2)
-			return startTs + duration * 3600 * 1000
+			return getTeacherClockBadge(item)
 		},
 		/**
 		 * 将数据库状态映射到筛选状态
@@ -350,6 +303,26 @@ export default {
 			}
 			return map[status] || ''
 		},
+		statusPillClass(status) {
+			const map = {
+				pending_payment: 's-pay',
+				pending_confirm: 's-wait',
+				contact_request: 's-wait',
+				confirmed: 's-ing',
+				in_progress: 's-ing',
+				completed: 's-done',
+				rejected: 's-muted',
+				cancelled: 's-muted',
+				refunding: 's-wait',
+				refunded: 's-muted'
+			}
+			return map[status] || 's-muted'
+		},
+		cardTitle(item) {
+			const name = (item.student_info && item.student_info.name) || item.student_name || '学生'
+			const subject = item.subject || (item.student_info && item.student_info.subject)
+			return subject ? `${name} · ${subject}` : name
+		},
 		async handleReject(id) {
 			uni.showModal({
 				title: '提示',
@@ -404,91 +377,264 @@ export default {
 </script>
 
 <style scoped>
-.list-scroll {
-	flex: 1;
-	height: calc(100vh - 400rpx);
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
 }
 
-/* 选中状态的选项卡样式 */
-.tab-active {
-	background-color: #FFFFFF;
-	color: #07C160;
+.tabs {
+	background: #FFFFFF;
+	white-space: nowrap;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+
+.tabs-inner {
+	display: flex;
+	padding: 0 16rpx;
+}
+
+.tab {
+	flex-shrink: 0;
+	height: 88rpx;
+	padding: 0 24rpx;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 26rpx;
+	color: #5C6370;
+	position: relative;
+}
+
+.tab.on {
+	color: #2563EB;
 	font-weight: 600;
 }
 
-/* 未选中状态的选项卡样式 */
-.tab-inactive {
-	background-color: rgba(255, 255, 255, 0.2);
+.tab.on::after {
+	content: "";
+	position: absolute;
+	left: 22%;
+	right: 22%;
+	bottom: 8rpx;
+	height: 4rpx;
+	background: #2563EB;
+	border-radius: 4rpx;
+}
+
+.list-scroll {
+	flex: 1;
+	height: calc(100vh - 228rpx);
+}
+
+.list-body {
+	padding: 8rpx 0 24rpx;
+}
+
+.a-card {
+	margin: 24rpx 32rpx;
+	padding: 28rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.a-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 16rpx;
+}
+
+.a-head-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.a-name {
+	display: block;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.4;
+}
+
+.a-time {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1.4;
+}
+
+.status {
+	flex-shrink: 0;
+	font-size: 22rpx;
+	padding: 4rpx 16rpx;
+	border-radius: 999rpx;
+	line-height: 1.4;
+}
+
+.s-pay {
+	background: #FFF1F0;
+	color: #FA5151;
+}
+
+.s-wait {
+	background: #FFF6E8;
+	color: #C47A12;
+}
+
+.s-ing {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.s-done {
+	background: #E8F8EF;
+	color: #07C160;
+}
+
+.s-muted {
+	background: #F4F6F9;
+	color: #8B919C;
+}
+
+.a-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 16rpx;
+}
+
+.a-label {
+	font-size: 26rpx;
+	color: #8B919C;
+}
+
+.a-value {
+	font-size: 26rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.a-price {
+	font-size: 26rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.a-price.trial {
+	color: #FA5151;
+}
+
+.clock-badge {
+	font-size: 22rpx;
+	padding: 4rpx 16rpx;
+	border-radius: 999rpx;
+	line-height: 1.4;
+}
+
+.badge-danger {
+	background: #FFF1F0;
+	color: #FA5151;
+}
+
+.badge-warning {
+	background: #FFF7ED;
+	color: #C47A12;
+}
+
+.badge-success {
+	background: #E8F8EF;
+	color: #07C160;
+}
+
+.badge-info {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.badge-muted {
+	background: #F4F6F9;
+	color: #8B919C;
+}
+
+.a-ops {
+	display: flex;
+	justify-content: flex-end;
+	gap: 16rpx;
+	margin-top: 24rpx;
+}
+
+.mini {
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+	text-align: center;
+}
+
+.mini-primary {
+	background: #2563EB;
 	color: #FFFFFF;
+}
+
+.mini-danger {
+	background: #FFFFFF;
+	color: #FA5151;
+	border: 1rpx solid #FFD0D0;
+}
+
+.skeleton .sk {
+	background: #EBEDF0;
+	border-radius: 8rpx;
+}
+
+.sk-title {
+	width: 280rpx;
+	height: 32rpx;
+	margin-bottom: 16rpx;
+}
+
+.sk-line {
+	width: 360rpx;
+	height: 24rpx;
+	margin-bottom: 12rpx;
+}
+
+.sk-line.short {
+	width: 200rpx;
+	margin-bottom: 0;
+}
+
+.empty {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 32rpx;
+}
+
+.empty-title {
+	font-size: 30rpx;
+	color: #5C6370;
+}
+
+.empty-sub {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.list-tip {
+	text-align: center;
+	padding: 24rpx 0;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
 .tabbar-spacer {
 	height: 140rpx;
-}
-
-/* 打卡徽章样式 */
-.rounded-pill {
-	border-radius: 999rpx;
-	font-size: 22rpx;
-	white-space: nowrap;
-}
-
-.badge-danger {
-	background: #fee2e2;
-	color: #b91c1c;
-}
-
-.badge-warning {
-	background: #fef3c7;
-	color: #b45309;
-}
-
-.badge-success {
-	background: #d1fae5;
-	color: #047857;
-}
-
-.badge-info {
-	background: #dbeafe;
-	color: #1d4ed8;
-}
-
-.badge-muted {
-	background: #f3f4f6;
-	color: #6b7280;
-}
-
-/* CSS图标样式 */
-.icon-empty {
-	width: 240rpx;
-	height: 240rpx;
-	position: relative;
-	display: inline-block;
-	border: 4rpx dashed #ddd;
-	border-radius: 20rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-empty::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -60%);
-	width: 60rpx;
-	height: 60rpx;
-	border: 4rpx solid #ddd;
-	border-radius: 50%;
-}
-.icon-empty::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -30%);
-	width: 80rpx;
-	height: 4rpx;
-	background: #ddd;
 }
 </style>

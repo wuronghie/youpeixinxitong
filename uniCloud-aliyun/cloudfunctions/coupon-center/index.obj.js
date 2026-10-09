@@ -1,13 +1,11 @@
 /**
  * 优惠券中心云对象
- * 功能：
- *  1. 查询当前家长可用优惠券列表
- *  2. 后台/系统向指定家长发放优惠券（后续可接入运营后台）
- *  3. 在下单/支付前校验并预计算优惠金额
+ * 功能：可用券查询、下单试算、后台搜人、批量发券
  */
 
 const uniID = require('uni-id-common')
 const { assertSuperAdmin } = require('admin-auth')
+const couponIssue = require('coupon-issue')
 
 function success(data = null, message = 'success') {
   return {
@@ -198,8 +196,13 @@ module.exports = {
           return
         }
         if (!isCouponRoleMatch(c, userRole)) {
-          console.log('[coupon-center.getAvailableCoupons] 跳过角色不匹配模板:', c._id, c.target_role, 'need', userRole)
-          return
+          const ownedByRole = allUnused.some(uc =>
+            uc.coupon_id === c._id && (!uc.role || uc.role === userRole)
+          )
+          if (!ownedByRole) {
+            console.log('[coupon-center.getAvailableCoupons] 跳过角色不匹配模板:', c._id, c.target_role, 'need', userRole)
+            return
+          }
         }
         if (!isCouponInDate(c, now)) {
           console.log('[coupon-center.getAvailableCoupons] 跳过不在有效期模板:', c._id, c.valid_from, c.valid_to)
@@ -650,6 +653,229 @@ module.exports = {
     } catch (e) {
       console.error('[coupon-center.adminSearchUsers] failed:', e)
       return error(e.message || '搜索用户失败')
+    }
+  },
+
+  /**
+   * 后台预览发券人数（按指定用户 / 角色 / 活动）
+   */
+  async adminPreviewIssue(params = {}) {
+    if (!params.isAdmin) {
+      return error('无权访问')
+    }
+    try {
+      await assertSuperAdmin(this)
+    } catch (e) {
+      return error(e.message || '无权访问')
+    }
+
+    try {
+      const db = uniCloud.database()
+      const mode = params.mode || 'users'
+      const role = couponIssue.normalizeRole(params.role, 'parent')
+      let couponId = String(params.coupon_id || '').trim()
+      let activity = null
+      const warnings = []
+
+      if (mode === 'activity' && params.activity_id) {
+        const actDoc = await db.collection('coupon-activities').doc(params.activity_id).get()
+        activity = actDoc.data && actDoc.data[0]
+        if (!activity) {
+          return error('优惠活动不存在')
+        }
+        couponId = activity.coupon_id
+        if (activity.status !== 'active') {
+          warnings.push('该活动当前为停用状态，补发仍可执行，但新用户不会自动领取')
+        }
+      }
+
+      if (!couponId && mode !== 'users') {
+        return error('请选择优惠券模板')
+      }
+
+      const couponMap = couponId ? await couponIssue.getCouponMap(db, [couponId]) : {}
+      const coupon = couponMap[couponId]
+      if (couponId && !coupon) {
+        return error('优惠券模板不存在')
+      }
+      if (coupon && coupon.status && coupon.status !== 'active') {
+        warnings.push('优惠券模板已停用，无法发放')
+      }
+
+      let targetCount = 0
+      if (mode === 'users') {
+        const ids = Array.isArray(params.user_ids) ? params.user_ids.filter(Boolean) : []
+        targetCount = ids.length
+      } else if (mode === 'activity' && activity) {
+        const targetRole = activity.target_role || role || 'all'
+        targetCount = await couponIssue.countUsersByRole(db, targetRole)
+      } else {
+        targetCount = await couponIssue.countUsersByRole(db, role || 'all')
+      }
+
+      let issuedAlready = 0
+      if (activity && activity._id) {
+        issuedAlready = await couponIssue.countActivityIssued(db, activity._id)
+      }
+
+      return success({
+        mode,
+        target_count: targetCount,
+        coupon_id: couponId,
+        coupon_name: coupon ? coupon.name : '',
+        activity_id: activity ? activity._id : '',
+        activity_name: activity ? activity.name : '',
+        activity_type: activity ? activity.type : '',
+        target_role: activity ? (activity.target_role || 'all') : role,
+        issued_already: issuedAlready,
+        total_stock: activity ? activity.total_stock : -1,
+        warnings
+      }, 'ok')
+    } catch (e) {
+      console.error('[coupon-center.adminPreviewIssue] failed:', e)
+      return error(e.message || '预览失败')
+    }
+  },
+
+  /**
+   * 后台批量发券
+   * mode=users：指定用户
+   * mode=role：按角色分页发放
+   * mode=activity：按活动补发（给尚未领取该活动券的对应用户）
+   */
+  async adminBatchIssue(params = {}) {
+    if (!params.isAdmin) {
+      return error('无权访问')
+    }
+    try {
+      await assertSuperAdmin(this)
+    } catch (e) {
+      return error(e.message || '无权访问')
+    }
+
+    try {
+      const db = uniCloud.database()
+      const mode = params.mode || 'users'
+      const skipExisting = params.skip_existing !== false
+      const sendMessage = params.send_message !== false
+      const skip = Math.max(0, parseInt(params.skip, 10) || 0)
+      const limit = Math.min(
+        couponIssue.PAGE_SIZE_MAX,
+        Math.max(1, parseInt(params.limit, 10) || couponIssue.PAGE_SIZE_MAX)
+      )
+      const remark = String(params.remark || '').trim()
+
+      let activity = null
+      let couponId = String(params.coupon_id || '').trim()
+      let source = mode === 'activity' ? 'system' : 'manual'
+      let issueRole = couponIssue.normalizeRole(params.role, 'parent')
+
+      if (mode === 'activity') {
+        if (!params.activity_id) {
+          return error('请选择优惠活动')
+        }
+        const actDoc = await db.collection('coupon-activities').doc(params.activity_id).get()
+        activity = actDoc.data && actDoc.data[0]
+        if (!activity) {
+          return error('优惠活动不存在')
+        }
+        couponId = activity.coupon_id
+        issueRole = activity.target_role || issueRole
+        source = 'system'
+      }
+
+      if (!couponId) {
+        return error('请选择优惠券模板')
+      }
+
+      const couponMap = await couponIssue.getCouponMap(db, [couponId])
+      const coupon = couponMap[couponId]
+      if (!coupon) {
+        return error('优惠券模板不存在')
+      }
+      if (coupon.status && coupon.status !== 'active') {
+        return error('该优惠券模板已停用，无法发放')
+      }
+
+      let remainingStock = -1
+      if (activity) {
+        const stock = Number(activity.total_stock)
+        if (stock > 0) {
+          const used = await couponIssue.countActivityIssued(db, activity._id)
+          remainingStock = Math.max(0, stock - used)
+          if (remainingStock <= 0) {
+            return success({
+              issued: 0,
+              skipped: 0,
+              failed: 0,
+              processed: 0,
+              next_skip: skip,
+              done: true,
+              remaining_stock: 0
+            }, '活动库存已用完')
+          }
+        }
+      }
+
+      let users = []
+      let nextSkip = skip
+      let done = true
+      let rawCount = 0
+
+      if (mode === 'users') {
+        const userIds = Array.isArray(params.user_ids) ? params.user_ids : []
+        if (!userIds.length) {
+          return error('请选择要发放的用户')
+        }
+        if (userIds.length > couponIssue.USER_IDS_MAX) {
+          return error(`单次最多选择 ${couponIssue.USER_IDS_MAX} 人，请分批发放`)
+        }
+        users = await couponIssue.loadUsersByIds(db, userIds)
+        if (!users.length) {
+          return error('未找到有效用户')
+        }
+        users = users.filter((u) => couponIssue.isBizRole(u.role))
+        done = true
+      } else {
+        const page = await couponIssue.listUsersByRole(db, {
+          role: issueRole || 'all',
+          skip,
+          limit
+        })
+        users = page.list
+        nextSkip = page.next_skip
+        rawCount = page.raw_count
+        done = rawCount < page.page_size
+      }
+
+      const finalRemark = remark || (activity
+        ? `活动：${activity.name}（${couponIssue.typeLabel(activity.type)}）`
+        : '后台批量发放')
+
+      const result = await couponIssue.issueToUserList(db, {
+        users,
+        coupon,
+        activity,
+        source,
+        remark: finalRemark,
+        skipExistingUnused: skipExisting,
+        sendMessage,
+        remainingStock
+      })
+
+      return success({
+        issued: result.issued,
+        skipped: result.skipped,
+        failed: result.failed,
+        processed: users.length,
+        next_skip: nextSkip,
+        done,
+        remaining_stock: result.remainingStock,
+        coupon_name: coupon.name
+      }, `本次发放 ${result.issued} 张`)
+    } catch (e) {
+      console.error('[coupon-center.adminBatchIssue] failed:', e)
+      return error(e.message || '批量发放失败')
     }
   }
 }

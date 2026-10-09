@@ -1,138 +1,88 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3 text-white">
-			<view class="d-flex a-center mb-3">
-				<image class="rounded-circle mr-3" :src="profile.avatar || defaultAvatar" mode="aspectFill" style="width: 120rpx; height: 120rpx; border: 4rpx solid rgba(255,255,255,0.3);"></image>
-				<view class="flex-1">
-					<view class="d-flex a-center mb-1">
-						<text class="font-lg font-weight mr-2">{{ profile.display_name || '教师' }}</text>
-						<text v-if="stats.totalReviews > 0" class="stat-tag rounded px-2 py-1 font-xs text-white d-flex a-center">
-							<view class="icon-star mr-1" style="width: 24rpx; height: 24rpx;"></view>
-							{{ stats.averageRating || '0.0' }}
-						</text>
-					</view>
-					<view v-if="(profile.subjects || []).length" class="d-flex flex-wrap">
-						<text v-for="subject in profile.subjects" :key="subject" class="stat-tag rounded px-2 py-1 font-xs mr-1 mb-1 text-white">{{ subject }}</text>
-					</view>
-				</view>
-			</view>
-			<view class="stat-card rounded px-3 py-2">
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">¥{{ formatCurrency(profile.hourly_rate || 0) }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">课时费</text>
-				</view>
-				<view style="width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.2);"></view>
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ stats.totalStudents || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">服务学生</text>
+	<view class="page">
+		<view class="id-card">
+			<image class="avatar" :src="profile.avatar || defaultAvatar" mode="aspectFill"></image>
+			<view class="id-main">
+				<text class="id-name">{{ profile.display_name || '教师' }}</text>
+				<text v-if="stats.totalReviews > 0" class="id-rating">综合评分 {{ stats.averageRating || '0.0' }}</text>
+				<text class="id-meta">¥{{ formatCurrency(profile.hourly_rate || 0) }}/小时 · {{ stats.totalStudents || 0 }} 位学生</text>
+				<view v-if="(profile.subjects || []).length" class="tags">
+					<text v-for="subject in profile.subjects" :key="subject" class="chip">{{ subject }}</text>
 				</view>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 教师介绍 -->
-				<card headTitle="教师介绍" class="mb-3">
-					<view class="d-flex a-center j-sb mb-2">
-						<text class="font-sm text-light-muted">个人介绍</text>
-						<text class="font-sm main-text-color" @click="goToEdit">编辑</text>
-					</view>
-					<text v-if="profile.introduction" class="font-sm text-light-muted" style="line-height: 1.8;">{{ profile.introduction }}</text>
-					<view v-else class="bg-light-secondary rounded px-3 py-2">
-						<text class="font-sm text-light-muted">还没有填写个人介绍，点击右上角按钮完善资料，让家长更了解你。</text>
-					</view>
-				</card>
+		<view class="section-card">
+			<view class="section-head">
+				<text class="section-title">教师介绍</text>
+				<text class="section-more" @click="goToEdit">编辑 ›</text>
+			</view>
+			<text v-if="profile.introduction" class="intro">{{ profile.introduction }}</text>
+			<text v-else class="intro muted">还没有填写个人介绍，完善资料后家长会更容易了解你。</text>
+		</view>
 
-				<!-- 教学信息 -->
-				<card headTitle="教学信息" class="mb-3">
-					<view class="d-flex flex-wrap">
-						<view class="w-50 px-2 mb-2">
-							<view class="bg-light-secondary rounded px-3 py-2">
-								<text class="font-xs text-light-muted d-block mb-1">主教科目</text>
-								<text class="font-sm">{{ renderArray(profile.subjects) }}</text>
-							</view>
-						</view>
-						<view class="w-50 px-2 mb-2">
-							<view class="bg-light-secondary rounded px-3 py-2">
-								<text class="font-xs text-light-muted d-block mb-1">适合年级</text>
-								<text class="font-sm">{{ renderArray(profile.grades) }}</text>
-							</view>
-						</view>
-						<view class="w-50 px-2 mb-2">
-							<view class="bg-light-secondary rounded px-3 py-2">
-								<text class="font-xs text-light-muted d-block mb-1">教龄</text>
-								<text class="font-sm">{{ profile.teaching_experience?.years || 0 }} 年</text>
-							</view>
-						</view>
-						<view class="w-50 px-2 mb-2">
-							<view class="bg-light-secondary rounded px-3 py-2">
-								<text class="font-xs text-light-muted d-block mb-1">累计评价</text>
-								<text class="font-sm">{{ stats.totalReviews }} 条</text>
-							</view>
-						</view>
-					</view>
-				</card>
+		<view class="form-card">
+			<view class="form-row">
+				<text class="form-label">主教科目</text>
+				<text class="form-value">{{ renderArray(profile.subjects) }}</text>
+			</view>
+			<view class="form-row">
+				<text class="form-label">适合年级</text>
+				<text class="form-value muted">{{ renderArray(profile.grades) }}</text>
+			</view>
+			<view class="form-row">
+				<text class="form-label">教龄</text>
+				<text class="form-value muted">{{ profile.teaching_experience?.years || 0 }} 年</text>
+			</view>
+			<view class="form-row">
+				<text class="form-label">学历 / 学校</text>
+				<text class="form-value muted">{{ educationText }}</text>
+			</view>
+			<view v-if="profile.education?.major" class="form-row">
+				<text class="form-label">专业</text>
+				<text class="form-value muted">{{ profile.education.major }}</text>
+			</view>
+			<view class="form-row">
+				<text class="form-label">累计评价</text>
+				<text class="form-value muted">{{ stats.totalReviews || 0 }} 条</text>
+			</view>
+		</view>
 
-				<!-- 教育背景 -->
-				<card v-if="profile.education?.degree || profile.education?.school" headTitle="教育背景" class="mb-3">
-					<view class="bg-warning rounded px-3 py-2">
-						<text class="font-md font-weight text-dark d-block mb-1">{{ profile.education?.degree || '学历未填写' }}</text>
-						<text v-if="profile.education?.school" class="font-sm text-dark d-block mb-1">{{ profile.education.school }}</text>
-						<view class="d-flex flex-wrap">
-							<text v-if="profile.education?.major" class="font-xs text-dark mr-2">专业：{{ profile.education.major }}</text>
-							<text v-if="profile.education?.graduation_year" class="font-xs text-dark">毕业年份：{{ profile.education.graduation_year }}</text>
-						</view>
-					</view>
-				</card>
+		<view class="section-card">
+			<text class="section-title">教学地区 / 证书</text>
+			<text v-if="(profile.teaching_areas || []).length" class="intro">
+				{{ (profile.teaching_areas || []).map(renderArea).join(' · ') }}
+			</text>
+			<text v-else class="intro muted">暂未设置教学地区</text>
 
-				<!-- 教学地区 -->
-				<card headTitle="教学地区" class="mb-3">
-					<view v-if="(profile.teaching_areas || []).length" class="d-flex flex-wrap">
-						<view v-for="(area, idx) in profile.teaching_areas" :key="idx" class="bg-light-secondary rounded px-3 py-2 mr-2 mb-2">
-							<text class="font-sm">{{ renderArea(area) }}</text>
-						</view>
+			<view v-if="(profile.qualifications || []).length" class="cert-list">
+				<view v-for="(cert, idx) in profile.qualifications" :key="idx" class="cert-item">
+					<view class="cert-copy">
+						<text class="cert-name">{{ cert.name || '证书' }}</text>
+						<text v-if="cert.number" class="cert-no">编号 {{ cert.number }}</text>
 					</view>
-					<view v-else class="text-center text-light-muted font-sm py-3">暂未设置教学地区</view>
-				</card>
-
-				<!-- 资质证书 -->
-				<card headTitle="资质证书" class="mb-3">
-					<view class="d-flex a-center j-sb mb-2">
-						<text class="font-sm text-light-muted">证书列表</text>
-						<text class="font-sm main-text-color" @click="goToEdit">去上传 ></text>
-					</view>
-					<view v-if="(profile.qualifications || []).length" class="d-flex flex-column">
-						<view v-for="(cert, idx) in profile.qualifications" :key="idx" class="bg-light-secondary rounded px-3 py-2 mb-2">
-							<view class="d-flex flex-column mb-2">
-								<text class="font-sm font-weight mb-1">{{ cert.name || '证书' }}</text>
-								<text v-if="cert.number" class="font-xs text-light-muted">编号：{{ cert.number }}</text>
-							</view>
-							<image
-								v-if="cert.image"
-								class="rounded"
-								:src="cert.image"
-								mode="aspectFit"
-								@click="previewImage(cert.image)"
-								style="width: 100%; min-height: 300rpx; max-height: 600rpx;"
-							></image>
-						</view>
-					</view>
-					<view v-else class="text-center text-light-muted font-sm py-3">尚未上传任何证书</view>
-				</card>
-
-				<!-- 操作按钮 -->
-				<view class="d-flex a-center mt-3 mb-3">
-					<button class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm mr-2" @click="goToEdit">完善资料</button>
-					<button class="flex-1 border border-light-muted text-light-muted rounded px-3 py-2 font-sm" @click="goToSchedule">设置授课时间</button>
+					<image
+						v-if="cert.image"
+						class="cert-thumb"
+						:src="cert.image"
+						mode="aspectFill"
+						@click="previewImage(cert.image)"
+					></image>
 				</view>
 			</view>
-		</scroll-view>
+			<text v-else class="intro muted">尚未上传证书，可在完善资料中添加。</text>
+		</view>
+
+		<view class="actions">
+			<button class="btn btn-primary" @click="goToEdit">完善资料</button>
+			<!-- 时间设置功能暂未就绪，入口先隐藏
+			<button class="btn btn-primary" @click="goToSchedule">设置授课时间</button>
+			-->
+		</view>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { mockTeachers, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
 
@@ -142,9 +92,6 @@ const defaultAvatar = getDefaultAvatarUrl()
 
 export default {
 	name: 'TeacherProfileIndex',
-	components: {
-		card
-	},
 	mixins: [pullRefreshMixin],
 	data() {
 		return {
@@ -170,6 +117,14 @@ export default {
 			useMock: false,
 			loading: false,
 			defaultAvatar
+		}
+	},
+	computed: {
+		educationText() {
+			const edu = this.profile.education || {}
+			const parts = [edu.degree, edu.school].filter(Boolean)
+			if (edu.graduation_year) parts.push(String(edu.graduation_year))
+			return parts.length ? parts.join(' · ') : '未设置'
 		}
 	},
 	onLoad() {
@@ -285,9 +240,10 @@ export default {
 		goToEdit() {
 			uni.navigateTo({ url: '/pages-teacher/profile/edit' })
 		},
-		goToSchedule() {
-			uni.navigateTo({ url: '/pages-teacher/profile/schedule' })
-		},
+		// 时间设置功能暂未就绪
+		// goToSchedule() {
+		// 	uni.navigateTo({ url: '/pages-teacher/profile/schedule' })
+		// },
 		previewImage(url) {
 			if (!url) return
 			uni.previewImage({
@@ -300,57 +256,216 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
-	flex: 1;
-	height: calc(100vh - 400rpx);
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+	padding: 24rpx 32rpx 48rpx;
 }
 
-/* 统计卡片样式 */
-.stat-card {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
+.id-card,
+.section-card,
+.form-card {
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+	margin-bottom: 24rpx;
+}
+
+.id-card {
+	display: flex;
+	gap: 24rpx;
+	padding: 32rpx;
+}
+
+.avatar {
+	width: 128rpx;
+	height: 128rpx;
+	border-radius: 50%;
+	background: #93B4FF;
+	flex-shrink: 0;
+}
+
+.id-main {
+	flex: 1;
+	min-width: 0;
+}
+
+.id-name {
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.3;
+}
+
+.id-rating {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+}
+
+.id-meta {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	margin-top: 12rpx;
+}
+
+.chip {
+	height: 44rpx;
+	padding: 0 16rpx;
+	border-radius: 12rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 22rpx;
+	line-height: 44rpx;
+}
+
+.section-card {
+	padding: 28rpx 32rpx;
+}
+
+.section-head {
 	display: flex;
 	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 12rpx;
 }
 
-/* 统计标签样式 */
-.stat-tag {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-/* CSS图标样式 */
-.icon-star {
-	width: 24rpx;
-	height: 24rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
+.section-more {
+	font-size: 24rpx;
+	color: #2563EB;
 }
-.icon-star::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	width: 0;
-	height: 0;
-	border-left: 6rpx solid transparent;
-	border-right: 6rpx solid transparent;
-	border-bottom: 4rpx solid currentColor;
+
+.intro {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.7;
 }
-.icon-star::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%) rotate(180deg);
-	width: 0;
-	height: 0;
-	border-left: 6rpx solid transparent;
-	border-right: 6rpx solid transparent;
-	border-bottom: 4rpx solid currentColor;
+
+.intro.muted {
+	color: #8B919C;
+}
+
+.form-card {
+	padding: 8rpx 32rpx;
+}
+
+.form-row {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 24rpx;
+	padding: 24rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.form-row:last-child {
+	border-bottom: none;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #8B919C;
+}
+
+.form-value {
+	flex: 1;
+	text-align: right;
+	font-size: 28rpx;
+	color: #1F2329;
+	line-height: 1.45;
+}
+
+.form-value.muted {
+	color: #8B919C;
+	font-weight: 400;
+}
+
+.cert-list {
+	margin-top: 16rpx;
+}
+
+.cert-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20rpx;
+	padding: 16rpx 0;
+	border-top: 1rpx solid #F3F4F6;
+}
+
+.cert-copy {
+	flex: 1;
+	min-width: 0;
+}
+
+.cert-name {
+	display: block;
+	font-size: 28rpx;
+	color: #1F2329;
+}
+
+.cert-no {
+	display: block;
+	margin-top: 6rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.cert-thumb {
+	width: 96rpx;
+	height: 96rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	flex-shrink: 0;
+}
+
+.actions {
+	display: flex;
+	gap: 16rpx;
+	padding: 8rpx 0 24rpx;
+}
+
+.btn {
+	flex: 1;
+	height: 88rpx;
+	border-radius: 20rpx;
+	font-size: 30rpx;
+	font-weight: 600;
+	line-height: 88rpx;
+	border: none;
+}
+
+.btn::after {
+	border: none;
+}
+
+.btn-ghost {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.btn-primary {
+	background: #2563EB;
+	color: #FFFFFF;
 }
 </style>

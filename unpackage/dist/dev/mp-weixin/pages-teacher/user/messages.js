@@ -2,13 +2,11 @@
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
-const card = () => "../../components/common/card.js";
+const utils_appPushMixin = require("../../utils/appPushMixin.js");
+const utils_chatPush = require("../../utils/chatPush.js");
 const _sfc_main = {
   name: "TeacherMessages",
-  components: {
-    card
-  },
-  mixins: [utils_pullRefreshMixin.pullRefreshMixin],
+  mixins: [utils_pullRefreshMixin.pullRefreshMixin, utils_appPushMixin.createAppPushMixin([utils_chatPush.APP_PUSH_TYPES.SYSTEM_MESSAGE, utils_chatPush.APP_PUSH_TYPES.APPOINTMENT_UPDATE])],
   data() {
     return {
       tabs: [
@@ -44,8 +42,11 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/user/messages.vue:134", "[teacher-messages] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages-teacher/user/messages.vue:104", "[teacher-messages] 下拉刷新：重新加载消息");
       await this.resetAndLoad();
+    },
+    onAppPushPayload() {
+      this.resetAndLoad();
     },
     resetAndLoad() {
       this.pagination.page = 1;
@@ -132,7 +133,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取消息失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:226", "获取消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:199", "获取消息失败:", error);
         common_vendor.index.showToast({ title: "获取消息失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -156,9 +157,23 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "操作失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:249", "批量标记失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:222", "批量标记失败:", error);
         common_vendor.index.showToast({ title: "操作失败，请稍后再试", icon: "none" });
       }
+    },
+    typeMark(type) {
+      if (type === "appointment")
+        return "约";
+      if (type === "payment")
+        return "交";
+      return "通";
+    },
+    avatarClass(type) {
+      if (type === "appointment")
+        return "av-amber";
+      if (type === "payment")
+        return "av-ok";
+      return "av-brand";
     },
     getTypeIcon(type) {
       const icons = {
@@ -204,7 +219,7 @@ const _sfc_main = {
             }));
           }
         } catch (error) {
-          common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:298", "标记消息已读失败:", error);
+          common_vendor.index.__f__("error", "at pages-teacher/user/messages.vue:281", "标记消息已读失败:", error);
         }
       } else {
         msg.is_read = true;
@@ -227,50 +242,31 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         c: common_vendor.t(tab.unread > 99 ? "99+" : tab.unread)
       } : {}, {
         d: tab.value,
-        e: common_vendor.n($data.currentTab === tab.value ? "tab-active" : "tab-inactive"),
+        e: $data.currentTab === tab.value ? 1 : "",
         f: common_vendor.o(($event) => $options.switchTab(tab.value), tab.value)
       });
     }),
-    d: $data.list.length
-  }, $data.list.length ? {
-    e: common_vendor.t($data.pagination.total),
-    f: common_vendor.o((...args) => $options.markAllRead && $options.markAllRead(...args))
-  } : {}, {
-    g: $data.loading && !$data.list.length
-  }, $data.loading && !$data.list.length ? {
-    h: common_vendor.f(4, (n, k0, i0) => {
+    d: common_vendor.o((...args) => $options.markAllRead && $options.markAllRead(...args)),
+    e: $data.loading && !$data.list.length
+  }, $data.loading && !$data.list.length ? {} : {}, {
+    f: common_vendor.f($data.list, (item, k0, i0) => {
       return {
-        a: n
-      };
-    })
-  } : common_vendor.e({
-    i: common_vendor.f($data.list, (item, k0, i0) => {
-      return common_vendor.e({
-        a: common_vendor.n($options.getTypeIcon(item.type)),
-        b: common_vendor.n($options.getTypeClass(item.type)),
+        a: common_vendor.t($options.typeMark(item.type)),
+        b: common_vendor.n($options.avatarClass(item.type)),
         c: common_vendor.t(item.title),
         d: common_vendor.t($options.formatTime(item.create_time)),
         e: common_vendor.t(item.content),
-        f: item.type === "appointment"
-      }, item.type === "appointment" ? {} : {}, {
-        g: item.type === "payment"
-      }, item.type === "payment" ? {} : {}, {
-        h: item.type === "system"
-      }, item.type === "system" ? {} : {}, {
-        i: !item.is_read
-      }, !item.is_read ? {} : {}, {
-        j: item.message_id,
-        k: !item.is_read ? 1 : "",
-        l: common_vendor.o(($event) => $options.goToDetail(item), item.message_id)
-      });
+        f: item.message_id,
+        g: !item.is_read ? 1 : "",
+        h: common_vendor.o(($event) => $options.goToDetail(item), item.message_id)
+      };
     }),
-    j: !$data.loading && !$data.list.length
+    g: !$data.loading && !$data.list.length
   }, !$data.loading && !$data.list.length ? {} : {}, {
-    k: $data.loading && $data.list.length
+    h: $data.loading && $data.list.length
   }, $data.loading && $data.list.length ? {} : $data.finished && $data.list.length ? {} : {}, {
-    l: $data.finished && $data.list.length
-  }), {
-    m: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
+    i: $data.finished && $data.list.length,
+    j: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-1e08efc7"]]);

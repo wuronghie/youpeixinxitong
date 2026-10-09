@@ -3,8 +3,8 @@ const common_vendor = require("../../common/vendor.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
-const utils_appointmentTeacherPreview = require("../../utils/appointmentTeacherPreview.js");
-const utils_payment = require("../../utils/payment.js");
+const pagesTeacher_utils_appointmentTeacherPreview = require("../utils/appointmentTeacherPreview.js");
+const pagesTeacher_utils_payment = require("../utils/payment.js");
 const utils_chatPoll = require("../../utils/chatPoll.js");
 const utils_chatPush = require("../../utils/chatPush.js");
 const _sfc_main = {
@@ -32,6 +32,7 @@ const _sfc_main = {
       payingDeposit: false,
       couponPreview: null,
       couponLoading: false,
+      ignorePayUntil: 0,
       invitingTrial: false,
       // 是否正在发送试课邀请
       hasTrialSuccess: false,
@@ -53,15 +54,23 @@ const _sfc_main = {
       initPromise: null,
       // 保存初始化 Promise
       // 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2
-      teacherHourlyRate: 0
+      teacherHourlyRate: 0,
+      // 招募场景：按家长预算下限计算信息费
+      recruitmentHourlyRate: 0
     };
   },
   computed: {
-    // 信息费金额（元）= 老师课时费 × 2（一节试课 2 小时）；老师未设置时兜底 1 元，与后端兜底一致
+    // 信息费金额（元）= 课时费 × 2（一节试课 2 小时）；招募按家长下限，其余按老师定价
     infoFeeAmount() {
-      const rate = Number(this.teacherHourlyRate) || 0;
+      const rate = Number(this.recruitmentHourlyRate) > 0 ? Number(this.recruitmentHourlyRate) : Number(this.teacherHourlyRate) || 0;
       const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0;
       return fee > 0 ? fee : 1;
+    },
+    depositFeeHint() {
+      if (Number(this.recruitmentHourlyRate) > 0) {
+        return `招募信息费 = 家长预算下限 ¥${Number(this.recruitmentHourlyRate)} × 2。可用优惠券抵扣。`;
+      }
+      return "信息费 = 课时费 × 2。可用优惠券抵扣。";
     },
     trialInviteTotalAmount() {
       const rate = Number(this.trialInviteHourlyRateInput) || 0;
@@ -94,6 +103,14 @@ const _sfc_main = {
         return discount > 0 ? `${this.couponPreview.couponName} 已减¥${discount.toFixed(2)}` : this.couponPreview.couponName;
       }
       return "请选择优惠券";
+    },
+    payDepositButtonText() {
+      if (this.payingDeposit)
+        return "支付中...";
+      const payable = Number(this.payableInfoFeeAmount || 0);
+      if (this.couponPreview && payable <= 0)
+        return "确认支付（优惠券全额抵扣）";
+      return `支付信息费（¥${payable.toFixed(2)}）`;
     },
     formattedMessages() {
       const result = [];
@@ -168,8 +185,9 @@ const _sfc_main = {
         avatar: userInfo.avatar || this.defaultAvatarUrl
       };
     }
-    this.initConversation();
+    this.initConversation().then(() => this.loadRecruitmentHourlyRate());
     this.loadTeacherHourlyRate();
+    this.syncNavTitle();
   },
   async onShow() {
     if (!this.isInitialized && !this.initPromise) {
@@ -179,12 +197,13 @@ const _sfc_main = {
       await this.initPromise;
     }
     if (this.isInitialized && this.conversationId && !this.useMock) {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:383", "[teacher-chat] onShow 就绪，绑定 push，conversationId=", this.conversationId);
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:406", "[teacher-chat] onShow 就绪，绑定 push，conversationId=", this.conversationId);
       this.loadNewMessages();
+      this.loadTrialInviteStatuses();
       this.startPolling();
       this.bindChatPush();
     } else {
-      common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:388", "[teacher-chat] onShow 未绑定 push", {
+      common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:412", "[teacher-chat] onShow 未绑定 push", {
         isInitialized: this.isInitialized,
         conversationId: this.conversationId,
         useMock: this.useMock
@@ -204,33 +223,35 @@ const _sfc_main = {
       if (this._onChatPush)
         return;
       this._onChatPush = (payload) => {
-        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:407", "[teacher-chat] 收到 push，准备拉增量", payload, "当前会话=", this.conversationId);
+        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:431", "[teacher-chat] 收到 push，准备拉增量", payload, "当前会话=", this.conversationId);
         if (!this.conversationId)
           return;
         if (payload && payload.conversation_id && payload.conversation_id !== this.conversationId) {
-          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:410", "[teacher-chat] 非本会话 push，忽略");
+          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:434", "[teacher-chat] 非本会话 push，忽略");
           return;
         }
         this.loadNewMessages();
+        this.loadTrialInviteStatuses();
       };
       utils_chatPush.onChatPush(this._onChatPush);
+      this._onAppointmentPush = () => {
+        this.loadTrialInviteStatuses();
+      };
+      utils_chatPush.onAppPush(utils_chatPush.APP_PUSH_TYPES.APPOINTMENT_UPDATE, this._onAppointmentPush);
     },
     unbindChatPush() {
       if (!this._onChatPush)
         return;
       utils_chatPush.offChatPush(this._onChatPush);
       this._onChatPush = null;
+      if (this._onAppointmentPush) {
+        utils_chatPush.offAppPush(this._onAppointmentPush);
+        this._onAppointmentPush = null;
+      }
     },
     startPolling() {
       this.stopPolling();
-      if (!this.useMock && this.conversationId) {
-        this.pollTimer = setInterval(() => {
-          if (this.loading || this.sending)
-            return;
-          this.loadNewMessages();
-          this.loadTrialInviteStatuses();
-        }, this.pollInterval);
-      }
+      return;
     },
     stopPolling() {
       if (this.pollTimer) {
@@ -239,7 +260,7 @@ const _sfc_main = {
       }
     },
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:441", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:474", "[teacher-chat-conversation] 下拉刷新：重新加载消息");
       await this.refreshMessages();
     },
     // 读取当前教师的 hourly_rate，供信息费金额展示和支付用
@@ -251,7 +272,27 @@ const _sfc_main = {
           this.teacherHourlyRate = Number(res.data.hourly_rate) || 0;
         }
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:453", "[信息费] 获取教师课时费失败，使用兜底金额:", e);
+        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:486", "[信息费] 获取教师课时费失败，使用兜底金额:", e);
+      }
+    },
+    async loadRecruitmentHourlyRate() {
+      const aptId = this.appointmentId || this.conversationInfo && this.conversationInfo.appointment_id;
+      if (!aptId || this.useMock)
+        return;
+      try {
+        const query = common_vendor.tr.importObject("appointment-query", { customUI: true });
+        const res = await query.getAppointmentDetail({ appointment_id: aptId });
+        const apt = res && res.data;
+        if (!apt)
+          return;
+        const isRecruitment = !!(apt.recruitment_id || apt.invited_via === "recruitment" || this.inviteSource === "recruitment");
+        if (!isRecruitment)
+          return;
+        const rate = Number(apt.trial_invite_hourly_rate || apt.hourly_rate || 0);
+        if (rate > 0)
+          this.recruitmentHourlyRate = rate;
+      } catch (e) {
+        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:502", "[信息费] 获取招募课时费失败:", e);
       }
     },
     async initConversation() {
@@ -273,7 +314,7 @@ const _sfc_main = {
                 common_vendor.index.showToast({ title: res.message || "获取会话失败", icon: "none" });
               }
             } catch (error) {
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:474", "获取会话失败:", error);
+              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:523", "获取会话失败:", error);
               common_vendor.index.showToast({ title: "获取会话失败", icon: "none" });
             }
           } else {
@@ -296,6 +337,7 @@ const _sfc_main = {
       try {
         if (this.useMock) {
           this.otherUserInfo = { nickname: "家长", avatar: "/static/default-avatar.png" };
+          this.syncNavTitle();
           return;
         }
         const chatSend = common_vendor.tr.importObject("chat-send", { customUI: true });
@@ -323,13 +365,14 @@ const _sfc_main = {
               nickname: res.data.other_user.nickname || res.data.other_user.display_name || "家长",
               avatar: res.data.other_user.avatar || "/static/default-avatar.png"
             };
+            this.syncNavTitle();
           }
           if (!this.conversationId && res.data.conversation_id) {
             this.conversationId = res.data.conversation_id;
           }
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:527", "加载用户信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:578", "加载用户信息失败:", error);
       }
     },
     // 检查与当前会话家长是否已有试课成功记录，用于控制“邀请试课”按钮显示
@@ -353,13 +396,13 @@ const _sfc_main = {
         if (res.code === 0 && res.data) {
           this.hasTrialSuccess = !!res.data.hasTrialSuccess;
           this.hasActiveTrial = !!res.data.hasActiveTrial;
-          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:551", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
+          common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:602", "[teacher-chat-conversation] 试课状态检查结果:", res.data);
         } else {
           this.hasTrialSuccess = false;
           this.hasActiveTrial = false;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:557", "[teacher-chat-conversation] 检查试课状态失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:608", "[teacher-chat-conversation] 检查试课状态失败:", error);
         this.hasTrialSuccess = false;
         this.hasActiveTrial = false;
       }
@@ -421,7 +464,7 @@ const _sfc_main = {
         }
         this.loadTrialInviteStatuses();
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:625", "加载新消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:676", "加载新消息失败:", error);
         if (this.messages.length === 0) {
           await this.refreshMessages();
         }
@@ -490,7 +533,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "消息加载失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:700", "加载消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:751", "加载消息失败:", error);
         common_vendor.index.showToast({ title: "加载失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -524,21 +567,21 @@ const _sfc_main = {
           message_type: "text",
           content
         });
-        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:736", "[teacher-chat] send 返回=", res);
-        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:737", "[teacher-chat] push 调试=", res.data && res.data.push);
-        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:738", "[teacher-chat] oa 调试=", res.data && res.data.oa);
+        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:787", "[teacher-chat] send 返回=", res);
+        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:788", "[teacher-chat] push 调试=", res.data && res.data.push);
+        common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:789", "[teacher-chat] oa 调试=", res.data && res.data.oa);
         if (res.code === 0) {
           const pushInfo = res.data && res.data.push || {};
           const oaInfo = res.data && res.data.oa || {};
           if (pushInfo.error || !(pushInfo.cids && pushInfo.cids.length)) {
-            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:743", "[teacher-chat] 推送可能未成功送达对方:", pushInfo);
+            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:794", "[teacher-chat] 推送可能未成功送达对方:", pushInfo);
           } else {
-            common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:745", "[teacher-chat] 已触发推送 → receiver=", res.data.receiver_id, "cids=", pushInfo.cids);
+            common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:796", "[teacher-chat] 已触发推送 → receiver=", res.data.receiver_id, "cids=", pushInfo.cids);
           }
           if (oaInfo.skipped || oaInfo.ok === false) {
-            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:748", "[teacher-chat] 服务号通知未送达家长:", oaInfo);
+            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:799", "[teacher-chat] 服务号通知未送达家长:", oaInfo);
           } else if (oaInfo.ok) {
-            common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:750", "[teacher-chat] 服务号通知已发送");
+            common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:801", "[teacher-chat] 服务号通知已发送");
           }
           const index = this.messages.findIndex((msg) => msg.message_id === tempMsg.message_id);
           if (index !== -1) {
@@ -552,7 +595,7 @@ const _sfc_main = {
           this.rollbackTempMessage(tempMsg.message_id, res.message);
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:764", "发送消息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:815", "发送消息失败:", error);
         this.rollbackTempMessage(tempMsg.message_id);
       } finally {
         this.sending = false;
@@ -598,6 +641,11 @@ const _sfc_main = {
     },
     goBack() {
       common_vendor.index.navigateBack();
+    },
+    syncNavTitle() {
+      common_vendor.index.setNavigationBarTitle({
+        title: this.otherUserInfo && this.otherUserInfo.nickname || "家长"
+      });
     },
     /**
      * 判断消息是否为试课邀请消息
@@ -656,6 +704,64 @@ const _sfc_main = {
     },
     goAttendanceAppointment(msg) {
       const p = this.parseAttendanceClockPayload(msg);
+      const id = p && p.appointment_id || this.appointmentId;
+      if (!id) {
+        common_vendor.index.showToast({ title: "未关联预约", icon: "none" });
+        return;
+      }
+      common_vendor.index.navigateTo({ url: `/pages-teacher/appointment/detail?id=${id}` });
+    },
+    parseReviewResultPayload(msg) {
+      if (!msg || !msg.content)
+        return null;
+      try {
+        const parsed = typeof msg.content === "string" ? JSON.parse(msg.content) : msg.content;
+        if (parsed && parsed.type === "review_result")
+          return parsed;
+      } catch (e) {
+        return null;
+      }
+      return null;
+    },
+    isReviewResultMessage(msg) {
+      return !!this.parseReviewResultPayload(msg);
+    },
+    getReviewResultTitle(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      return p && p.title || "课程评价";
+    },
+    getReviewStars(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      const n = Math.min(5, Math.max(0, Number(p && p.rating) || 0));
+      return "★".repeat(n) + "☆".repeat(5 - n);
+    },
+    getReviewResultLine(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      if (!p)
+        return "";
+      if (p.is_auto)
+        return "系统默认好评";
+      if (p.is_satisfied === true)
+        return "试课成功";
+      if (p.is_satisfied === false)
+        return "试课不满意";
+      return "";
+    },
+    getReviewTags(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      const tags = p && Array.isArray(p.tags) ? p.tags.filter(Boolean) : [];
+      return tags.join("、");
+    },
+    getReviewContent(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      return p && p.content || "";
+    },
+    getReviewResultTip(msg) {
+      const p = this.parseReviewResultPayload(msg);
+      return p && p.tip || "点击查看预约详情";
+    },
+    goReviewAppointment(msg) {
+      const p = this.parseReviewResultPayload(msg);
       const id = p && p.appointment_id || this.appointmentId;
       if (!id) {
         common_vendor.index.showToast({ title: "未关联预约", icon: "none" });
@@ -722,7 +828,7 @@ const _sfc_main = {
               }];
             }
           } catch (e) {
-            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:925", "[teacher-chat-conversation] 加载试课邀请状态失败:", inviteId, e);
+            common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:1033", "[teacher-chat-conversation] 加载试课邀请状态失败:", inviteId, e);
           }
           return [inviteId, this.trialInviteStatusMap[inviteId] || { status: "" }];
         }));
@@ -735,7 +841,7 @@ const _sfc_main = {
           this.checkTrialStatus();
         }
       } catch (e) {
-        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:938", "[teacher-chat-conversation] 批量加载试课邀请状态失败:", e);
+        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:1046", "[teacher-chat-conversation] 批量加载试课邀请状态失败:", e);
       }
     },
     /**
@@ -796,7 +902,7 @@ const _sfc_main = {
         await this.sendTrialInviteCard(inviteId);
         this.hasActiveTrial = true;
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1001", "发送试课邀请失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1109", "发送试课邀请失败:", error);
         common_vendor.index.showToast({ title: "发送失败，请稍后再试", icon: "none" });
       } finally {
         this.invitingTrial = false;
@@ -840,7 +946,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "邀请信息无效", icon: "none" });
         return;
       }
-      utils_appointmentTeacherPreview.saveAppointmentTeacherPreview({
+      pagesTeacher_utils_appointmentTeacherPreview.saveAppointmentTeacherPreview({
         teacherUid: ((_a = this.conversationInfo) == null ? void 0 : _a.teacher_id) || "",
         teacher_id: ((_b = this.conversationInfo) == null ? void 0 : _b.teacher_id) || "",
         display_name: this.otherUserInfo.nickname || "",
@@ -849,7 +955,7 @@ const _sfc_main = {
         avatar: this.otherUserInfo.avatar || ""
       });
       common_vendor.index.navigateTo({
-        url: `/pages/appointment/create?invite_id=${inviteId}`
+        url: `/pages-biz/appointment/create?invite_id=${inviteId}`
       });
     },
     async openCouponSelector() {
@@ -887,7 +993,8 @@ const _sfc_main = {
         })];
         common_vendor.index.showActionSheet({
           itemList,
-          success: async ({ tapIndex }) => {
+          success: ({ tapIndex }) => {
+            this.ignorePayUntil = Date.now() + 800;
             if (tapIndex === 0) {
               this.couponPreview = null;
               return;
@@ -895,27 +1002,30 @@ const _sfc_main = {
             const couponRecord = usableCoupons[tapIndex - 1];
             if (!couponRecord)
               return;
-            try {
-              const previewRes = await couponCenter.previewForInfoFee({
-                amount: this.infoFeeAmount,
-                user_coupon_id: couponRecord._id
-              });
-              if (previewRes.code === 0 && previewRes.data) {
-                this.couponPreview = {
-                  ...previewRes.data,
-                  couponName: couponRecord.name || previewRes.data.couponName
-                };
-              } else {
-                common_vendor.index.showToast({ title: previewRes.message || "优惠券不可用", icon: "none" });
+            setTimeout(async () => {
+              try {
+                const previewRes = await couponCenter.previewForInfoFee({
+                  amount: this.infoFeeAmount,
+                  user_coupon_id: couponRecord._id
+                });
+                if (previewRes.code === 0 && previewRes.data) {
+                  this.couponPreview = {
+                    ...previewRes.data,
+                    couponName: couponRecord.name || previewRes.data.couponName
+                  };
+                  common_vendor.index.showToast({ title: "已选择优惠券，请点击支付完成抵扣", icon: "none" });
+                } else {
+                  common_vendor.index.showToast({ title: previewRes.message || "优惠券不可用", icon: "none" });
+                }
+              } catch (e) {
+                common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1231", "试算教师优惠券失败:", e);
+                common_vendor.index.showToast({ title: "优惠券试算失败，请稍后重试", icon: "none" });
               }
-            } catch (e) {
-              common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1120", "试算教师优惠券失败:", e);
-              common_vendor.index.showToast({ title: "优惠券试算失败，请稍后重试", icon: "none" });
-            }
+            }, 50);
           }
         });
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1126", "打开教师优惠券选择失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1238", "打开教师优惠券选择失败:", error);
         common_vendor.index.showToast({ title: "加载优惠券失败", icon: "none" });
       } finally {
         this.couponLoading = false;
@@ -924,6 +1034,8 @@ const _sfc_main = {
     async handlePayDeposit() {
       var _a;
       if (this.payingDeposit)
+        return;
+      if (Date.now() < this.ignorePayUntil)
         return;
       const appointmentId = this.appointmentId || ((_a = this.conversationInfo) == null ? void 0 : _a.appointment_id);
       if (!appointmentId) {
@@ -955,7 +1067,7 @@ const _sfc_main = {
           common_vendor.index.showLoading({ title: "创建订单中...", mask: true });
           try {
             const payComponent = this.$refs.pay;
-            if (!payComponent || typeof payComponent.open !== "function") {
+            if (payableAmount > 0 && (!payComponent || typeof payComponent.open !== "function")) {
               throw new Error("支付组件未就绪，请稍后重试");
             }
             const paymentCreate = common_vendor.tr.importObject("payment-create", { customUI: true });
@@ -982,7 +1094,7 @@ const _sfc_main = {
               );
               if (pendingOrder) {
                 common_vendor.index.hideLoading();
-                await utils_payment.payExistingOrderWithUniPay(payComponent, {
+                await pagesTeacher_utils_payment.payExistingOrderWithUniPay(payComponent, {
                   order_no: pendingOrder.order_no,
                   appointment_id: appointmentId,
                   payment_type: "deposit",
@@ -994,7 +1106,7 @@ const _sfc_main = {
               }
             }
             common_vendor.index.hideLoading();
-            const payRes = await utils_payment.createAndPayWithUniPay(payComponent, {
+            const payRes = await pagesTeacher_utils_payment.createAndPayWithUniPay(payComponent, {
               appointment_id: appointmentId,
               payment_type: "deposit",
               amount: this.infoFeeAmountCents,
@@ -1002,16 +1114,21 @@ const _sfc_main = {
               user_coupon_id: this.couponPreview ? this.couponPreview.user_coupon_id : null
             });
             if (payRes && payRes.data && payRes.data.zero_pay) {
+              if (this.conversationInfo) {
+                this.conversationInfo.chat_enabled = true;
+                this.conversationInfo.teacher_deposit_paid = true;
+              }
               common_vendor.index.showToast({ title: "优惠券已抵扣信息费", icon: "success" });
               this.couponPreview = null;
               await this.loadUserInfo();
-              await this.loadMessages();
+              await this.refreshMessages();
             }
           } catch (error) {
             common_vendor.index.hideLoading();
-            common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1223", "支付失败:", error);
+            common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1340", "支付失败:", error);
+            const raw = error && error.message ? String(error.message) : "";
             common_vendor.index.showToast({
-              title: error.message || "支付失败，请稍后再试",
+              title: /is not a function/i.test(raw) ? "支付已完成，请刷新页面查看" : raw || "支付失败，请稍后再试",
               icon: "none"
             });
           } finally {
@@ -1021,14 +1138,14 @@ const _sfc_main = {
       });
     },
     onPayCreate(res) {
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:1235", "[聊天页] 支付订单创建成功:", res);
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:1353", "[聊天页] 支付订单创建成功:", res);
     },
     async onPaySuccess(res) {
       var _a, _b;
-      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:1238", "[聊天页] uni-pay 支付成功:", res);
+      common_vendor.index.__f__("log", "at pages-teacher/chat/conversation.vue:1356", "[聊天页] uni-pay 支付成功:", res);
       const isPaid = res.has_paid || res.status === 1 || res.user_order_success;
       if (!isPaid) {
-        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:1242", "[聊天页] 支付成功事件但状态异常:", res);
+        common_vendor.index.__f__("warn", "at pages-teacher/chat/conversation.vue:1360", "[聊天页] 支付成功事件但状态异常:", res);
         return;
       }
       const order_no = res.order_no || ((_a = res.pay_order) == null ? void 0 : _a.order_no);
@@ -1069,7 +1186,7 @@ const _sfc_main = {
           this.refreshMessages();
         }, 1e3);
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1289", "[聊天页] 同步支付状态失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1407", "[聊天页] 同步支付状态失败:", error);
         common_vendor.index.showToast({
           title: "支付成功，请刷新页面查看状态",
           icon: "none"
@@ -1081,7 +1198,7 @@ const _sfc_main = {
       }
     },
     onPayFail(err) {
-      common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1301", "[聊天页] 支付失败:", err);
+      common_vendor.index.__f__("error", "at pages-teacher/chat/conversation.vue:1419", "[聊天页] 支付失败:", err);
       if (err.errMsg && !err.errMsg.includes("cancel")) {
         common_vendor.index.showToast({
           title: err.errMsg || "支付失败",
@@ -1101,17 +1218,14 @@ if (!Math) {
 }
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
-    a: common_vendor.o((...args) => $options.goBack && $options.goBack(...args)),
-    b: $data.otherUserInfo.avatar || $data.defaultAvatarUrl,
-    c: common_vendor.t($data.otherUserInfo.nickname || "家长"),
-    d: !$data.isInitialized
+    a: !$data.isInitialized
   }, !$data.isInitialized ? {} : common_vendor.e({
-    e: $data.pagination.hasMore && !$data.loadingMore
+    b: $data.pagination.hasMore && !$data.loadingMore
   }, $data.pagination.hasMore && !$data.loadingMore ? {
-    f: common_vendor.o((...args) => $options.loadMoreHistory && $options.loadMoreHistory(...args))
+    c: common_vendor.o((...args) => $options.loadMoreHistory && $options.loadMoreHistory(...args))
   } : $data.loadingMore ? {} : {}, {
-    g: $data.loadingMore,
-    h: common_vendor.f($options.formattedMessages, (item, k0, i0) => {
+    d: $data.loadingMore,
+    e: common_vendor.f($options.formattedMessages, (item, k0, i0) => {
       return common_vendor.e({
         a: item.type === "time"
       }, item.type === "time" ? {
@@ -1123,89 +1237,107 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       } : {
         f: common_vendor.t($options.getTrialInviteStatusText(item.data))
       }) : $options.isAttendanceClockMessage(item.data) ? common_vendor.e({
-        h: common_vendor.t($options.getAttendanceClockIcon(item.data)),
-        i: common_vendor.t($options.getAttendanceClockTitle(item.data)),
-        j: common_vendor.t($options.getAttendanceClockTime(item.data)),
-        k: $options.getAttendanceClockAddress(item.data)
+        h: common_vendor.t($options.getAttendanceClockTitle(item.data)),
+        i: common_vendor.t($options.getAttendanceClockTime(item.data)),
+        j: $options.getAttendanceClockAddress(item.data)
       }, $options.getAttendanceClockAddress(item.data) ? {
-        l: common_vendor.t($options.getAttendanceClockAddress(item.data))
+        k: common_vendor.t($options.getAttendanceClockAddress(item.data))
       } : {}, {
-        m: common_vendor.t($options.getAttendanceClockTip(item.data)),
-        n: common_vendor.o(($event) => $options.goAttendanceAppointment(item.data), item.id)
+        l: common_vendor.t($options.getAttendanceClockTip(item.data)),
+        m: common_vendor.o(($event) => $options.goAttendanceAppointment(item.data), item.id)
+      }) : $options.isReviewResultMessage(item.data) ? common_vendor.e({
+        o: common_vendor.t($options.getReviewResultTitle(item.data)),
+        p: common_vendor.t($options.getReviewStars(item.data)),
+        q: $options.getReviewResultLine(item.data)
+      }, $options.getReviewResultLine(item.data) ? {
+        r: common_vendor.t($options.getReviewResultLine(item.data))
+      } : {}, {
+        s: $options.getReviewTags(item.data)
+      }, $options.getReviewTags(item.data) ? {
+        t: common_vendor.t($options.getReviewTags(item.data))
+      } : {}, {
+        v: $options.getReviewContent(item.data)
+      }, $options.getReviewContent(item.data) ? {
+        w: common_vendor.t($options.getReviewContent(item.data))
+      } : {}, {
+        x: common_vendor.t($options.getReviewResultTip(item.data)),
+        y: common_vendor.o(($event) => $options.goReviewAppointment(item.data), item.id)
       }) : common_vendor.e({
-        o: item.data.sender_role !== $data.currentUserRole
+        z: item.data.sender_role !== $data.currentUserRole
       }, item.data.sender_role !== $data.currentUserRole ? {
-        p: $data.otherUserInfo.avatar || $data.defaultAvatarUrl,
-        q: common_vendor.t(item.data.content)
+        A: $data.otherUserInfo.avatar || $data.defaultAvatarUrl,
+        B: common_vendor.t(item.data.content)
       } : {
-        r: common_vendor.t(item.data.content),
-        s: $data.currentUserInfo.avatar || $data.defaultAvatarUrl
+        C: common_vendor.t(item.data.content),
+        D: $data.currentUserInfo.avatar || $data.defaultAvatarUrl
       }, {
-        t: item.data.sender_role === $data.currentUserRole ? 1 : ""
+        E: item.data.sender_role === $data.currentUserRole ? 1 : ""
       }), {
         c: $options.isTrialInviteMessage(item.data),
         g: $options.isAttendanceClockMessage(item.data),
-        v: item.id,
-        w: item.id
+        n: $options.isReviewResultMessage(item.data),
+        F: item.id,
+        G: item.id
       });
     }),
-    i: !$options.formattedMessages.length && !$data.loading
+    f: !$options.formattedMessages.length && !$data.loading
   }, !$options.formattedMessages.length && !$data.loading ? {} : {}, {
-    j: $data.scrollIntoView,
-    k: $options.needPayDeposit
+    g: $data.scrollIntoView,
+    h: $options.needPayDeposit
   }, $options.needPayDeposit ? common_vendor.e({
-    l: common_vendor.t($options.infoFeeAmount),
-    m: common_vendor.t($options.couponDisplayText),
-    n: common_vendor.n($options.canUseCoupon ? "deposit-coupon-active" : "deposit-coupon-muted"),
-    o: common_vendor.o((...args) => $options.openCouponSelector && $options.openCouponSelector(...args)),
+    i: common_vendor.t($options.depositFeeHint),
+    j: common_vendor.t($options.infoFeeAmount),
+    k: common_vendor.t($options.couponDisplayText),
+    l: common_vendor.n($options.canUseCoupon ? "deposit-coupon-active" : "deposit-coupon-muted"),
+    m: common_vendor.o((...args) => $options.openCouponSelector && $options.openCouponSelector(...args)),
+    n: $options.couponDiscountAmount > 0
+  }, $options.couponDiscountAmount > 0 ? {
+    o: common_vendor.t(Number($options.couponDiscountAmount || 0).toFixed(2))
+  } : {}, {
     p: $options.couponDiscountAmount > 0
   }, $options.couponDiscountAmount > 0 ? {
-    q: common_vendor.t(Number($options.couponDiscountAmount || 0).toFixed(2))
+    q: common_vendor.t(Number($options.payableInfoFeeAmount || 0).toFixed(2))
   } : {}, {
-    r: $options.couponDiscountAmount > 0
-  }, $options.couponDiscountAmount > 0 ? {
-    s: common_vendor.t(Number($options.payableInfoFeeAmount || 0).toFixed(2))
-  } : {}, {
-    t: common_vendor.t($data.payingDeposit ? "支付中..." : `支付信息费（¥${Number($options.payableInfoFeeAmount || 0).toFixed(2)}）`),
-    v: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args)),
-    w: $data.payingDeposit ? 1 : ""
+    r: common_vendor.t($options.payDepositButtonText),
+    s: common_vendor.o((...args) => $options.handlePayDeposit && $options.handlePayDeposit(...args)),
+    t: $data.payingDeposit ? 1 : ""
   }) : $options.waitingParentPay ? {} : common_vendor.e({
-    y: $options.canShowInviteTrial
+    w: $options.canShowInviteTrial
   }, $options.canShowInviteTrial ? {
-    z: common_vendor.t($data.invitingTrial ? "发送中..." : "邀请试课"),
-    A: common_vendor.o((...args) => $options.handleInviteTrial && $options.handleInviteTrial(...args)),
-    B: $data.invitingTrial ? 1 : ""
+    x: common_vendor.t($data.invitingTrial ? "发送中" : "邀请试课"),
+    y: $data.invitingTrial ? 1 : "",
+    z: common_vendor.o((...args) => $options.handleInviteTrial && $options.handleInviteTrial(...args))
   } : {}, {
-    C: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args)),
-    D: $data.sending || !$options.canSend,
-    E: $data.inputText,
-    F: common_vendor.o(($event) => $data.inputText = $event.detail.value),
-    G: common_vendor.t($data.sending ? "发送中" : "发送"),
-    H: $options.canSendMessage ? 1 : "",
-    I: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args))
+    A: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args)),
+    B: $data.sending || !$options.canSend,
+    C: $data.inputText,
+    D: common_vendor.o(($event) => $data.inputText = $event.detail.value),
+    E: common_vendor.t($data.sending ? "发送中" : "发送"),
+    F: $options.canSendMessage ? 1 : "",
+    G: common_vendor.o((...args) => $options.sendMessage && $options.sendMessage(...args))
   }), {
-    x: $options.waitingParentPay
+    v: $options.waitingParentPay
   }), {
-    J: common_vendor.sr("pay", "83c710d1-0"),
-    K: common_vendor.o($options.onPaySuccess),
-    L: common_vendor.o($options.onPayCreate),
-    M: common_vendor.o($options.onPayFail),
-    N: common_vendor.p({
+    H: common_vendor.sr("pay", "83c710d1-0"),
+    I: common_vendor.o($options.onPaySuccess),
+    J: common_vendor.o($options.onPayCreate),
+    K: common_vendor.o($options.onPayFail),
+    L: common_vendor.p({
       height: "70vh",
       ["to-success-page"]: false,
       ["return-url"]: "/pages-teacher/chat/conversation",
       logo: "/static/logo.png"
     }),
-    O: $data.showTrialFeeModal
+    M: $data.showTrialFeeModal
   }, $data.showTrialFeeModal ? {
-    P: $data.trialInviteHourlyRateInput,
-    Q: common_vendor.o(($event) => $data.trialInviteHourlyRateInput = $event.detail.value),
-    R: common_vendor.t($options.trialInviteTotalAmount),
-    S: common_vendor.o((...args) => $options.closeTrialFeeModal && $options.closeTrialFeeModal(...args)),
-    T: common_vendor.o((...args) => $options.confirmInviteTrial && $options.confirmInviteTrial(...args)),
-    U: common_vendor.o(() => {
+    N: $data.trialInviteHourlyRateInput,
+    O: common_vendor.o(($event) => $data.trialInviteHourlyRateInput = $event.detail.value),
+    P: common_vendor.t($options.trialInviteTotalAmount),
+    Q: common_vendor.o((...args) => $options.closeTrialFeeModal && $options.closeTrialFeeModal(...args)),
+    R: common_vendor.o((...args) => $options.confirmInviteTrial && $options.confirmInviteTrial(...args)),
+    S: common_vendor.o(() => {
     }),
-    V: common_vendor.o((...args) => $options.closeTrialFeeModal && $options.closeTrialFeeModal(...args))
+    T: common_vendor.o((...args) => $options.closeTrialFeeModal && $options.closeTrialFeeModal(...args))
   } : {});
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-83c710d1"]]);

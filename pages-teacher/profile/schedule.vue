@@ -1,66 +1,55 @@
 <template>
-	<view style="background: #F5F5F5;">
+	<view class="page">
 		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 说明卡片 -->
-				<view class="main-bg-color rounded px-3 py-3 mb-3 text-white">
-					<text class="font-md font-weight d-block mb-2">设置每周可预约时间</text>
-					<text class="font-sm d-block" style="opacity: 0.85;">点击时间段即可切换是否开放预约，保存后家长将以最新时间安排为准</text>
+			<text class="form-tip">每天固定 3 段：09:00–11:00 / 14:00–16:00 / 19:00–21:00，点击切换开放。</text>
+
+			<view class="form-card">
+				<view
+					v-for="day in weekSchedule"
+					:key="day.dayIndex"
+					class="day-block"
+				>
+					<view class="day-head">
+						<text class="day-name">{{ day.name }}</text>
+						<text class="day-summary" :class="{ off: !dayOpenText(day) }">{{ dayOpenText(day) || '全关' }}</text>
+					</view>
+					<view class="slots">
+						<text
+							v-for="slot in day.slots"
+							:key="slot.id"
+							class="slot"
+							:class="{ on: slot.is_available }"
+							@click="toggleSlot(day.dayIndex, slot.id)"
+						>{{ formatSlot(slot) }}</text>
+					</view>
 				</view>
-
-				<!-- 每周时间安排 -->
-				<card headTitle="每周时间安排" class="mb-3">
-					<view
-						v-for="day in weekSchedule"
-						:key="day.dayIndex"
-						class="mb-3 pb-3 border-bottom"
-						:class="{ 'mb-0 pb-0 border-bottom-0': day.dayIndex === weekSchedule[weekSchedule.length - 1].dayIndex }"
-					>
-						<view class="d-flex a-center mb-2">
-							<text class="font-md font-weight mr-2">{{ day.name }}</text>
-							<text class="font-xs text-light-muted">{{ dayDescription(day.dayIndex) }}</text>
-						</view>
-						<view class="d-flex flex-wrap">
-							<view
-								v-for="slot in day.slots"
-								:key="slot.id"
-								class="rounded px-3 py-2 mr-2 mb-2 font-sm"
-								:class="slot.is_available ? 'main-bg-color text-white' : 'bg-light-secondary'"
-								@click="toggleSlot(day.dayIndex, slot.id)"
-							>
-								<text class="font-md font-weight d-block mb-1">{{ slot.start }} - {{ slot.end }}</text>
-								<text class="font-xs d-block" style="opacity: 0.75;">{{ slot.is_available ? '开放预约' : '暂不开放' }}</text>
-							</view>
-						</view>
-					</view>
-				</card>
-
-				<!-- 不可预约日期 -->
-				<card headTitle="不可预约日期" class="mb-3">
-					<view slot="right">
-						<picker mode="date" @change="handleBlockedDateChange">
-							<view class="main-text-color font-sm">+ 添加日期</view>
-						</picker>
-					</view>
-					<view v-if="blockedDates.length" class="d-flex flex-wrap">
-						<view v-for="(date, idx) in blockedDates" :key="date" class="bg-light-secondary rounded px-3 py-2 mr-2 mb-2 d-flex a-center">
-							<text class="font-sm mr-2">{{ date }}</text>
-							<text class="text-danger font-sm" @click="removeBlockedDate(idx)">×</text>
-						</view>
-					</view>
-					<view v-else class="text-center text-light-muted font-sm py-3">当前没有设定不可预约日期</view>
-				</card>
 			</view>
+
+			<view class="section-card">
+				<view class="section-head">
+					<text class="section-title">不可预约日期</text>
+					<picker mode="date" @change="handleBlockedDateChange">
+						<text class="section-more">+ 添加日期</text>
+					</picker>
+				</view>
+				<view v-if="blockedDates.length" class="tags">
+					<view v-for="(date, idx) in blockedDates" :key="date" class="date-chip">
+						<text>{{ date }}</text>
+						<text class="date-x" @click="removeBlockedDate(idx)">×</text>
+					</view>
+				</view>
+				<text v-else class="empty">当前没有设定不可预约日期</text>
+			</view>
+			<view class="scroll-spacer"></view>
 		</scroll-view>
 
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
-			<button class="w-100 main-bg-color text-white rounded px-3 py-2 font-sm" :loading="saving" @click="saveSchedule">保存时间设置</button>
+		<view class="action-bar">
+			<button class="save-btn" :loading="saving" @click="saveSchedule">保存时间设置</button>
 		</view>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { mockTeachers, useMockData } from '@/utils/mockData.js'
 
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]
@@ -87,9 +76,6 @@ function buildDefaultWeek() {
 
 export default {
 	name: 'TeacherSchedule',
-	components: {
-		card
-	},
 	data() {
 		return {
 			weekSchedule: buildDefaultWeek(),
@@ -104,6 +90,16 @@ export default {
 		this.loadSchedule()
 	},
 	methods: {
+		formatSlot(slot) {
+			const start = (slot.start || '').slice(0, 5)
+			const end = (slot.end || '').slice(0, 5)
+			return `${start.replace(':00', '')}–${end.replace(':00', '')}`
+		},
+		dayOpenText(day) {
+			const open = (day.slots || []).filter(slot => slot.is_available)
+			if (!open.length) return ''
+			return open.map(slot => `${this.formatSlot(slot)} 开`).join(' / ')
+		},
 		dayDescription(dayIndex) {
 			if (dayIndex === 0 || dayIndex === 6) return '建议全天可约'
 			if (dayIndex === 5) return '可安排晚间课程'
@@ -236,9 +232,168 @@ export default {
 </script>
 
 <style scoped>
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+}
+
 .scroll {
+	height: calc(100vh - 140rpx);
+}
+
+.form-tip {
+	display: block;
+	padding: 20rpx 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
+}
+
+.form-card,
+.section-card {
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.form-card {
+	padding: 8rpx 32rpx 16rpx;
+}
+
+.section-card {
+	padding: 28rpx 32rpx;
+}
+
+.day-block {
+	padding: 20rpx 0;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.day-block:last-child {
+	border-bottom: none;
+}
+
+.day-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16rpx;
+}
+
+.day-name {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.day-summary {
 	flex: 1;
-	height: calc(100vh - 200rpx);
-	padding-bottom: 160rpx;
+	text-align: right;
+	font-size: 24rpx;
+	color: #2563EB;
+}
+
+.day-summary.off {
+	color: #8B919C;
+}
+
+.slots {
+	display: flex;
+	gap: 12rpx;
+	margin-top: 16rpx;
+}
+
+.slot {
+	flex: 1;
+	height: 64rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	color: #8B919C;
+	font-size: 24rpx;
+	line-height: 64rpx;
+	text-align: center;
+}
+
+.slot.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
+}
+
+.section-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16rpx;
+}
+
+.section-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.section-more {
+	font-size: 24rpx;
+	color: #2563EB;
+}
+
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+}
+
+.date-chip {
+	display: flex;
+	align-items: center;
+	height: 56rpx;
+	padding: 0 16rpx 0 20rpx;
+	border-radius: 12rpx;
+	background: #F4F6F9;
+	font-size: 24rpx;
+	color: #1F2329;
+}
+
+.date-x {
+	margin-left: 12rpx;
+	color: #FA5151;
+	font-size: 28rpx;
+	padding: 0 4rpx;
+}
+
+.empty {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.scroll-spacer {
+	height: 40rpx;
+}
+
+.action-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+
+.save-btn {
+	height: 88rpx;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
+}
+
+.save-btn::after {
+	border: none;
 }
 </style>

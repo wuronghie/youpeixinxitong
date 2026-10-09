@@ -3,62 +3,87 @@
 	height: 100vh;
 	display: flex;
 	flex-direction: column;
-	background: #f5f5f5;
+	background: #F4F6F9;
 	overflow: hidden;
 }
 .teacher-list-top.data-v-808011a9 {
 	flex-shrink: 0;
-	background: #f5f5f5;
+	background: #F4F6F9;
 	z-index: 20;
 }
 .search-header.data-v-808011a9 {
 	flex-shrink: 0;
+	padding: 20rpx 24rpx;
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
 }
-
-/* 顶部筛选栏（全部 / 科目 / 年级 / 排序） */
-.filter-tabs.data-v-808011a9 {
+.search-bar.data-v-808011a9 {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	padding: 10rpx 12rpx;
-	margin: 0 24rpx 10rpx;
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.04);
-	overflow: hidden;
+	padding: 16rpx 20rpx;
+	background: #FFFFFF;
+	border-radius: 16rpx;
 }
-.filter-tab.data-v-808011a9 {
+.search-field.data-v-808011a9 {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	margin-left: 12rpx;
+}
+.search-icon.data-v-808011a9 {
+	color: #999999;
+	font-size: 28rpx;
+	margin-right: 12rpx;
+}
+.search-input.data-v-808011a9 {
+	flex: 1;
+	font-size: 28rpx;
+	color: #1F2329;
+	height: 56rpx;
+}
+.search-placeholder.data-v-808011a9 {
+	color: #8B919C;
+}
+.search-action.data-v-808011a9 {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #4A90E2;
+	padding-left: 16rpx;
+}
+.filter-scroll.data-v-808011a9 {
+	width: 100%;
+	white-space: nowrap;
+}
+.filter-row.data-v-808011a9 {
+	display: inline-flex;
+	align-items: center;
+	padding: 8rpx 32rpx 20rpx;
+}
+.filter-chip.data-v-808011a9 {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 24rpx;
+	margin-right: 16rpx;
+	border-radius: 999rpx;
+	background: #F4F6F9;
+	border: 2rpx solid transparent;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	flex: 1;
-	min-width: 0;
-	min-height: 56rpx;
-	font-size: 23rpx;
-	color: #666666;
-	padding: 0 6rpx;
-	position: relative;
-	border-radius: 12rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: hidden;
 }
-.filter-tab + .filter-tab.data-v-808011a9 {
-	border-left: 1rpx solid #F5F5F5;
+.filter-chip text.data-v-808011a9 {
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1;
 }
-.filter-tab text.data-v-808011a9 {
-	display: block;
-	max-width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.filter-chip.on.data-v-808011a9 {
+	background: #EEF3FF;
+	border-color: transparent;
 }
-.filter-tab.active.data-v-808011a9 {
-	color: #F8A100;
+.filter-chip.on text.data-v-808011a9 {
+	color: #2563EB;
 	font-weight: 600;
 }
-
-/* 下拉筛选面板 */
 .dropdown-mask.data-v-808011a9 {
 	position: fixed;
 	left: 0;
@@ -70,44 +95,51 @@
 }
 .dropdown-panel.data-v-808011a9 {
 	background-color: #FFFFFF;
-	border-radius: 0 0 20rpx 20rpx;
+	border-radius: 0 0 24rpx 24rpx;
 	padding: 10rpx 0;
-	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.08);
 }
 .dropdown-list.data-v-808011a9 {
 	padding: 10rpx 20rpx 20rpx;
 }
-.dropdown-section-title.data-v-808011a9 {
-	font-size: 22rpx;
-	color: #999999;
-	padding: 16rpx 4rpx 8rpx;
-}
 .dropdown-item.data-v-808011a9 {
-	padding: 18rpx 10rpx;
-	font-size: 26rpx;
-	color: #333333;
-	border-bottom: 1rpx solid #F5F5F5;
+	padding: 24rpx 10rpx;
+	font-size: 28rpx;
+	color: #1F2329;
+	border-bottom: 1rpx solid #F3F4F6;
 }
 .dropdown-item.data-v-808011a9:last-child {
 	border-bottom: none;
 }
 .dropdown-item.active.data-v-808011a9 {
-	color: #F8A100;
+	color: #2563EB;
 	font-weight: 600;
 }
-
-/* 单列教师列表滚动区域 */
 .list-scroll-single.data-v-808011a9 {
 	flex: 1;
 	min-height: 0;
-	background: #F5F5F5;
+	background: #F4F6F9;
 	padding-bottom: 140rpx;
 }
-.tabbar-spacer.data-v-808011a9 {
-	height: 0;
+.list-body.data-v-808011a9 {
+	padding: 24rpx 32rpx;
 }
-
-/* 收藏按钮 */
+.list-stack.data-v-808011a9 {
+	display: flex;
+	flex-direction: column;
+}
+.teacher-card.data-v-808011a9 {
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	margin-bottom: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+.teacher-card-hover.data-v-808011a9 {
+	opacity: 0.96;
+}
+.card-inner.data-v-808011a9 {
+	position: relative;
+	padding: 28rpx;
+}
 .favorite-btn.data-v-808011a9 {
 	position: absolute;
 	top: 20rpx;
@@ -119,39 +151,183 @@
 	align-items: center;
 	justify-content: center;
 }
-.favorite-btn .favorite-icon.data-v-808011a9 {
+.favorite-icon.data-v-808011a9 {
 	width: 44rpx;
 	height: 44rpx;
-	transition: transform 0.2s ease;
 }
-.favorite-btn:active .favorite-icon.data-v-808011a9 {
-	transform: scale(0.9);
+.card-top.data-v-808011a9 {
+	display: flex;
+	align-items: flex-start;
 }
-
-/* 教师卡片动效与阴影 */
-.teacher-card.data-v-808011a9 {
-	border-radius: 24rpx;
-	overflow: hidden;
-	transform: translateY(0);
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
-	transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+.avatar.data-v-808011a9,
+.avatar-skel.data-v-808011a9 {
+	width: 112rpx;
+	height: 112rpx;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: #EEF0F4;
 }
-.teacher-card-hover.data-v-808011a9 {
-	transform: translateY(-4rpx);
-	box-shadow: 0 18rpx 40rpx rgba(0, 0, 0, 0.14);
+.card-info.data-v-808011a9,
+.skel-lines.data-v-808011a9 {
+	flex: 1;
+	min-width: 0;
+	margin-left: 24rpx;
+	padding-right: 48rpx;
+}
+.name-row.data-v-808011a9 {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.teacher-name.data-v-808011a9 {
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.35;
+}
+.verify-chip.data-v-808011a9 {
+	margin-left: 12rpx;
+	padding: 2rpx 12rpx;
+	border-radius: 8rpx;
+	background: #E8F8EF;
+	color: #07C160;
+	font-size: 20rpx;
+	font-weight: 600;
 }
 .teacher-gender-chip.data-v-808011a9 {
-	padding: 4rpx 14rpx;
-	border-radius: 999rpx;
+	margin-left: 12rpx;
+	padding: 2rpx 12rpx;
+	border-radius: 8rpx;
 	font-size: 20rpx;
-	line-height: 1.4;
 	font-weight: 600;
 }
 .teacher-gender-chip.male.data-v-808011a9 {
-	color: #1677ff;
-	background: #e6f4ff;
+	color: #2563EB;
+	background: #EEF3FF;
 }
 .teacher-gender-chip.female.data-v-808011a9 {
-	color: #eb2f96;
-	background: #fff0f6;
+	color: #DB2777;
+	background: #FDF2F8;
+}
+.meta-line.data-v-808011a9 {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+.stat-line.data-v-808011a9,
+.trial-line.data-v-808011a9,
+.addr-line.data-v-808011a9,
+.scope-line.data-v-808011a9,
+.tag-row.data-v-808011a9 {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-top: 8rpx;
+}
+.trial-text.data-v-808011a9 {
+	font-size: 24rpx;
+	color: #5C6370;
+	margin-right: 16rpx;
+}
+.rate-text.data-v-808011a9 {
+	font-size: 24rpx;
+	font-weight: 600;
+	color: #FA5151;
+	margin-right: 16rpx;
+}
+.muted-text.data-v-808011a9 {
+	font-size: 24rpx;
+	color: #8B919C;
+	margin-right: 16rpx;
+}
+.ok-text.data-v-808011a9 {
+	font-size: 24rpx;
+	color: #07C160;
+	margin-right: 16rpx;
+}
+.subject-chip.data-v-808011a9,
+.method-chip.data-v-808011a9 {
+	height: 44rpx;
+	padding: 0 16rpx;
+	margin: 0 12rpx 8rpx 0;
+	border-radius: 12rpx;
+	font-size: 22rpx;
+	line-height: 44rpx;
+}
+.subject-chip.data-v-808011a9 {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+.method-chip.data-v-808011a9 {
+	background: #F1F2F4;
+	color: #5C6370;
+}
+.card-foot.data-v-808011a9 {
+	margin-top: 16rpx;
+	padding-top: 20rpx;
+	border-top: 1rpx solid #EBEDF0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.price-wrap.data-v-808011a9 {
+	display: flex;
+	align-items: baseline;
+}
+.price.data-v-808011a9 {
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #FA5151;
+	line-height: 1.2;
+}
+.price-unit.data-v-808011a9 {
+	margin-left: 4rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+.specialty.data-v-808011a9 {
+	font-size: 22rpx;
+	color: #8B919C;
+}
+.skel-line.data-v-808011a9 {
+	height: 24rpx;
+	border-radius: 8rpx;
+	background: #EEF0F4;
+	margin-bottom: 16rpx;
+}
+.w-200.data-v-808011a9 { width: 200rpx;
+}
+.w-150.data-v-808011a9 { width: 150rpx;
+}
+.w-180.data-v-808011a9 { width: 180rpx;
+}
+.empty-box.data-v-808011a9 {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 0;
+}
+.empty-icon.data-v-808011a9 {
+	font-size: 80rpx;
+	color: #D5D8DE;
+}
+.empty-title.data-v-808011a9 {
+	margin-top: 20rpx;
+	font-size: 30rpx;
+	color: #5C6370;
+}
+.empty-desc.data-v-808011a9 {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+.list-end.data-v-808011a9 {
+	text-align: center;
+	font-size: 24rpx;
+	color: #8B919C;
+	padding: 16rpx 0 8rpx;
+}
+.tabbar-spacer.data-v-808011a9 {
+	height: 0;
 }

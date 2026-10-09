@@ -2,7 +2,7 @@
 const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
-const textareaPlaceholder = "可以从课堂氛围、讲解质量、作业反馈等方面分享您的真实体验～";
+const textareaPlaceholder = "选填。也可以只打星提交，或从课堂氛围、讲解质量等方面分享体验";
 const maxContentLength = 500;
 const _sfc_main = {
   __name: "create",
@@ -34,11 +34,17 @@ const _sfc_main = {
     const canSubmit = common_vendor.computed(() => {
       if (formData.rating < 1)
         return false;
-      if (formData.content.trim().length < 10)
-        return false;
       if (isTrial.value && formData.is_satisfied === null)
         return false;
       return true;
+    });
+    const teacherMeta = common_vendor.computed(() => {
+      const parts = [teacherInfo.subjectText];
+      if (isTrial.value)
+        parts.push("试课");
+      else if (teacherInfo.experience)
+        parts.push(teacherInfo.experience);
+      return parts.filter(Boolean).join(" · ");
     });
     const submitText = common_vendor.computed(() => {
       if (isSubmitting.value)
@@ -112,7 +118,7 @@ const _sfc_main = {
           }
         }
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:256", "加载评价页面失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:228", "加载评价页面失败:", e);
         common_vendor.index.showToast({ title: e.message || "加载失败", icon: "none" });
       } finally {
         isLoading.value = false;
@@ -137,11 +143,6 @@ const _sfc_main = {
     function validate() {
       if (formData.rating < 1) {
         common_vendor.index.showToast({ title: "请为本次课程打分", icon: "none" });
-        return false;
-      }
-      const content = formData.content.trim();
-      if (content.length < 10) {
-        common_vendor.index.showToast({ title: "评价内容不少于 10 个字", icon: "none" });
         return false;
       }
       if (isTrial.value && formData.is_satisfied === null) {
@@ -184,7 +185,7 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "已提交并完成确认", icon: "success" });
         setTimeout(() => common_vendor.index.navigateBack(), 1e3);
       } catch (e) {
-        common_vendor.index.__f__("error", "at pages/review/create.vue:342", "[review.submit] 失败:", e);
+        common_vendor.index.__f__("error", "at pages/review/create.vue:309", "[review.submit] 失败:", e);
         common_vendor.index.showToast({ title: e.message || "提交失败", icon: "none" });
       } finally {
         isSubmitting.value = false;
@@ -194,31 +195,27 @@ const _sfc_main = {
       return common_vendor.e({
         a: teacherInfo.avatar || common_vendor.unref(defaultAvatarUrl),
         b: common_vendor.t(teacherInfo.name || "教师"),
-        c: common_vendor.t(teacherInfo.subjectText),
-        d: teacherInfo.experience
-      }, teacherInfo.experience ? {
-        e: common_vendor.t(teacherInfo.experience)
-      } : {}, {
-        f: isTrial.value
+        c: common_vendor.t(teacherMeta.value),
+        d: isTrial.value
       }, isTrial.value ? common_vendor.e({
-        g: formData.is_satisfied === true ? 1 : "",
-        h: common_vendor.o(($event) => selectResult(true)),
-        i: formData.is_satisfied === false ? 1 : "",
-        j: common_vendor.o(($event) => selectResult(false)),
-        k: formData.is_satisfied === false
+        e: formData.is_satisfied === true ? 1 : "",
+        f: common_vendor.o(($event) => selectResult(true)),
+        g: formData.is_satisfied === false ? 1 : "",
+        h: common_vendor.o(($event) => selectResult(false)),
+        i: formData.is_satisfied === false
       }, formData.is_satisfied === false ? {
-        l: formData.fail_reason,
-        m: common_vendor.o(($event) => formData.fail_reason = $event.detail.value)
+        j: formData.fail_reason,
+        k: common_vendor.o(($event) => formData.fail_reason = $event.detail.value)
       } : {}) : {}, {
-        n: common_vendor.t(ratingTips[formData.rating - 1]),
-        o: common_vendor.f(5, (i, k0, i0) => {
+        l: common_vendor.t(ratingTips[formData.rating - 1]),
+        m: common_vendor.f(5, (i, k0, i0) => {
           return {
             a: i,
             b: i <= formData.rating ? 1 : "",
             c: common_vendor.o(($event) => setRating(i), i)
           };
         }),
-        p: common_vendor.f(tagOptions, (tag, k0, i0) => {
+        n: common_vendor.f(tagOptions, (tag, k0, i0) => {
           return {
             a: common_vendor.t(tag),
             b: tag,
@@ -226,18 +223,19 @@ const _sfc_main = {
             d: common_vendor.o(($event) => toggleTag(tag), tag)
           };
         }),
-        q: maxContentLength,
-        r: textareaPlaceholder,
-        s: formData.content,
-        t: common_vendor.o(($event) => formData.content = $event.detail.value),
-        v: common_vendor.t(formData.content.length),
-        w: common_vendor.t(maxContentLength),
-        x: common_vendor.t(submitText.value),
-        y: isSubmitting.value || !canSubmit.value,
-        z: common_vendor.o(submit)
+        o: maxContentLength,
+        p: textareaPlaceholder,
+        q: formData.content,
+        r: common_vendor.o(($event) => formData.content = $event.detail.value),
+        s: common_vendor.t(formData.content.length),
+        t: common_vendor.t(maxContentLength),
+        v: common_vendor.t(submitText.value),
+        w: isSubmitting.value || !canSubmit.value,
+        x: common_vendor.o(submit)
       });
     };
   }
 };
-wx.createPage(_sfc_main);
+const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["__scopeId", "data-v-6a700c41"]]);
+wx.createPage(MiniProgramPage);
 //# sourceMappingURL=../../../.sourcemap/mp-weixin/pages/review/create.js.map

@@ -3,12 +3,8 @@ const common_vendor = require("../../common/vendor.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_pullRefreshMixin = require("../../utils/pullRefreshMixin.js");
-const card = () => "../../components/common/card.js";
 const _sfc_main = {
   name: "TeacherReviewList",
-  components: {
-    card
-  },
   mixins: [utils_pullRefreshMixin.pullRefreshMixin],
   data() {
     return {
@@ -64,7 +60,7 @@ const _sfc_main = {
   },
   methods: {
     async refreshData() {
-      common_vendor.index.__f__("log", "at pages-teacher/review/list.vue:187", "[teacher-review] 下拉刷新：重新加载评价列表");
+      common_vendor.index.__f__("log", "at pages-teacher/review/list.vue:141", "[teacher-review] 下拉刷新：重新加载评价列表");
       await this.resetAndLoad();
     },
     resetAndLoad() {
@@ -142,7 +138,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "获取评价失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:270", "获取评价失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:224", "获取评价失败:", error);
         common_vendor.index.showToast({ title: "获取评价失败，请稍后再试", icon: "none" });
       } finally {
         this.loading = false;
@@ -183,7 +179,7 @@ const _sfc_main = {
         title: item.teacher_reply ? "修改回复" : "回复评价",
         editable: true,
         placeholderText: "请输入回复内容（最多200字）",
-        confirmColor: "#667eea",
+        confirmColor: "#2563EB",
         content: item.teacher_reply || "",
         success: async (res) => {
           var _a;
@@ -211,7 +207,7 @@ const _sfc_main = {
               common_vendor.index.showToast({ title: result.message || "回复失败", icon: "none" });
             }
           } catch (err) {
-            common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:335", "回复评价失败:", err);
+            common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:289", "回复评价失败:", err);
             common_vendor.index.showToast({ title: "回复失败，请稍后重试", icon: "none" });
           }
         }
@@ -235,7 +231,7 @@ const _sfc_main = {
           this.stats = res.data.stats;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:357", "更新统计信息失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/review/list.vue:311", "更新统计信息失败:", error);
       }
     }
   }
@@ -243,81 +239,65 @@ const _sfc_main = {
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: common_vendor.t($data.stats.averageRating || "0.0"),
-    b: common_vendor.f(5, (i, k0, i0) => {
-      return {
-        a: i,
-        b: common_vendor.s(i <= Math.round($data.stats.averageRating || 0) ? "color: #ffd060;" : "opacity: 0.4;")
-      };
-    }),
-    c: common_vendor.t($data.stats.total || 0),
-    d: common_vendor.t($data.stats.replied || 0),
-    e: common_vendor.t($data.stats.unreplied || 0),
-    f: common_vendor.f($data.stats.ratingStats, (item, k0, i0) => {
-      return {
-        a: common_vendor.t(item.star),
-        b: $options.distributionWidth(item.count),
-        c: common_vendor.t(item.count || 0),
-        d: item.star
-      };
-    }),
-    g: common_vendor.f($data.statusTabs, (tab, k0, i0) => {
+    b: common_vendor.t($data.stats.total || 0),
+    c: common_vendor.t($data.stats.unreplied || 0),
+    d: common_vendor.f($data.statusTabs, (tab, k0, i0) => {
       return common_vendor.e({
         a: common_vendor.t(tab.label),
-        b: tab.count
-      }, tab.count ? {
-        c: common_vendor.t(tab.count ? tab.count($data.stats) : "")
+        b: tab.count && tab.count($data.stats)
+      }, tab.count && tab.count($data.stats) ? {
+        c: common_vendor.t(tab.count($data.stats))
       } : {}, {
         d: tab.value,
-        e: common_vendor.n($data.currentStatus === tab.value ? "tab-active-status" : "tab-inactive-status"),
+        e: $data.currentStatus === tab.value ? 1 : "",
         f: common_vendor.o(($event) => $options.changeStatus(tab.value), tab.value)
       });
     }),
-    h: common_vendor.f($data.ratingTabs, (rate, k0, i0) => {
+    e: common_vendor.f($data.ratingTabs, (rate, k0, i0) => {
       return {
         a: common_vendor.t(rate.label),
         b: rate.value,
-        c: common_vendor.n($data.currentRating === rate.value ? "tab-active-rating" : "tab-inactive-rating"),
+        c: $data.currentRating === rate.value ? 1 : "",
         d: common_vendor.o(($event) => $options.changeRating(rate.value), rate.value)
       };
     }),
-    i: common_vendor.f($data.list, (item, k0, i0) => {
+    f: common_vendor.f($data.list, (item, k0, i0) => {
       return common_vendor.e({
-        a: item.parent_avatar || $data.defaultAvatarUrl,
-        b: common_vendor.t(item.parent_name),
-        c: common_vendor.f(5, (i, k1, i1) => {
+        a: common_vendor.t(item.parent_name || "家长"),
+        b: common_vendor.f(5, (i, k1, i1) => {
           return {
             a: i,
-            b: common_vendor.s(i <= item.rating ? "color: #ffd060;" : "color: #ddd;")
+            b: i <= item.rating ? 1 : ""
           };
         }),
-        d: common_vendor.t($options.formatTime(item.create_time)),
-        e: common_vendor.t(item.content),
-        f: item.tags && item.tags.length
+        c: common_vendor.t($options.formatTime(item.create_time)),
+        d: common_vendor.t(item.content),
+        e: item.tags && item.tags.length
       }, item.tags && item.tags.length ? {
-        g: common_vendor.f(item.tags, (tag, k1, i1) => {
+        f: common_vendor.f(item.tags, (tag, k1, i1) => {
           return {
             a: common_vendor.t(tag),
             b: tag
           };
         })
       } : {}, {
-        h: item.teacher_reply
+        g: item.teacher_reply
       }, item.teacher_reply ? {
-        i: common_vendor.t($options.formatTime(item.reply_time)),
-        j: common_vendor.t(item.teacher_reply),
-        k: common_vendor.o(($event) => $options.replyReview(item), item.review_id)
+        h: common_vendor.t($options.formatTime(item.reply_time)),
+        i: common_vendor.t(item.teacher_reply),
+        j: common_vendor.o(($event) => $options.replyReview(item), item.review_id)
       } : {
-        l: common_vendor.o(($event) => $options.replyReview(item), item.review_id)
+        k: common_vendor.o(($event) => $options.replyReview(item), item.review_id)
       }, {
-        m: item.review_id
+        l: item.review_id
       });
     }),
-    j: !$data.loading && !$data.list.length
+    g: !$data.loading && !$data.list.length
   }, !$data.loading && !$data.list.length ? {} : {}, {
-    k: $data.loading
+    h: $data.loading
   }, $data.loading ? {} : $data.finished && $data.list.length ? {} : {}, {
-    l: $data.finished && $data.list.length,
-    m: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
+    i: $data.finished && $data.list.length,
+    j: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-ded75a35"]]);

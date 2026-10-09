@@ -3,14 +3,10 @@ const common_vendor = require("../../common/vendor.js");
 const utils_mockData = require("../../utils/mockData.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
 const utils_location = require("../../utils/location.js");
-const utils_wxContentSecurity = require("../../utils/wxContentSecurity.js");
-const card = () => "../../components/common/card.js";
+const pagesTeacher_utils_wxContentSecurity = require("../utils/wxContentSecurity.js");
 const defaultAvatar = utils_imageConfig.getDefaultAvatarUrl();
 const _sfc_main = {
   name: "TeacherProfileEdit",
-  components: {
-    card
-  },
   data() {
     return {
       formData: {
@@ -158,10 +154,10 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "请先以教师身份登录", icon: "none" });
           return;
         }
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:476", "[编辑页面] 开始加载教师资料...");
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:374", "[编辑页面] 开始加载教师资料...");
         const teacherProfile = common_vendor.tr.importObject("teacher-profile", { customUI: true });
         const res = await teacherProfile.getProfile();
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:481", "[编辑页面] 获取资料结果:", {
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:379", "[编辑页面] 获取资料结果:", {
           code: res.code,
           hasData: !!res.data
         });
@@ -200,18 +196,18 @@ const _sfc_main = {
             missingFieldsText.push("资质证书截图");
           }
           if (missingFields.length > 0) {
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:525", "========================================");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:526", "[编辑页面] ⚠️ 检测到缺失的必填字段");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:527", "缺失的字段:", missingFieldsText.join("、"));
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:528", "当前值:");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:529", "  - 姓名:", p.display_name || "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:530", "  - 教学科目:", Array.isArray(p.subjects) ? `[${p.subjects.join(", ")}]` : "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:531", "  - 适合年级:", Array.isArray(p.grades) ? `[${p.grades.join(", ")}]` : "未设置");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:532", "  - 课时费:", p.hourly_rate || "0");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:533", "请填写以上必填字段后保存");
-            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:534", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:423", "========================================");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:424", "[编辑页面] ⚠️ 检测到缺失的必填字段");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:425", "缺失的字段:", missingFieldsText.join("、"));
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:426", "当前值:");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:427", "  - 姓名:", p.display_name || "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:428", "  - 教学科目:", Array.isArray(p.subjects) ? `[${p.subjects.join(", ")}]` : "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:429", "  - 适合年级:", Array.isArray(p.grades) ? `[${p.grades.join(", ")}]` : "未设置");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:430", "  - 课时费:", p.hourly_rate || "0");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:431", "请填写以上必填字段后保存");
+            common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:432", "========================================");
           } else {
-            common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:536", "[编辑页面] ✓ 所有必填字段已填写");
+            common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:434", "[编辑页面] ✓ 所有必填字段已填写");
           }
           const resolvedAvatar = this.resolveAvatarData(p.avatar || "", userInfo);
           let avatarUrl = resolvedAvatar.avatar;
@@ -247,7 +243,7 @@ const _sfc_main = {
           };
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:576", "加载教师资料失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:474", "加载教师资料失败:", error);
       }
     },
     resolveAvatarData(profileAvatar, userInfo = {}) {
@@ -295,7 +291,7 @@ const _sfc_main = {
       try {
         this.avatarUploading = true;
         try {
-          await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+          await pagesTeacher_utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
         } catch (secErr) {
           common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
           return;
@@ -316,7 +312,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:643", "上传头像失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:541", "上传头像失败:", error);
         common_vendor.index.showToast({ title: "上传失败", icon: "none" });
       } finally {
         this.avatarUploading = false;
@@ -335,7 +331,7 @@ const _sfc_main = {
           return file.tempFileURL;
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:662", "获取头像临时链接失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:560", "获取头像临时链接失败:", error);
       }
       return fileId;
     },
@@ -485,7 +481,7 @@ const _sfc_main = {
         });
       } catch (error) {
         if (error.message && !error.message.includes("取消")) {
-          common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:815", "选择位置失败:", error);
+          common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:713", "选择位置失败:", error);
           common_vendor.index.showToast({
             title: error.message || "选择失败",
             icon: "none"
@@ -560,7 +556,7 @@ const _sfc_main = {
               processedQ.image = tempUrl;
               processedQ.image_fileId = q.image;
             } catch (e) {
-              common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:894", "获取证书图片URL失败:", e);
+              common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:792", "获取证书图片URL失败:", e);
               processedQ.image = q.image;
               processedQ.image_fileId = q.image;
             }
@@ -625,7 +621,7 @@ const _sfc_main = {
             return;
           if (this.useMock) {
             try {
-              await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+              await pagesTeacher_utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
             } catch (secErr) {
               common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
               return;
@@ -647,7 +643,7 @@ const _sfc_main = {
       try {
         this.qualificationUploading = true;
         try {
-          await utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
+          await pagesTeacher_utils_wxContentSecurity.wxCheckLocalImageBeforeUpload(localPath);
         } catch (secErr) {
           common_vendor.index.showToast({ title: secErr && secErr.message || "图片未通过安全检测", icon: "none" });
           return;
@@ -669,7 +665,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: "上传失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:999", "上传证书图片失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:897", "上传证书图片失败:", error);
         common_vendor.index.showToast({ title: "上传失败", icon: "none" });
       } finally {
         this.qualificationUploading = false;
@@ -784,17 +780,17 @@ const _sfc_main = {
         isValid = false;
       }
       if (!isValid) {
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1123", "========================================");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1124", "[表单验证] ❌ 验证失败，以下字段未填写:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1021", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1022", "[表单验证] ❌ 验证失败，以下字段未填写:");
         missingFields.forEach((field, index) => {
-          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1126", `  ${index + 1}. ${field}`);
+          common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1024", `  ${index + 1}. ${field}`);
         });
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1128", "当前表单值:");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1129", "  - 姓名:", this.formData.name || "未填写");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1130", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1131", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1132", "  - 课时费:", this.formData.hourly_rate || "0");
-        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1133", "========================================");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1026", "当前表单值:");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1027", "  - 姓名:", this.formData.name || "未填写");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1028", "  - 教学科目:", this.formData.subjects.length > 0 ? `[${this.formData.subjects.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1029", "  - 适合年级:", this.formData.grades.length > 0 ? `[${this.formData.grades.join(", ")}]` : "未选择");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1030", "  - 课时费:", this.formData.hourly_rate || "0");
+        common_vendor.index.__f__("warn", "at pages-teacher/profile/edit.vue:1031", "========================================");
         if (firstErrorField) {
           this.scrollToError(firstErrorField);
         }
@@ -807,7 +803,7 @@ const _sfc_main = {
           });
         }
       } else {
-        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1148", "[表单验证] ✓ 所有必填字段验证通过");
+        common_vendor.index.__f__("log", "at pages-teacher/profile/edit.vue:1046", "[表单验证] ✓ 所有必填字段验证通过");
       }
       return isValid;
     },
@@ -887,7 +883,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "保存失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1236", "保存教师资料失败:", error);
+        common_vendor.index.__f__("error", "at pages-teacher/profile/edit.vue:1134", "保存教师资料失败:", error);
         common_vendor.index.showToast({ title: "保存失败，请稍后重试", icon: "none" });
       } finally {
         this.saving = false;
@@ -895,146 +891,132 @@ const _sfc_main = {
     }
   }
 };
-if (!Array) {
-  const _component_card = common_vendor.resolveComponent("card");
-  _component_card();
-}
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
   return common_vendor.e({
     a: $data.formData.avatar || $data.defaultAvatar,
-    b: common_vendor.t($data.avatarUploading ? "上传中..." : $data.formData.avatar ? "点击更换头像" : "点击上传头像"),
-    c: $data.errors.avatar
+    b: common_vendor.t($data.avatarUploading ? "上传中..." : $data.formData.avatar ? "点击更换证件照" : "点击上传证件照"),
+    c: $data.errors.avatar ? 1 : "",
+    d: common_vendor.o((...args) => $options.chooseAvatar && $options.chooseAvatar(...args)),
+    e: $data.errors.avatar
   }, $data.errors.avatar ? {
-    d: common_vendor.t($data.errors.avatar)
+    f: common_vendor.t($data.errors.avatar)
   } : {}, {
-    e: $data.errors.avatar ? 1 : "",
-    f: common_vendor.o((...args) => $options.chooseAvatar && $options.chooseAvatar(...args)),
     g: $data.errors.name ? 1 : "",
     h: common_vendor.o([common_vendor.m(($event) => $data.formData.name = $event.detail.value, {
       trim: true
     }), ($event) => $options.clearError("name")]),
     i: $data.formData.name,
     j: $data.errors.name ? 1 : "",
-    k: common_vendor.n($data.formData.gender === "male" ? "gender-selected male" : "gender-default"),
-    l: common_vendor.o(($event) => $options.selectGender("male")),
-    m: common_vendor.n($data.formData.gender === "female" ? "gender-selected female" : "gender-default"),
-    n: common_vendor.o(($event) => $options.selectGender("female")),
-    o: $data.errors.gender ? 1 : "",
-    p: $data.errors.gender
+    k: $data.errors.name
+  }, $data.errors.name ? {
+    l: common_vendor.t($data.errors.name)
+  } : {}, {
+    m: $data.formData.gender === "male" ? 1 : "",
+    n: common_vendor.o(($event) => $options.selectGender("male")),
+    o: $data.formData.gender === "female" ? 1 : "",
+    p: common_vendor.o(($event) => $options.selectGender("female")),
+    q: $data.errors.gender ? 1 : "",
+    r: $data.errors.gender
   }, $data.errors.gender ? {
-    q: common_vendor.t($data.errors.gender)
+    s: common_vendor.t($data.errors.gender)
   } : {}, {
-    r: $data.errors.contact_mobile ? 1 : "",
-    s: common_vendor.o([($event) => $data.formData.contact_mobile = $event.detail.value, ($event) => $options.clearError("contact_mobile")]),
-    t: $data.formData.contact_mobile,
-    v: $data.errors.contact_mobile ? 1 : "",
-    w: $data.errors.contact_mobile
+    t: $data.errors.contact_mobile ? 1 : "",
+    v: common_vendor.o([($event) => $data.formData.contact_mobile = $event.detail.value, ($event) => $options.clearError("contact_mobile")]),
+    w: $data.formData.contact_mobile,
+    x: $data.errors.contact_mobile ? 1 : "",
+    y: $data.errors.contact_mobile
   }, $data.errors.contact_mobile ? {
-    x: common_vendor.t($data.errors.contact_mobile)
+    z: common_vendor.t($data.errors.contact_mobile)
   } : {}, {
-    y: $data.errors.name || $data.errors.avatar || $data.errors.gender || $data.errors.contact_mobile ? 1 : "",
-    z: common_vendor.t($options.isFullTimeTeacher ? "专职教师无需填写适合年级；请选择擅长科目并补充课时费与教龄。" : "选择你擅长的科目、年级，并补充课时费与教龄，方便家长快速判断是否匹配。"),
-    A: common_vendor.f($data.subjectOptions, (subject, k0, i0) => {
+    A: $data.errors.hourly_rate ? 1 : "",
+    B: common_vendor.o([common_vendor.m(($event) => $data.formData.hourly_rate = $event.detail.value, {
+      number: true
+    }), ($event) => $options.clearError("hourly_rate")]),
+    C: $data.formData.hourly_rate,
+    D: $data.errors.hourly_rate ? 1 : "",
+    E: $data.errors.hourly_rate
+  }, $data.errors.hourly_rate ? {
+    F: common_vendor.t($data.errors.hourly_rate)
+  } : {}, {
+    G: $data.errors.experience_years ? 1 : "",
+    H: common_vendor.o([common_vendor.m(($event) => $data.formData.experience_years = $event.detail.value, {
+      number: true
+    }), ($event) => $options.clearError("experience_years")]),
+    I: $data.formData.experience_years,
+    J: $data.errors.experience_years ? 1 : "",
+    K: $data.errors.experience_years
+  }, $data.errors.experience_years ? {
+    L: common_vendor.t($data.errors.experience_years)
+  } : {}, {
+    M: $data.errors.name || $data.errors.avatar || $data.errors.gender || $data.errors.contact_mobile || $data.errors.hourly_rate || $data.errors.experience_years ? 1 : "",
+    N: common_vendor.f($data.subjectOptions, (subject, k0, i0) => {
       return {
         a: common_vendor.t(subject.label),
         b: subject.value,
-        c: common_vendor.n($data.formData.subjects.includes(subject.value) ? "tag-selected" : "tag-default"),
+        c: $data.formData.subjects.includes(subject.value) ? 1 : "",
         d: common_vendor.o(($event) => $options.toggleSubject(subject.value), subject.value)
       };
     }),
-    B: $data.errors.subjects
+    O: $data.errors.subjects
   }, $data.errors.subjects ? {
-    C: common_vendor.t($data.errors.subjects)
+    P: common_vendor.t($data.errors.subjects)
   } : {}, {
-    D: $data.errors.subjects ? 1 : "",
-    E: !$options.isFullTimeTeacher
+    Q: $data.errors.subjects ? 1 : "",
+    R: !$options.isFullTimeTeacher
   }, !$options.isFullTimeTeacher ? common_vendor.e({
-    F: common_vendor.f($data.gradeOptions, (grade, k0, i0) => {
+    S: common_vendor.f($data.gradeOptions, (grade, k0, i0) => {
       return {
         a: common_vendor.t(grade),
         b: grade,
-        c: common_vendor.n($data.formData.grades.includes(grade) ? "tag-selected" : "tag-default"),
+        c: $data.formData.grades.includes(grade) ? 1 : "",
         d: common_vendor.o(($event) => $options.toggleGrade(grade), grade)
       };
     }),
-    G: $data.errors.grades
+    T: $data.errors.grades
   }, $data.errors.grades ? {
-    H: common_vendor.t($data.errors.grades)
+    U: common_vendor.t($data.errors.grades)
   } : {}, {
-    I: $data.errors.grades ? 1 : ""
+    V: $data.errors.grades ? 1 : ""
   }) : {}, {
-    J: $data.errors.hourly_rate ? 1 : "",
-    K: common_vendor.o([common_vendor.m(($event) => $data.formData.hourly_rate = $event.detail.value, {
-      number: true
-    }), ($event) => $options.clearError("hourly_rate")]),
-    L: $data.formData.hourly_rate,
-    M: $data.errors.hourly_rate ? 1 : "",
-    N: $data.errors.hourly_rate
-  }, $data.errors.hourly_rate ? {
-    O: common_vendor.t($data.errors.hourly_rate)
-  } : {}, {
-    P: $data.errors.experience_years ? 1 : "",
-    Q: common_vendor.o([common_vendor.m(($event) => $data.formData.experience_years = $event.detail.value, {
-      number: true
-    }), ($event) => $options.clearError("experience_years")]),
-    R: $data.formData.experience_years,
-    S: $data.errors.experience_years ? 1 : "",
-    T: $data.errors.experience_years
-  }, $data.errors.experience_years ? {
-    U: common_vendor.t($data.errors.experience_years)
-  } : {}, {
-    V: $data.errors.subjects || $data.errors.grades || $data.errors.hourly_rate || $data.errors.experience_years ? 1 : "",
-    W: common_vendor.p({
-      headTitle: "教学信息"
-    }),
-    X: $data.errors.introduction ? 1 : "",
-    Y: common_vendor.o([common_vendor.m(($event) => $data.formData.introduction = $event.detail.value, {
+    W: $data.errors.introduction ? 1 : "",
+    X: common_vendor.o([common_vendor.m(($event) => $data.formData.introduction = $event.detail.value, {
       trim: true
     }), ($event) => $options.clearError("introduction")]),
-    Z: $data.formData.introduction,
-    aa: $data.errors.introduction
+    Y: $data.formData.introduction,
+    Z: $data.errors.introduction
   }, $data.errors.introduction ? {
-    ab: common_vendor.t($data.errors.introduction)
+    aa: common_vendor.t($data.errors.introduction)
   } : {}, {
-    ac: $data.errors.introduction ? 1 : "",
-    ad: common_vendor.t($options.getSchoolLabel($data.formData.school) || "请选择是否在读（可选）"),
-    ae: common_vendor.n($data.formData.school ? "" : "text-light-muted"),
-    af: $data.schoolOptions,
-    ag: common_vendor.o((...args) => $options.onSchoolChange && $options.onSchoolChange(...args)),
-    ah: common_vendor.t($options.getExperienceLabel($data.formData.experience) || ($options.isFullTimeTeacher ? "请选择专职教龄（可选）" : "请选择在读年级/资历（可选）")),
-    ai: common_vendor.n($data.formData.experience ? "" : "text-light-muted"),
-    aj: $options.filteredExperienceOptions,
-    ak: common_vendor.o((...args) => $options.onExperienceChange && $options.onExperienceChange(...args)),
-    al: common_vendor.t($data.formData.education.degree || "请选择"),
-    am: common_vendor.n($data.formData.education.degree ? "" : "text-light-muted"),
-    an: $data.degreeOptions,
-    ao: common_vendor.o((...args) => $options.onDegreeChange && $options.onDegreeChange(...args)),
-    ap: $data.formData.education.major,
-    aq: common_vendor.o(common_vendor.m(($event) => $data.formData.education.major = $event.detail.value, {
+    ab: $data.errors.introduction ? 1 : "",
+    ac: common_vendor.t($options.getSchoolLabel($data.formData.school) || "请选择"),
+    ad: $data.schoolOptions,
+    ae: common_vendor.o((...args) => $options.onSchoolChange && $options.onSchoolChange(...args)),
+    af: common_vendor.t($options.getExperienceLabel($data.formData.experience) || "请选择"),
+    ag: $options.filteredExperienceOptions,
+    ah: common_vendor.o((...args) => $options.onExperienceChange && $options.onExperienceChange(...args)),
+    ai: common_vendor.t($data.formData.education.degree || "请选择"),
+    aj: $data.degreeOptions,
+    ak: common_vendor.o((...args) => $options.onDegreeChange && $options.onDegreeChange(...args)),
+    al: $data.formData.education.major,
+    am: common_vendor.o(common_vendor.m(($event) => $data.formData.education.major = $event.detail.value, {
       trim: true
     })),
-    ar: $data.formData.education.graduation_year,
-    as: common_vendor.o(common_vendor.m(($event) => $data.formData.education.graduation_year = $event.detail.value, {
+    an: $data.formData.education.graduation_year,
+    ao: common_vendor.o(common_vendor.m(($event) => $data.formData.education.graduation_year = $event.detail.value, {
       number: true
     })),
-    at: common_vendor.p({
-      headTitle: "教育背景"
-    }),
-    av: common_vendor.f($data.tagOptions, (tag, k0, i0) => {
+    ap: common_vendor.f($data.tagOptions, (tag, k0, i0) => {
       return {
         a: common_vendor.t(tag.label),
         b: tag.value,
-        c: common_vendor.n($data.formData.tags.includes(tag.value) ? "tag-selected" : "tag-default"),
+        c: $data.formData.tags.includes(tag.value) ? 1 : "",
         d: common_vendor.o(($event) => $options.toggleTag(tag.value), tag.value)
       };
     }),
-    aw: common_vendor.p({
-      headTitle: "附加标签"
-    }),
-    ax: common_vendor.o((...args) => $options.addTeachingArea && $options.addTeachingArea(...args)),
-    ay: $data.formData.teaching_areas.length
+    aq: common_vendor.o((...args) => $options.addTeachingArea && $options.addTeachingArea(...args)),
+    ar: $data.formData.teaching_areas.length
   }, $data.formData.teaching_areas.length ? {
-    az: common_vendor.f($data.formData.teaching_areas, (area, index, i0) => {
+    as: common_vendor.f($data.formData.teaching_areas, (area, index, i0) => {
       return common_vendor.e({
         a: common_vendor.t($options.getAreaDisplay(area) || "点击选择地址"),
         b: common_vendor.o(($event) => $options.handleChooseLocation(index), index),
@@ -1050,22 +1032,19 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
         i: index
       });
     }),
-    aA: $data.formData.teaching_areas.length > 1
+    at: $data.formData.teaching_areas.length > 1
   } : {}, {
-    aB: common_vendor.p({
-      headTitle: "教学地区"
-    }),
-    aC: common_vendor.o((...args) => $options.addQualification && $options.addQualification(...args)),
-    aD: common_vendor.f($data.verificationLinks, (link, k0, i0) => {
+    av: common_vendor.o((...args) => $options.addQualification && $options.addQualification(...args)),
+    aw: common_vendor.f($data.verificationLinks, (link, k0, i0) => {
       return {
         a: common_vendor.t(link.title),
         b: link.url,
         c: common_vendor.o(($event) => $options.openVerificationLink(link), link.url)
       };
     }),
-    aE: $data.formData.qualifications.length
+    ax: $data.formData.qualifications.length
   }, $data.formData.qualifications.length ? {
-    aF: common_vendor.f($data.formData.qualifications, (q, index, i0) => {
+    ay: common_vendor.f($data.formData.qualifications, (q, index, i0) => {
       return common_vendor.e({
         a: q.name,
         b: common_vendor.o(common_vendor.m(($event) => q.name = $event.detail.value, {
@@ -1089,16 +1068,16 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       });
     })
   } : {}, {
-    aG: $data.errors.qualifications
+    az: $data.errors.qualifications
   }, $data.errors.qualifications ? {
-    aH: common_vendor.t($data.errors.qualifications)
+    aA: common_vendor.t($data.errors.qualifications)
   } : {}, {
-    aI: $data.errors.qualifications ? 1 : "",
-    aJ: common_vendor.t($data.adminWechat),
-    aK: common_vendor.o((...args) => $options.copyAdminWechat && $options.copyAdminWechat(...args)),
-    aL: $data.scrollIntoView,
-    aM: $data.saving,
-    aN: common_vendor.o((...args) => $options.saveProfile && $options.saveProfile(...args))
+    aB: $data.errors.qualifications ? 1 : "",
+    aC: common_vendor.t($data.adminWechat),
+    aD: common_vendor.o((...args) => $options.copyAdminWechat && $options.copyAdminWechat(...args)),
+    aE: $data.scrollIntoView,
+    aF: $data.saving,
+    aG: common_vendor.o((...args) => $options.saveProfile && $options.saveProfile(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-1a0f7470"]]);

@@ -1,0 +1,101 @@
+{
+  "bsonType": "object",
+  "description": "优惠活动配置（首次注册送券、登录送券、邀请送券等）",
+  "permission": {
+    "read": "'admin' in auth.role || 'auditor' in auth.role || 'READ_COUPONS' in auth.permission",
+    "create": "'admin' in auth.role || 'auditor' in auth.role || 'CREATE_COUPONS' in auth.permission",
+    "update": "'admin' in auth.role || 'auditor' in auth.role || 'UPDATE_COUPONS' in auth.permission",
+    "delete": "'admin' in auth.role || 'DELETE_COUPONS' in auth.permission"
+  },
+  "properties": {
+    "name": {
+      "bsonType": "string",
+      "description": "活动名称",
+      "title": "活动名称",
+      "trim": "both"
+    },
+    "type": {
+      "bsonType": "string",
+      "enum": [
+        "register_reward",
+        "login_reward",
+        "invite_reward",
+        "flash_sale"
+      ],
+      "description": "活动类型：register_reward=首次注册送券，login_reward=登录送券，invite_reward=邀请送券，flash_sale=限时抢券",
+      "title": "活动类型"
+    },
+    "coupon_id": {
+      "bsonType": "string",
+      "description": "关联优惠券模板ID（coupons._id）",
+      "title": "优惠券模板",
+      "foreignKey": "coupons._id"
+    },
+    "target_role": {
+      "bsonType": "string",
+      "enum": [
+        "parent",
+        "teacher",
+        "all"
+      ],
+      "description": "参与角色",
+      "title": "参与角色",
+      "defaultValue": "parent"
+    },
+    "status": {
+      "bsonType": "string",
+      "enum": [
+        "active",
+        "inactive"
+      ],
+      "description": "状态：active=启用，inactive=停用",
+      "title": "状态",
+      "defaultValue": "active"
+    },
+    "start_time": {
+      "bsonType": "timestamp",
+      "description": "活动开始时间（空或 0 表示立即生效）",
+      "title": "开始时间"
+    },
+    "end_time": {
+      "bsonType": "timestamp",
+      "description": "活动结束时间（空或 0 表示长期有效）",
+      "title": "结束时间"
+    },
+    "total_stock": {
+      "bsonType": "int",
+      "description": "活动总发放量，-1 表示不限",
+      "title": "总数量",
+      "defaultValue": -1
+    },
+    "per_user_limit": {
+      "bsonType": "int",
+      "description": "每人限领次数，0 表示不限，1 表示每人一次",
+      "title": "每人限领",
+      "defaultValue": 1
+    },
+    "remark": {
+      "bsonType": "string",
+      "description": "活动说明（运营内部查看）",
+      "title": "活动说明",
+      "trim": "both"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "创建时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    },
+    "update_time": {
+      "bsonType": "timestamp",
+      "description": "最后更新时间"
+    }
+  },
+  "required": [
+    "name",
+    "type",
+    "coupon_id",
+    "status"
+  ]
+}

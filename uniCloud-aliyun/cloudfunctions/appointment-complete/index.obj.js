@@ -15,6 +15,7 @@
  */
 
 const { resolveAppointmentAttendance } = require('./appointment-attendance-resolver.js')
+const { notifyAppointmentPeers } = require('notify-push')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -194,7 +195,9 @@ async function settleTeacherIncome(teacherId, income = 0, meta = {}) {
       settled: false,
       duplicate: false,
       auto_transferred: false,
-      fail_reason: (res && res.message) || '微信打款失败'
+      fail_reason: (res && res.data && res.data.fail_reason) || (res && res.message) || '微信打款失败',
+      fail_reason_public: (res && res.data && res.data.fail_reason_public) || (res && res.message) || '待商家审核',
+      merchant_fund_short: !!(res && res.data && res.data.merchant_fund_short)
     }
   } catch (e) {
     console.error('[结算] 微信打款异常（不再入钱包）:', e)
@@ -243,6 +246,37 @@ async function ensureTeacherWallet(teacherId) {
 }
 
 /**
+ * 收入流水说明：用家长姓名，不用预约 ID
+ */
+async function resolveParentIncomeDescription(db, appointmentId, courseType) {
+  const courseLabel = courseType === 'trial' ? '试课' : '课程'
+  const fallback = `${courseLabel}完成收入结算`
+  if (!appointmentId) return fallback
+  try {
+    const aptDoc = await db.collection('appointments')
+      .doc(appointmentId)
+      .field({ parent_id: true, course_type: true })
+      .get()
+    const apt = aptDoc.data && aptDoc.data[0]
+    if (!apt || !apt.parent_id) return fallback
+    const userDoc = await db.collection('uni-id-users')
+      .doc(apt.parent_id)
+      .field({ nickname: true, username: true, parent_info: true })
+      .get()
+    const user = userDoc.data && userDoc.data[0]
+    const parentInfo = (user && user.parent_info) || {}
+    const parentName = String(
+      parentInfo.real_name || (user && (user.nickname || user.username)) || ''
+    ).trim()
+    if (!parentName || parentName === '家长' || parentName === '用户') return fallback
+    const label = (courseType || apt.course_type) === 'trial' ? '试课' : '课程'
+    return `家长 ${parentName.slice(0, 20)} · ${label}`
+  } catch (e) {
+    return fallback
+  }
+}
+
+/**
  * 更新教师钱包余额，并记录一条交易流水
  * @param {String} teacherId 教师ID
  * @param {Number} income 收入金额
@@ -263,6 +297,11 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
   const depositNum = Number(depositAmount) || 0
   
   let incomeRounded = 0
+  const incomeDescription = await resolveParentIncomeDescription(
+    db,
+    meta.appointment_id,
+    meta.course_type
+  )
 
   if (meta.appointment_id && incomeNum > 0) {
     const existingTransactionDoc = await transactionCollection
@@ -277,9 +316,7 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
       const existingTransaction = existingTransactionDoc.data[0]
       await transactionCollection.doc(existingTransaction._id).update({
         title: meta.course_type === 'trial' ? '试课收入' : '课程收入',
-        description: meta.appointment_id
-          ? `预约 ${meta.appointment_id} 完成，收入结算`
-          : '课程完成收入结算',
+        description: incomeDescription,
         amount: roundCurrency(incomeNum),
         status: 'completed',
         source: meta.source || 'appointment_complete',
@@ -326,9 +363,7 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
         teacher_id: teacherId,
         type: 'income',
         title: meta.course_type === 'trial' ? '试课收入' : '课程收入',
-        description: meta.appointment_id
-          ? `预约 ${meta.appointment_id} 完成，收入结算`
-          : '课程完成收入结算',
+        description: incomeDescription,
         amount: incomeRounded,
         status: 'completed',
         appointment_id: meta.appointment_id || null,
@@ -356,9 +391,9 @@ async function updateTeacherWallet(teacherId, income = 0, depositAmount = 0, met
         teacher_id: teacherId,
         type: 'refund',
         title: '信息费退还',
-        description: meta.appointment_id
-          ? `预约 ${meta.appointment_id} 试课未成功，信息费已退回`
-          : '信息费退还',
+        description: incomeDescription.includes('家长')
+          ? `${incomeDescription}，信息费已退回`
+          : (meta.appointment_id ? '试课未成功，信息费已退回' : '信息费退还'),
         amount: depositRounded,
         status: 'completed',
         appointment_id: meta.appointment_id || null,
@@ -661,6 +696,18 @@ module.exports = {
         totalStudents,
         paidWechat
       })
+
+      try {
+        await notifyAppointmentPeers(appointment, {
+          status: 'completed',
+          title: '试课已完成',
+          content: '家长已确认试课成功，收益已结算',
+          extra: { action: 'trial_success' },
+          excludeUserId: appointment.parent_id
+        })
+      } catch (pushErr) {
+        console.warn('[confirmTrialSuccess] push 失败:', pushErr)
+      }
       
       return success({
         appointment_id,
@@ -842,6 +889,18 @@ module.exports = {
           update_time: Date.now()
         })
 
+      try {
+        await notifyAppointmentPeers(appointment, {
+          status: 'completed',
+          title: '试课结果已确认',
+          content: '家长已确认试课不满意，费用已按规则结算',
+          extra: { action: 'trial_fail' },
+          excludeUserId: appointment.parent_id
+        })
+      } catch (pushErr) {
+        console.warn('[confirmTrialFail] push 失败:', pushErr)
+      }
+
       return success({
         appointment_id,
         status: 'completed',
@@ -1022,6 +1081,18 @@ module.exports = {
         platformFee: settlement.platformFee,
         teacherIncome: settlement.teacherIncome
       })
+
+      try {
+        await notifyAppointmentPeers(appointment, {
+          status: 'completed',
+          title: '课程已完成',
+          content: '家长已确认课程完成，收益已结算',
+          extra: { action: 'course_complete' },
+          excludeUserId: appointment.parent_id
+        })
+      } catch (pushErr) {
+        console.warn('[completeCourse] push 失败:', pushErr)
+      }
       
       return success({
         appointment_id,

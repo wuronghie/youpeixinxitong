@@ -28,79 +28,77 @@
 <template>
 	<view class="teacher-list-page">
 		<view class="teacher-list-top">
-		<!-- 搜索头部：位置栏、搜索框和搜索按钮 -->
-		<view class="main-bg-color py-3 px-3 search-header">
-			<view class="d-flex a-center bg-white rounded" style="padding: 20rpx;">
-				<!-- 位置栏 -->
-				<LocationBar />
-				<!-- 搜索框 -->
-				<view class="flex-1 d-flex a-center ml-2">
-					<view class="iconfont icon-sousuo mr-2" style="color: #999;"></view>
-					<input
-						class="flex-1 font"
-						v-model.trim="searchKeyword"
-						placeholder="输入教师姓名、科目"
-						confirm-type="search"
-						@confirm="handleSearch"
-						placeholder-class="text-light-muted"
-					/>
+			<view class="search-header">
+				<view class="search-bar">
+					<LocationBar />
+					<view class="search-field">
+						<view class="iconfont icon-sousuo search-icon"></view>
+						<input
+							class="search-input"
+							v-model.trim="searchKeyword"
+							placeholder="输入教师姓名、科目"
+							confirm-type="search"
+							@confirm="handleSearch"
+							placeholder-class="search-placeholder"
+						/>
+					</view>
+					<text class="search-action" @click="handleSearch">搜索</text>
 				</view>
-				<view class="main-text-color font-md" @click="handleSearch">搜索</view>
 			</view>
-		</view>
 
-		<!-- 顶部筛选栏：两行展示，避免左右滑动 -->
-		<view class="filter-tabs">
-			<view
-				class="filter-tab"
-				:class="{ active: isAllActive }"
-				@click="resetAllFilters"
-			>
-				<text>全部</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'subject' || !!selectedSubject }"
-				@click="toggleDropdown('subject')"
-			>
-				<text>{{ subjectTabText }}</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'grade' || !!selectedGrade }"
-				@click="toggleDropdown('grade')"
-			>
-				<text>{{ gradeTabText }}</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'school' || !!selectedSchool }"
-				@click="toggleDropdown('school')"
-			>
-				<text>{{ schoolTabText }}</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'experience' || !!selectedExperience }"
-				@click="toggleDropdown('experience')"
-			>
-				<text>{{ experienceTabText }}</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'price' || !!selectedPrice }"
-				@click="toggleDropdown('price')"
-			>
-				<text>{{ priceTabText }}</text>
-			</view>
-			<view
-				class="filter-tab"
-				:class="{ active: activeDropdown === 'sort' || selectedSort !== 'rating' }"
-				@click="toggleDropdown('sort')"
-			>
-				<text>{{ sortTabText }}</text>
-			</view>
-		</view>
+			<scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
+				<view class="filter-row">
+					<view
+						class="filter-chip"
+						:class="{ on: isAllActive }"
+						@click="resetAllFilters"
+					>
+						<text>全部</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'subject' || !!selectedSubject }"
+						@click="toggleDropdown('subject')"
+					>
+						<text>{{ subjectTabText }}</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'grade' || !!selectedGrade }"
+						@click="toggleDropdown('grade')"
+					>
+						<text>{{ gradeTabText }}</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'school' || !!selectedSchool }"
+						@click="toggleDropdown('school')"
+					>
+						<text>{{ schoolTabText }}</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'experience' || !!selectedExperience }"
+						@click="toggleDropdown('experience')"
+					>
+						<text>{{ experienceTabText }}</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'price' || !!selectedPrice }"
+						@click="toggleDropdown('price')"
+					>
+						<text>{{ priceTabText }}</text>
+					</view>
+					<view
+						class="filter-chip"
+						:class="{ on: activeDropdown === 'sort' || selectedSort !== 'rating' }"
+						@click="toggleDropdown('sort')"
+					>
+						<text>{{ sortTabText }}</text>
+					</view>
+				</view>
+			</scroll-view>
 		</view>
 
 		<!-- 下拉筛选面板 -->
@@ -193,15 +191,17 @@
 			@scrolltolower="loadMore"
 			class="list-scroll-single"
 		>
-			<view class="px-2 py-3">
-				<view v-if="isLoading && !teacherList.length" class="d-flex flex-column">
-					<view v-for="n in 4" :key="n" class="card teacher-card mb-3">
-						<view class="d-flex a-center p-3">
-							<view class="bg-light-secondary rounded" style="width: 130rpx;height: 130rpx;"></view>
-							<view class="ml-3 flex-1">
-								<view class="bg-light-secondary rounded mb-2" style="width: 200rpx;height: 30rpx;"></view>
-								<view class="bg-light-secondary rounded mb-2" style="width: 150rpx;height: 24rpx;"></view>
-								<view class="bg-light-secondary rounded" style="width: 180rpx;height: 24rpx;"></view>
+			<view class="list-body">
+				<view v-if="isLoading && !teacherList.length" class="list-stack">
+					<view v-for="n in 4" :key="n" class="teacher-card">
+						<view class="card-inner">
+							<view class="card-top">
+								<view class="avatar-skel"></view>
+								<view class="skel-lines">
+									<view class="skel-line w-200"></view>
+									<view class="skel-line w-150"></view>
+									<view class="skel-line w-180"></view>
+								</view>
 							</view>
 						</view>
 					</view>
@@ -211,98 +211,95 @@
 					<view
 						v-for="teacher in teacherList"
 						:key="teacher._id"
-						class="card teacher-card mb-3"
+						class="teacher-card"
 						hover-class="teacher-card-hover"
 						hover-stay-time="60"
 						@click="goToDetail(teacher)"
 					>
-						<view class="p-3 position-relative">
-							<!-- 收藏按钮 -->
+						<view class="card-inner">
 							<view
-							class="favorite-btn"
+								class="favorite-btn"
 								@click.stop="toggleFavorite(teacher)"
 							>
-							<image 
-								class="favorite-icon"
-								:src="teacher.is_favorited ? favoriteFilledUrl : favoriteEmptyUrl"
-								mode="aspectFit"
-							/>
-							</view>
-							
-							<!-- 头部：头像和基本信息 -->
-							<view class="d-flex a-center mb-3">
-								<image 
-									class="rounded-circle" 
-									:src="teacher.avatar || defaultAvatarUrl" 
-									mode="aspectFill"
-									style="width: 120rpx;height: 120rpx;border: 2rpx solid #f0f0f0;"
+								<image
+									class="favorite-icon"
+									:src="teacher.is_favorited ? favoriteFilledUrl : favoriteEmptyUrl"
+									mode="aspectFit"
 								/>
-								<view class="ml-3 flex-1">
-									<view class="d-flex a-center mb-1">
-										<text class="font-lg font-weight">{{ teacher.display_name || teacher.name || '教师' }}</text>
-										<text v-if="teacherGenderText(teacher.gender)" class="ml-2 teacher-gender-chip" :class="teacherGenderClass(teacher.gender)">{{ teacherGenderText(teacher.gender) }}</text>
-										<text v-if="teacher.is_verified" class="ml-2 stat-tag rounded px-2 py-1 font-xs text-white">认证</text>
+							</view>
+
+							<view class="card-top">
+								<image
+									class="avatar"
+									:src="teacher.avatar || defaultAvatarUrl"
+									mode="aspectFill"
+								/>
+								<view class="card-info">
+									<view class="name-row">
+										<text class="teacher-name">{{ teacher.display_name || teacher.name || '教师' }}</text>
+										<text
+											v-if="teacherGenderText(teacher.gender)"
+											class="teacher-gender-chip"
+											:class="teacherGenderClass(teacher.gender)"
+										>{{ teacherGenderText(teacher.gender) }}</text>
+										<text v-if="teacher.is_verified" class="verify-chip">认证</text>
 									</view>
-									<text class="font-sm text-light-muted d-block mb-1">
-										{{ getSchoolAndExperience(teacher) }}
-									</text>
-									<view class="d-flex a-center flex-wrap">
-										<text class="text-warning font-sm mr-1">⭐</text>
-										<text v-if="hasReviewStats(teacher)" class="font-sm text-danger font-weight mr-2">{{ getPositiveRate(teacher) }}%好评</text>
-										<text v-else class="font-sm text-light-muted mr-2">暂无评价</text>
-										<text v-if="teacher.trial_count > 0" class="font-sm text-light-muted mr-2">试课{{ teacher.trial_count }}次</text>
-										<text v-if="(teacher.trial_success_count || 0) > 0" class="font-sm text-success mr-2">试课成功{{ teacher.trial_success_count }}次</text>
-										<text v-if="teacher.trial_success_rate > 0" class="font-sm text-success">成功率{{ formatPercent(teacher.trial_success_rate) }}</text>
+									<text class="meta-line">{{ getSchoolAndExperience(teacher) }}</text>
+									<view class="stat-line">
+										<text v-if="hasReviewStats(teacher)" class="rate-text">{{ getPositiveRate(teacher) }}%好评</text>
+										<text v-else class="muted-text">暂无评价</text>
+										<text v-if="teacher.trial_success_rate > 0" class="ok-text">成功率{{ formatPercent(teacher.trial_success_rate) }}</text>
 									</view>
-									<view v-if="getTeacherAddress(teacher)" class="d-flex a-center flex-wrap mt-1">
-										<text class="font-xs text-light-muted">📍 {{ getTeacherAddress(teacher) }}</text>
-										<text v-if="getTeacherDistance(teacher) != null" class="font-xs text-light-muted ml-2">约 {{ getTeacherDistance(teacher) }} km</text>
+									<view class="trial-line">
+										<text class="trial-text">试课{{ teacher.trial_count || 0 }}次</text>
+										<text class="trial-text ok-text">试课成功{{ teacher.trial_success_count || 0 }}次</text>
+									</view>
+									<view v-if="getTeacherAddress(teacher)" class="addr-line">
+										<text class="muted-text">{{ getTeacherAddress(teacher) }}</text>
+										<text v-if="getTeacherDistance(teacher) != null" class="muted-text">约 {{ getTeacherDistance(teacher) }} km</text>
 									</view>
 								</view>
 							</view>
-							
-							<!-- 擅长和可辅导 -->
-							<view class="mb-2">
-								<text v-if="(teacher.subjects || []).length" class="font-sm text-light-muted">
+
+							<view v-if="(teacher.subjects || []).length || (teacher.grades || []).length" class="scope-line">
+								<text v-if="(teacher.subjects || []).length" class="muted-text">
 									擅长: {{ (teacher.subjects || []).slice(0, 2).join('、') }}
 									<text v-if="(teacher.subjects || []).length > 2">等{{ teacher.subjects.length }}科</text>
 								</text>
-								<text v-if="(teacher.grades || []).length" class="font-sm text-light-muted ml-2">
+								<text v-if="(teacher.grades || []).length" class="muted-text">
 									可辅导: {{ formatGrades(teacher.grades) }}
 								</text>
 							</view>
-							
-							<!-- 科目标签 -->
-							<view v-if="(teacher.subjects || []).length" class="d-flex a-center flex-wrap mb-2">
-								<text 
-									v-for="(subject, index) in (teacher.subjects || []).slice(0, 4)" 
-									:key="subject" 
-									class="rounded px-2 py-1 font-xs mr-2 mb-1"
-									:style="getTagStyle(index)"
+
+							<view v-if="(teacher.subjects || []).length" class="tag-row">
+								<text
+									v-for="subject in (teacher.subjects || []).slice(0, 4)"
+									:key="subject"
+									class="subject-chip"
 								>
 									{{ subject }}
 								</text>
+								<text v-if="getTeachingMethod(teacher)" class="method-chip">{{ getTeachingMethod(teacher) }}</text>
 							</view>
-							
-							<!-- 价格和服务方式 -->
-							<view class="d-flex a-center j-sb pt-2 border-top">
-								<view class="flex-1">
-									<text class="text-danger font-md font-weight">¥{{ teacher.hourly_rate || 100 }}/小时</text>
-									<text v-if="getTeachingMethod(teacher)" class="font-xs text-light-muted ml-2">{{ getTeachingMethod(teacher) }}</text>
+
+							<view class="card-foot">
+								<view class="price-wrap">
+									<text class="price">¥{{ teacher.hourly_rate || 100 }}</text>
+									<text class="price-unit">/小时</text>
 								</view>
-								<text v-if="getSpecialty(teacher)" class="font-xs text-light-muted">{{ getSpecialty(teacher) }}</text>
+								<text v-if="getSpecialty(teacher)" class="specialty">{{ getSpecialty(teacher) }}</text>
 							</view>
 						</view>
 					</view>
 
-					<view v-if="!teacherList.length && !isLoading" class="d-flex flex-column a-center j-center py-5">
-						<text class="iconfont icon-sousuo" style="font-size: 120rpx;color: #ddd;"></text>
-						<text class="text-light-muted font-md mt-3">暂未找到合适的教师</text>
-						<text class="text-light-muted font-sm mt-2">尝试切换筛选条件或稍后再试</text>
+					<view v-if="!teacherList.length && !isLoading" class="empty-box">
+						<text class="iconfont icon-sousuo empty-icon"></text>
+						<text class="empty-title">暂未找到合适的教师</text>
+						<text class="empty-desc">尝试切换筛选条件或稍后再试</text>
 					</view>
 
-					<view v-if="isLoading && teacherList.length" class="text-center text-light-muted font py-3">加载中...</view>
-					<view v-else-if="!hasMore && teacherList.length" class="text-center text-light-muted font py-3">没有更多了</view>
+					<view v-if="isLoading && teacherList.length" class="list-end">加载中...</view>
+					<view v-else-if="!hasMore && teacherList.length" class="list-end">没有更多了</view>
 				</view>
 			</view>
 			</scroll-view>
@@ -1034,7 +1031,7 @@ export default {
 			const params = [`id=${profileId}`]
 			if (teacherUid) params.push(`teacherUid=${teacherUid}`)
 			uni.navigateTo({
-				url: `/pages/teacher/detail?${params.join('&')}`,
+				url: `/pages-biz/teacher/detail?${params.join('&')}`,
 				success: () => {
 					this._navigatingDetail = false
 				},
@@ -1262,68 +1259,102 @@ export default {
 	height: 100vh;
 	display: flex;
 	flex-direction: column;
-	background: #f5f5f5;
+	background: #F4F6F9;
 	overflow: hidden;
 }
 
 .teacher-list-top {
 	flex-shrink: 0;
-	background: #f5f5f5;
+	background: #F4F6F9;
 	z-index: 20;
 }
 
 .search-header {
 	flex-shrink: 0;
+	padding: 20rpx 24rpx;
+	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
 }
 
-/* 顶部筛选栏（全部 / 科目 / 年级 / 排序） */
-.filter-tabs {
+.search-bar {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	padding: 10rpx 12rpx;
-	margin: 0 24rpx 10rpx;
-	background-color: #FFFFFF;
-	border-radius: 20rpx;
-	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.04);
-	overflow: hidden;
+	padding: 16rpx 20rpx;
+	background: #FFFFFF;
+	border-radius: 16rpx;
 }
 
-.filter-tab {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.search-field {
 	flex: 1;
 	min-width: 0;
-	min-height: 56rpx;
-	font-size: 23rpx;
-	color: #666666;
-	padding: 0 6rpx;
-	position: relative;
-	border-radius: 12rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: hidden;
+	display: flex;
+	align-items: center;
+	margin-left: 12rpx;
 }
 
-.filter-tab + .filter-tab {
-	border-left: 1rpx solid #F5F5F5;
+.search-icon {
+	color: #999999;
+	font-size: 28rpx;
+	margin-right: 12rpx;
 }
 
-.filter-tab text {
-	display: block;
-	max-width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.search-input {
+	flex: 1;
+	font-size: 28rpx;
+	color: #1F2329;
+	height: 56rpx;
+}
+
+.search-placeholder {
+	color: #8B919C;
+}
+
+.search-action {
+	flex-shrink: 0;
+	font-size: 28rpx;
+	color: #4A90E2;
+	padding-left: 16rpx;
+}
+
+.filter-scroll {
+	width: 100%;
 	white-space: nowrap;
 }
 
-.filter-tab.active {
-	color: #F8A100;
+.filter-row {
+	display: inline-flex;
+	align-items: center;
+	padding: 8rpx 32rpx 20rpx;
+}
+
+.filter-chip {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 24rpx;
+	margin-right: 16rpx;
+	border-radius: 999rpx;
+	background: #F4F6F9;
+	border: 2rpx solid transparent;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.filter-chip text {
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1;
+}
+
+.filter-chip.on {
+	background: #EEF3FF;
+	border-color: transparent;
+}
+
+.filter-chip.on text {
+	color: #2563EB;
 	font-weight: 600;
 }
 
-/* 下拉筛选面板 */
 .dropdown-mask {
 	position: fixed;
 	left: 0;
@@ -1336,26 +1367,19 @@ export default {
 
 .dropdown-panel {
 	background-color: #FFFFFF;
-	border-radius: 0 0 20rpx 20rpx;
+	border-radius: 0 0 24rpx 24rpx;
 	padding: 10rpx 0;
-	box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.08);
 }
 
 .dropdown-list {
 	padding: 10rpx 20rpx 20rpx;
 }
 
-.dropdown-section-title {
-	font-size: 22rpx;
-	color: #999999;
-	padding: 16rpx 4rpx 8rpx;
-}
-
 .dropdown-item {
-	padding: 18rpx 10rpx;
-	font-size: 26rpx;
-	color: #333333;
-	border-bottom: 1rpx solid #F5F5F5;
+	padding: 24rpx 10rpx;
+	font-size: 28rpx;
+	color: #1F2329;
+	border-bottom: 1rpx solid #F3F4F6;
 }
 
 .dropdown-item:last-child {
@@ -1363,23 +1387,42 @@ export default {
 }
 
 .dropdown-item.active {
-	color: #F8A100;
+	color: #2563EB;
 	font-weight: 600;
 }
 
-/* 单列教师列表滚动区域 */
 .list-scroll-single {
 	flex: 1;
 	min-height: 0;
-	background: #F5F5F5;
+	background: #F4F6F9;
 	padding-bottom: 140rpx;
 }
 
-.tabbar-spacer {
-	height: 0;
+.list-body {
+	padding: 24rpx 32rpx;
 }
 
-/* 收藏按钮 */
+.list-stack {
+	display: flex;
+	flex-direction: column;
+}
+
+.teacher-card {
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	margin-bottom: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.teacher-card-hover {
+	opacity: 0.96;
+}
+
+.card-inner {
+	position: relative;
+	padding: 28rpx;
+}
+
 .favorite-btn {
 	position: absolute;
 	top: 20rpx;
@@ -1392,45 +1435,212 @@ export default {
 	justify-content: center;
 }
 
-.favorite-btn .favorite-icon {
+.favorite-icon {
 	width: 44rpx;
 	height: 44rpx;
-	transition: transform 0.2s ease;
 }
 
-.favorite-btn:active .favorite-icon {
-	transform: scale(0.9);
+.card-top {
+	display: flex;
+	align-items: flex-start;
 }
 
-/* 教师卡片动效与阴影 */
-.teacher-card {
-	border-radius: 24rpx;
-	overflow: hidden;
-	transform: translateY(0);
-	box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.04);
-	transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+.avatar,
+.avatar-skel {
+	width: 112rpx;
+	height: 112rpx;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: #EEF0F4;
 }
 
-.teacher-card-hover {
-	transform: translateY(-4rpx);
-	box-shadow: 0 18rpx 40rpx rgba(0, 0, 0, 0.14);
+.card-info,
+.skel-lines {
+	flex: 1;
+	min-width: 0;
+	margin-left: 24rpx;
+	padding-right: 48rpx;
+}
+
+.name-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.teacher-name {
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.35;
+}
+
+.verify-chip {
+	margin-left: 12rpx;
+	padding: 2rpx 12rpx;
+	border-radius: 8rpx;
+	background: #E8F8EF;
+	color: #07C160;
+	font-size: 20rpx;
+	font-weight: 600;
 }
 
 .teacher-gender-chip {
-	padding: 4rpx 14rpx;
-	border-radius: 999rpx;
+	margin-left: 12rpx;
+	padding: 2rpx 12rpx;
+	border-radius: 8rpx;
 	font-size: 20rpx;
-	line-height: 1.4;
 	font-weight: 600;
 }
 
 .teacher-gender-chip.male {
-	color: #1677ff;
-	background: #e6f4ff;
+	color: #2563EB;
+	background: #EEF3FF;
 }
 
 .teacher-gender-chip.female {
-	color: #eb2f96;
-	background: #fff0f6;
+	color: #DB2777;
+	background: #FDF2F8;
+}
+
+.meta-line {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.stat-line,
+.trial-line,
+.addr-line,
+.scope-line,
+.tag-row {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-top: 8rpx;
+}
+
+.trial-text {
+	font-size: 24rpx;
+	color: #5C6370;
+	margin-right: 16rpx;
+}
+
+.rate-text {
+	font-size: 24rpx;
+	font-weight: 600;
+	color: #FA5151;
+	margin-right: 16rpx;
+}
+
+.muted-text {
+	font-size: 24rpx;
+	color: #8B919C;
+	margin-right: 16rpx;
+}
+
+.ok-text {
+	font-size: 24rpx;
+	color: #07C160;
+	margin-right: 16rpx;
+}
+
+.subject-chip,
+.method-chip {
+	height: 44rpx;
+	padding: 0 16rpx;
+	margin: 0 12rpx 8rpx 0;
+	border-radius: 12rpx;
+	font-size: 22rpx;
+	line-height: 44rpx;
+}
+
+.subject-chip {
+	background: #EEF3FF;
+	color: #2563EB;
+}
+
+.method-chip {
+	background: #F1F2F4;
+	color: #5C6370;
+}
+
+.card-foot {
+	margin-top: 16rpx;
+	padding-top: 20rpx;
+	border-top: 1rpx solid #EBEDF0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.price-wrap {
+	display: flex;
+	align-items: baseline;
+}
+
+.price {
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #FA5151;
+	line-height: 1.2;
+}
+
+.price-unit {
+	margin-left: 4rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.specialty {
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.skel-line {
+	height: 24rpx;
+	border-radius: 8rpx;
+	background: #EEF0F4;
+	margin-bottom: 16rpx;
+}
+
+.w-200 { width: 200rpx; }
+.w-150 { width: 150rpx; }
+.w-180 { width: 180rpx; }
+
+.empty-box {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 80rpx 0;
+}
+
+.empty-icon {
+	font-size: 80rpx;
+	color: #D5D8DE;
+}
+
+.empty-title {
+	margin-top: 20rpx;
+	font-size: 30rpx;
+	color: #5C6370;
+}
+
+.empty-desc {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.list-end {
+	text-align: center;
+	font-size: 24rpx;
+	color: #8B919C;
+	padding: 16rpx 0 8rpx;
+}
+
+.tabbar-spacer {
+	height: 0;
 }
 </style>

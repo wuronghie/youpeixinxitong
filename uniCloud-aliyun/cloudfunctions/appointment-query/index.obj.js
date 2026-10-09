@@ -10,6 +10,10 @@ const {
   applyNormalizedAttendance,
   normalizeTimestamp
 } = require('./appointment-attendance-resolver.js')
+const {
+  resolvePairDepositPaid,
+  markListDepositFromPairs
+} = require('./resolve-pair-deposit.js')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -66,6 +70,7 @@ async function enrichAppointmentDetail(db, appointment) {
   }
 
   await resolveAppointmentAttendance(db, appointment, { persistHeal: true })
+  await resolvePairDepositPaid(db, appointment, { persistHeal: true })
   return appointment
 }
 
@@ -965,7 +970,9 @@ module.exports = {
           })
         }
       }
-      
+
+      await markListDepositFromPairs(db, teacher_id, appointments)
+
       return success({
         list: appointments,
         pagination: {
@@ -1373,88 +1380,8 @@ module.exports = {
         return error('当前预约状态不允许确认')
       }
       
-      // 检查信息费支付状态
-      // 业务规则：同一“家长 + 老师”只需支付一次信息费，因此这里既要看当前预约，也要看该家长与老师历史记录。
-      let depositPaid = !!appointment.deposit_paid
-      
-      // 3.1 如果预约中没有标记为已支付，先检查当前预约绑定会话中的 teacher_deposit_paid 状态
-      if (!depositPaid) {
-        const conversationDoc = await db.collection('chat-conversations')
-          .where({ appointment_id: appointment_id })
-          .limit(1)
-          .get()
-        
-        if (conversationDoc.data && conversationDoc.data.length > 0) {
-          depositPaid = !!conversationDoc.data[0].teacher_deposit_paid
-        }
-      }
-      
-      // 3.2 如果当前预约未标记为已支付，再按“家长 + 老师”维度检查任意会话是否已支付信息费
-      if (!depositPaid) {
-        const pairConvDoc = await db.collection('chat-conversations')
-          .where({
-            parent_id: appointment.parent_id,
-            teacher_id: appointment.teacher_id,
-            teacher_deposit_paid: true
-          })
-          .limit(1)
-          .get()
-        
-        if (pairConvDoc.data && pairConvDoc.data.length > 0) {
-          depositPaid = true
-        }
-      }
-      
-      // 3.3 如果会话中也没有，检查是否有已支付的信息费订单
-      //      先看当前预约的信息费订单，如果没有，再看该老师为该家长其它预约支付的信息费订单
-      if (!depositPaid) {
-        const dbCmd = db.command
-        
-        // 当前预约的信息费订单
-        const currentDepositOrderDoc = await db.collection('payment-orders')
-          .where({
-            appointment_id: appointment_id,
-            order_type: 'deposit',
-            payer_id: teacher_id,
-            status: dbCmd.in(['paid', 'success'])
-          })
-          .limit(1)
-          .get()
-        
-        if (currentDepositOrderDoc.data && currentDepositOrderDoc.data.length > 0) {
-          depositPaid = true
-        } else {
-          // 查找该老师已支付的所有信息费订单，再过滤出属于当前家长的任意预约
-          const existingDepositOrders = await db.collection('payment-orders')
-            .where({
-              order_type: 'deposit',
-              payer_id: teacher_id,
-              status: dbCmd.in(['paid', 'success'])
-            })
-            .get()
-          
-          if (existingDepositOrders.data && existingDepositOrders.data.length > 0) {
-            const appointmentIds = existingDepositOrders.data
-              .map(order => order.appointment_id)
-              .filter(Boolean)
-            
-            if (appointmentIds.length > 0) {
-              const relatedAppointments = await db.collection('appointments')
-                .where({
-                  _id: dbCmd.in(appointmentIds),
-                  parent_id: appointment.parent_id
-                })
-                .limit(1)
-                .get()
-              
-              if (relatedAppointments.data && relatedAppointments.data.length > 0) {
-                depositPaid = true
-              }
-            }
-          }
-        }
-      }
-      
+      // 检查信息费支付状态：同一对家长+老师只需付一次，正式课可能记在试课单/会话上
+      const depositPaid = await resolvePairDepositPaid(db, appointment, { persistHeal: true })
       if (!depositPaid) {
         console.warn('[appointment-query][confirmAppointment] 教师尚未为该家长支付信息费，拒绝确认:', {
           appointment_id,

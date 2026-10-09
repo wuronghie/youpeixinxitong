@@ -259,6 +259,14 @@
 				"write": "'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
 			}
 		},
+		"invited_code": {
+			"bsonType": "string",
+			"description": "用户已填写的好友邀请码",
+			"permission": {
+				"read": "doc._id == auth.uid || 'READ_UNI_ID_USERS' in auth.permission || 'admin' in auth.role || 'auditor' in auth.role",
+				"write": "'CREATE_UNI_ID_USERS' in auth.permission || 'UPDATE_UNI_ID_USERS' in auth.permission"
+			}
+		},
 		"nickname": {
 			"bsonType": "string",
 			"description": "用户昵称",

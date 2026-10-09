@@ -5,6 +5,7 @@
  */
 
 const uniID = require('uni-id-common')
+const { tryIssueActivities, stampOpenidOnAccountDelete, extractWxOpenid } = require('coupon-issue')
 
 // 工具函数（内嵌）
 function success(data = null, message = 'success') {
@@ -367,69 +368,37 @@ module.exports = {
       userData.role = finalRole
       userData.status = userData.status || updateData.status || 'active'
 
-      // 登录成功后，按活动配置发放“登录送券”
+      // 登录成功后自动发券：首次注册走 register_reward；login_reward 仍按每人限领补发
+      let issuedCount = 0
+      let issuedCoupons = []
       try {
-        if (finalRole === 'parent') {
-          const activitiesCol = db.collection('coupon-activities')
-          const now = Date.now()
-          const dbCmd = db.command
-          const actRes = await activitiesCol
-            .where({
-              type: 'login_reward',
-              status: 'active',
-              target_role: dbCmd.in(['parent', 'all']),
-              start_time: dbCmd.lte(new Date(now)),
-              end_time: dbCmd.gte(new Date(now))
-            })
-            .limit(1)
-            .get()
-
-          if (actRes.data && actRes.data.length > 0) {
-            const activity = actRes.data[0]
-            const userCoupons = db.collection('user-coupons')
-
-            // 每人限领次数控制
-            let canIssue = true
-            if (activity.per_user_limit && activity.per_user_limit > 0) {
-              const takenCountRes = await userCoupons.where({
-                user_id: uid,
-                role: 'parent',
-                source: 'system',
-                activity_id: activity._id
-              }).count()
-              if (takenCountRes.total >= activity.per_user_limit) {
-                canIssue = false
-                console.log('[login_reward] 已达到每人限领次数，跳过发券:', uid)
-              }
-            }
-
-            // 总库存控制（简单计数）
-            if (canIssue && activity.total_stock && activity.total_stock > 0) {
-              const totalTakenRes = await userCoupons.where({
-                activity_id: activity._id
-              }).count()
-              if (totalTakenRes.total >= activity.total_stock) {
-                canIssue = false
-                console.log('[login_reward] 活动库存已用完，跳过发券:', activity._id)
-              }
-            }
-
-            if (canIssue) {
-              await userCoupons.add({
-                user_id: uid,
-                role: 'parent',
-                coupon_id: activity.coupon_id,
-                source: 'system',
-                status: 'unused',
-                issue_time: now,
-                activity_id: activity._id,
-                remark: `活动：${activity.name}（登录送券）`
-              })
-            }
-          }
+        const types = isFirstLogin
+          ? ['register_reward', 'login_reward']
+          : ['login_reward']
+        const issueRes = await tryIssueActivities(db, {
+          uid,
+          role: finalRole,
+          types,
+          openid,
+          sendMessage: true
+        })
+        issuedCount = (issueRes && issueRes.issued) || 0
+        issuedCoupons = ((issueRes && issueRes.details) || [])
+          .filter((item) => item && item.ok && item.coupon_name)
+          .map((item) => item.coupon_name)
+        if (issuedCount) {
+          console.log('[user-login] 自动发券成功:', {
+            uid,
+            role: finalRole,
+            isFirstLogin,
+            issued: issuedCount,
+            issuedCoupons
+          })
+        } else if (issueRes && issueRes.details && issueRes.details.length) {
+          console.warn('[user-login] 自动发券未写入:', issueRes.details)
         }
       } catch (e) {
-        console.error('[login_reward] 登录送券处理失败（忽略，不影响登录）:', e)
+        console.error('[user-login] 自动发券失败（忽略，不影响登录）:', e)
       }
       
       return success({
@@ -443,7 +412,9 @@ module.exports = {
           status: userData.status || 'active',
           phone: userData.phone || ''
         },
-        isFirstLogin
+        isFirstLogin,
+        issuedCount,
+        issuedCoupons
       }, '登录成功')
       
     } catch (e) {
@@ -595,7 +566,8 @@ module.exports = {
       const userDoc = await db.collection('uni-id-users')
         .doc(uid)
         .field({
-          role: true
+          role: true,
+          wx_openid: true
         })
         .get()
       
@@ -604,6 +576,14 @@ module.exports = {
       }
       
       const userRole = userDoc.data[0].role
+      const openid = extractWxOpenid(userDoc.data[0])
+      if (openid) {
+        try {
+          await stampOpenidOnAccountDelete(db, { uid, openid })
+        } catch (stampErr) {
+          console.warn('[user-login.deleteAccount] 回写 openid 领取记录失败:', stampErr)
+        }
+      }
       
       // 如果是教师角色，删除相关数据
       if (userRole === 'teacher') {

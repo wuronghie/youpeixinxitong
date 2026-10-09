@@ -1,129 +1,148 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 状态栏 -->
-		<view class="main-bg-color py-4 px-3 text-white text-center" :class="getStatusClass(appointment.status)">
-			<text class="font-lg font-weight d-block">{{ getStatusText(appointment.status) }}</text>
-		</view>
-
+	<view class="page">
 		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 学生 + 预约信息（拆分为 setup 子组件） -->
-				<appointment-basic-card :appointment="appointment" class="mb-3" />
+			<view class="status-card">
+				<text class="status-title">{{ getStatusText(appointment.status) }}</text>
+				<text class="status-tip">{{ statusTip }}</text>
+			</view>
 
-				<!-- 费用信息（拆分为 setup 子组件） -->
-				<appointment-fee-card
-					:appointment="appointment"
-					:info-fee-amount="infoFeeAmount"
-					class="mb-3"
-				/>
+			<appointment-basic-card :appointment="appointment" />
 
-				<view v-if="showWaitingParentPay" class="mb-3 px-3 py-3 bg-white rounded">
-					<text class="font-sm text-warning d-block">等待家长支付试课费</text>
-					<text class="font-sm text-light-muted d-block mt-1">家长完成支付后，您才可以进行上课/下课打卡。</text>
+			<appointment-fee-card
+				:appointment="appointment"
+				:info-fee-amount="infoFeeAmount"
+			/>
+
+			<view v-if="showWaitingParentPay" class="wait-card">
+				<text class="wait-title">{{ isTrialCourse ? '等待家长支付试课费' : '等待家长支付课程费' }}</text>
+				<text class="wait-desc">家长完成支付后，您才可以进行上课/下课打卡。</text>
+			</view>
+
+			<attendance-clock-card
+				v-if="showClockCard"
+				:appointment-id="appointment._id"
+				:status="appointment.status"
+				:parent-paid="isParentCoursePaid"
+				:is-trial="isTrialCourse"
+				:class-started-at="appointment.class_started_at || null"
+				:class-started-location="appointment.class_started_location || null"
+				:class-ended-at="appointment.class_ended_at || null"
+				:class-ended-location="appointment.class_ended_location || null"
+				:schedule-start-ts="scheduleStartTs"
+				:schedule-end-ts="scheduleEndTs"
+				@clocked="onClocked"
+			/>
+
+			<view v-if="refundInfo" class="refund-card">
+				<text class="refund-title">退款申请</text>
+				<view class="form-row">
+					<text class="form-label">状态</text>
+					<text class="form-value warn">{{ formatRefundStatus(refundInfo.status, refundInfo.teacher_review_status) }}</text>
 				</view>
-
-				<!-- 课堂打卡（家长已支付课程费 + 已确认/进行中） -->
-				<attendance-clock-card
-					v-if="showClockCard"
-					:appointment-id="appointment._id"
-					:status="appointment.status"
-					:parent-paid="isParentCoursePaid"
-					:class-started-at="appointment.class_started_at || null"
-					:class-started-location="appointment.class_started_location || null"
-					:class-ended-at="appointment.class_ended_at || null"
-					:class-ended-location="appointment.class_ended_location || null"
-					:schedule-start-ts="scheduleStartTs"
-					:schedule-end-ts="scheduleEndTs"
-					@clocked="onClocked"
-				/>
-
-				<!-- 退款信息 -->
-				<card v-if="refundInfo" headTitle="退款申请" class="mb-3 border-left border-warning" style="border-left-width: 6rpx;">
-					<view class="py-2 border-bottom">
-						<text class="font-sm text-warning d-block mb-2">状态：{{ formatRefundStatus(refundInfo.status, refundInfo.teacher_review_status) }}</text>
-						<text class="font-sm text-light-muted d-block mb-1">原因：{{ refundInfo.reason || '无' }}</text>
-						<text class="font-sm text-light-muted d-block mb-1">说明：{{ refundInfo.description || '无' }}</text>
-						<text class="font-sm text-light-muted d-block mb-1">退款金额：¥{{ (refundInfo.amount || 0).toFixed(2) }}</text>
-						<text class="font-sm text-light-muted d-block mb-1">申请时间：{{ formatTime(refundInfo.create_time) }}</text>
-						<text v-if="refundInfo.teacher_review_time" class="font-sm text-light-muted d-block mb-1">教师处理：{{ formatTime(refundInfo.teacher_review_time) }}</text>
-						<text v-if="refundInfo.review_time" class="font-sm text-light-muted d-block">平台审核：{{ formatTime(refundInfo.review_time) }}</text>
-					</view>
-				</card>
+				<view class="form-row">
+					<text class="form-label">原因</text>
+					<text class="form-value">{{ refundInfo.reason || '无' }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">说明</text>
+					<text class="form-value">{{ refundInfo.description || '无' }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">退款金额</text>
+					<text class="form-value">¥{{ (refundInfo.amount || 0).toFixed(2) }}</text>
+				</view>
+				<view class="form-row">
+					<text class="form-label">申请时间</text>
+					<text class="form-value">{{ formatTime(refundInfo.create_time) }}</text>
+				</view>
+				<view v-if="refundInfo.teacher_review_time" class="form-row">
+					<text class="form-label">教师处理</text>
+					<text class="form-value">{{ formatTime(refundInfo.teacher_review_time) }}</text>
+				</view>
+				<view v-if="refundInfo.review_time" class="form-row">
+					<text class="form-label">平台审核</text>
+					<text class="form-value">{{ formatTime(refundInfo.review_time) }}</text>
+				</view>
 			</view>
 		</scroll-view>
 
-		<!-- 操作按钮 -->
-		<view class="position-fixed bottom-0 left-0 right-0 bg-white border-top d-flex a-center px-3 py-3" style="z-index: 100;">
-			<button 
+		<view v-if="showActionBar" class="actionbar">
+			<button
 				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
-				class="flex-1 border border-light-muted text-light-muted rounded px-3 py-2 font-sm mr-2"
+				class="btn btn-line"
 				@click="handleReject"
 			>
 				拒绝预约
 			</button>
-			<button 
+			<button
 				v-if="(appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.deposit_paid"
-				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
+				class="btn btn-primary"
 				@click="handlePayDeposit"
 			>
 				支付信息费（¥{{ infoFeeAmount }}）
 			</button>
-			<button 
+			<button
 				v-if="!isTeacherInvitedTrial && (appointment.status === 'pending_confirm' || appointment.status === 'pending_payment') && !appointment.parent_paid"
-				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
+				class="btn btn-primary"
 				@click="handleConfirm"
 			>
 				确认预约
 			</button>
-			<button 
+			<button
 				v-if="appointment.status === 'confirmed' && (appointment.deposit_paid === true || appointment.deposit_paid === 'true')"
-				class="w-100 main-bg-color text-white rounded px-3 py-2 font-sm"
+				class="btn btn-primary"
 				@click="startChat"
 			>
 				开始聊天
 			</button>
 			<button
 				v-if="refundInfo && refundInfo.status === 'pending' && refundInfo.teacher_review_status === 'pending'"
-				class="flex-1 border border-light-muted text-light-muted rounded px-3 py-2 font-sm mr-2"
+				class="btn btn-line"
 				@click="handleRefundReview('reject')"
 			>
 				拒绝退款
 			</button>
 			<button
 				v-if="refundInfo && refundInfo.status === 'pending' && refundInfo.teacher_review_status === 'pending'"
-				class="flex-1 main-bg-color text-white rounded px-3 py-2 font-sm"
+				class="btn btn-primary"
 				@click="handleRefundReview('approve')"
 			>
 				同意退款
 			</button>
 		</view>
-		
-		<!-- uni-pay 支付组件 -->
-		<uni-pay 
-			ref="pay" 
-			height="70vh" 
+
+		<uni-pay
+			ref="pay"
+			height="70vh"
 			:to-success-page="false"
-			return-url="/pages-teacher/appointment/detail" 
-			logo="/static/logo.png" 
-			@success="onPaySuccess" 
-			@create="onPayCreate" 
+			return-url="/pages-teacher/appointment/detail"
+			logo="/static/logo.png"
+			@success="onPaySuccess"
+			@create="onPayCreate"
 			@fail="onPayFail"
 		></uni-pay>
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
-import AttendanceClockCard from '@/components/AttendanceClockCard.vue'
-import AppointmentBasicCard from '@/components/AppointmentBasicCard.vue'
-import AppointmentFeeCard from '@/components/AppointmentFeeCard.vue'
+import AttendanceClockCard from '@/pages-teacher/components/AttendanceClockCard.vue'
+import AppointmentBasicCard from '@/pages-teacher/components/AppointmentBasicCard.vue'
+import AppointmentFeeCard from '@/pages-teacher/components/AppointmentFeeCard.vue'
 import { mockAppointments, useMockData } from '@/utils/mockData.js'
-import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '@/utils/payment.js'
+import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '../utils/payment.js'
+import { createAppPushMixin } from '@/utils/appPushMixin.js'
+import { APP_PUSH_TYPES } from '@/utils/chatPush.js'
+import {
+	canShowTeacherClock,
+	isDepositPaid,
+	isParentCoursePaid as isParentCoursePaidRecord,
+	isTrialAppointment
+} from '@/pages-teacher/utils/appointmentClock.js'
 
 export default {
 	name: 'TeacherAppointmentDetail',
+	mixins: [createAppPushMixin(APP_PUSH_TYPES.APPOINTMENT_UPDATE)],
 	components: {
-		card,
 		AttendanceClockCard,
 		AppointmentBasicCard,
 		AppointmentFeeCard
@@ -178,26 +197,46 @@ export default {
 			return start + duration * 3600 * 1000
 		},
 		// 打卡卡片：信息费已付 + 家长已付课程费（或已在打卡中）；未支付时隐藏打卡入口
+		isTrialCourse() {
+			return isTrialAppointment(this.appointment || {})
+		},
 		isParentCoursePaid() {
-			const apt = this.appointment || {}
-			return apt.parent_paid === true || apt.parent_paid === 'true' || !!apt.parent_paid_from_order
+			return isParentCoursePaidRecord(this.appointment || {})
 		},
 		showClockCard() {
-			const apt = this.appointment || {}
-			if (!apt._id) return false
-			const depositOk = apt.deposit_paid === true || apt.deposit_paid === 'true'
-			if (!depositOk && !apt.class_started_at) return false
-			if (!this.isParentCoursePaid && !apt.class_started_at) return false
-			if (apt.class_started_at || apt.class_ended_at) return true
-			return ['confirmed', 'in_progress'].includes(apt.status)
+			return canShowTeacherClock(this.appointment || {})
 		},
 		showWaitingParentPay() {
 			const apt = this.appointment || {}
 			if (!apt._id || this.isParentCoursePaid) return false
 			if (apt.class_started_at || apt.class_ended_at) return false
-			const depositOk = apt.deposit_paid === true || apt.deposit_paid === 'true'
-			if (!depositOk) return false
+			if (!isDepositPaid(apt)) return false
 			return ['confirmed', 'pending_confirm', 'pending_payment', 'in_progress'].includes(apt.status)
+		},
+		statusTip() {
+			const map = {
+				pending_payment: '等待家长支付课程费用',
+				pending_confirm: '家长已提交预约，请确认或拒绝',
+				contact_request: '家长已发送联系请求',
+				confirmed: '预约已确认，可按课表打卡',
+				in_progress: '课程进行中',
+				completed: '课程已完成',
+				rejected: '已拒绝该预约',
+				cancelled: '预约已取消',
+				refunding: '退款处理中',
+				refunded: '已退款'
+			}
+			return map[this.appointment && this.appointment.status] || ''
+		},
+		showActionBar() {
+			const apt = this.appointment || {}
+			const pending = apt.status === 'pending_confirm' || apt.status === 'pending_payment'
+			if (pending && !apt.parent_paid) return true
+			if (pending && !apt.deposit_paid) return true
+			if (!this.isTeacherInvitedTrial && pending && !apt.parent_paid) return true
+			if (apt.status === 'confirmed' && (apt.deposit_paid === true || apt.deposit_paid === 'true')) return true
+			if (this.refundInfo && this.refundInfo.status === 'pending' && this.refundInfo.teacher_review_status === 'pending') return true
+			return false
 		}
 	},
 	onLoad(options) {
@@ -214,6 +253,10 @@ export default {
 	methods: {
 		async refreshData() {
 			await this.loadDetail()
+		},
+		onAppPushPayload(payload) {
+			if (payload && payload.appointment_id && this.appointmentId && payload.appointment_id !== this.appointmentId) return
+			this.loadDetail()
 		},
 		// 打卡成功后刷新详情，获取最新 class_started_at / class_ended_at
 		onClocked() {
@@ -986,9 +1029,143 @@ export default {
 </script>
 
 <style scoped>
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
+}
+
 .scroll {
+	height: 100vh;
+	padding-bottom: 180rpx;
+	box-sizing: border-box;
+}
+
+.status-card,
+.wait-card,
+.refund-card {
+	margin: 24rpx 32rpx 0;
+	padding: 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.status-card {
+	text-align: center;
+}
+
+.status-title {
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.status-tip {
+	display: block;
+	margin-top: 12rpx;
+	font-size: 26rpx;
+	color: #5C6370;
+	line-height: 1.5;
+}
+
+.wait-card {
+	background: #FFF7ED;
+}
+
+.wait-title {
+	display: block;
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.wait-desc {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #9A6B2F;
+	line-height: 1.5;
+}
+
+.refund-title {
+	display: block;
+	margin-bottom: 8rpx;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.form-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 24rpx;
+	padding: 20rpx 0;
+	border-bottom: 1rpx solid #EBEDF0;
+}
+
+.form-row:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.form-label {
+	flex-shrink: 0;
+	font-size: 26rpx;
+	color: #8B919C;
+}
+
+.form-value {
 	flex: 1;
-	height: calc(100vh - 300rpx);
-	padding-bottom: 160rpx;
+	text-align: right;
+	font-size: 26rpx;
+	color: #1F2329;
+	font-weight: 600;
+}
+
+.form-value.warn {
+	color: #C47A12;
+}
+
+.actionbar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 100;
+	display: flex;
+	align-items: center;
+	gap: 16rpx;
+	padding: 16rpx 32rpx;
+	padding-bottom: calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
+}
+
+.btn {
+	flex: 1;
+	height: 80rpx;
+	padding: 0 16rpx;
+	border-radius: 20rpx;
+	font-size: 28rpx;
+	font-weight: 600;
+	line-height: 80rpx;
+	border: none;
+}
+
+.btn::after {
+	border: none;
+}
+
+.btn-line {
+	background: #FFFFFF;
+	color: #FA5151;
+	border: 1rpx solid #FFD0D0;
+}
+
+.btn-primary {
+	background: #2563EB;
+	color: #FFFFFF;
 }
 </style>

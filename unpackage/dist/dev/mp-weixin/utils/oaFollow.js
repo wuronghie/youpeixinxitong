@@ -9,6 +9,32 @@ const FALLBACK_META = {
 };
 let metaCache = null;
 let promptedThisSession = false;
+let promptInFlight = false;
+const UNSTABLE_ROUTES = ["pages/index/index", "pages/login/index"];
+function getCurrentRoute() {
+  try {
+    const pages = getCurrentPages();
+    if (!pages || !pages.length)
+      return "";
+    const cur = pages[pages.length - 1];
+    return String(cur && cur.route || "").replace(/^\//, "");
+  } catch (e) {
+    return "";
+  }
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function waitForStablePage(timeoutMs = 12e3) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const route = getCurrentRoute();
+    if (route && UNSTABLE_ROUTES.indexOf(route) === -1)
+      return route;
+    await sleep(250);
+  }
+  return getCurrentRoute();
+}
 async function loadOaFollowMeta(force = false) {
   if (!force && metaCache && metaCache.username)
     return metaCache;
@@ -35,14 +61,33 @@ async function loadOaFollowMeta(force = false) {
       return metaCache;
     }
   } catch (e) {
-    common_vendor.index.__f__("warn", "at utils/oaFollow.js:44", "[oaFollow] load meta fail", e);
+    common_vendor.index.__f__("warn", "at utils/oaFollow.js:73", "[oaFollow] load meta fail", e);
   }
   metaCache = { ...FALLBACK_META };
   return metaCache;
 }
-async function openOfficialAccountFollow() {
-  const meta = await loadOaFollowMeta();
-  const username = meta.username;
+function getWxSdk() {
+  try {
+    if (typeof globalThis !== "undefined" && globalThis.wx)
+      return globalThis.wx;
+  } catch (e) {
+  }
+  try {
+    return Function('return typeof wx !== "undefined" ? wx : undefined')();
+  } catch (e) {
+  }
+  return void 0;
+}
+function showSearchHint(oaName) {
+  common_vendor.index.showModal({
+    title: "请手动关注",
+    content: `请在微信中搜索「${oaName || "服务号"}」并关注，然后返回小程序。`,
+    showCancel: false
+  });
+}
+function openOfficialAccountProfileNow(meta = {}) {
+  const username = String(meta.username || "").trim();
+  const oaName = meta.oaName || "服务号";
   if (!username) {
     common_vendor.index.showModal({
       title: "暂未配置",
@@ -51,39 +96,34 @@ async function openOfficialAccountFollow() {
     });
     return { ok: false, reason: "no_username" };
   }
-  if (typeof common_vendor.wx$1 !== "undefined" && typeof common_vendor.wx$1.openOfficialAccountProfile === "function") {
-    return new Promise((resolve) => {
-      common_vendor.wx$1.openOfficialAccountProfile({
-        username,
-        success: () => resolve({ ok: true, reason: "opened" }),
-        fail: (err) => {
-          common_vendor.index.__f__("warn", "at utils/oaFollow.js:72", "[oaFollow] openOfficialAccountProfile fail", err);
-          common_vendor.index.navigateTo({
-            url: "/pages/common/follow-oa",
-            fail: () => {
-              common_vendor.index.showModal({
-                title: "无法打开",
-                content: `请在微信中搜索「${meta.oaName}」并关注。`,
-                showCancel: false
-              });
-            }
-          });
-          resolve({ ok: false, reason: "api_fail", err });
-        }
-      });
-    });
+  const wxSdk = getWxSdk();
+  const openProfile = wxSdk && wxSdk.openOfficialAccountProfile;
+  if (typeof openProfile !== "function") {
+    common_vendor.index.__f__("warn", "at utils/oaFollow.js:116", "[oaFollow] openOfficialAccountProfile 不可用");
+    showSearchHint(oaName);
+    return { ok: false, reason: "unsupported" };
   }
-  common_vendor.index.navigateTo({
-    url: "/pages/common/follow-oa",
-    fail: () => {
-      common_vendor.index.showModal({
-        title: "请手动关注",
-        content: `请搜索公众号「${meta.oaName}」并关注，然后返回小程序。`,
-        showCancel: false
-      });
-    }
-  });
-  return { ok: false, reason: "unsupported" };
+  try {
+    openProfile.call(wxSdk, {
+      username,
+      success: () => {
+      },
+      fail: (err) => {
+        common_vendor.index.__f__("warn", "at utils/oaFollow.js:126", "[oaFollow] openOfficialAccountProfile fail", err);
+        showSearchHint(oaName);
+      }
+    });
+    return { ok: true, reason: "opened" };
+  } catch (e) {
+    common_vendor.index.__f__("warn", "at utils/oaFollow.js:132", "[oaFollow] openOfficialAccountProfile throw", e);
+    showSearchHint(oaName);
+    return { ok: false, reason: "throw" };
+  }
+}
+async function openOfficialAccountFollow() {
+  const cached = metaCache && metaCache.username ? metaCache : null;
+  const meta = cached || await loadOaFollowMeta();
+  return openOfficialAccountProfileNow(meta);
 }
 function isSnoozed() {
   try {
@@ -100,8 +140,11 @@ function snoozeFollowPrompt(ms = 24 * 60 * 60 * 1e3) {
   }
 }
 async function promptFollowOfficialAccount(options = {}) {
-  const { force = false, delayMs = 1200 } = options;
+  const { force = false, delayMs = 400 } = options;
   const run = async () => {
+    if (promptInFlight && !force)
+      return { skipped: true, reason: "in_flight" };
+    promptInFlight = true;
     try {
       const token = common_vendor.index.getStorageSync("uni_id_token");
       if (!token)
@@ -112,8 +155,16 @@ async function promptFollowOfficialAccount(options = {}) {
         return { skipped: true, reason: "snoozed" };
       const bindRes = await utils_oaBind.syncOaBind({ force: true, minIntervalMs: 0 });
       if (bindRes && bindRes.code === 0 && bindRes.data && bindRes.data.bound) {
+        promptedThisSession = true;
         return { skipped: true, reason: "already_bound" };
       }
+      const route = await waitForStablePage();
+      if (!route || UNSTABLE_ROUTES.indexOf(route) !== -1) {
+        return { skipped: true, reason: "unstable_page" };
+      }
+      if (!force && promptedThisSession)
+        return { skipped: true, reason: "session" };
+      await sleep(320);
       promptedThisSession = true;
       const meta = await loadOaFollowMeta();
       const oaName = meta.oaName || "服务号";
@@ -123,21 +174,26 @@ async function promptFollowOfficialAccount(options = {}) {
           content: `关注「${oaName}」后，可收到预约、聊天、打卡等重要提醒，避免错过。`,
           confirmText: "去关注",
           cancelText: "稍后",
-          success: async (res) => {
+          success: (res) => {
             if (res.confirm) {
-              const opened = await openOfficialAccountFollow();
+              const opened = openOfficialAccountProfileNow(meta);
               resolve({ prompted: true, action: "follow", ...opened });
               return;
             }
             snoozeFollowPrompt();
             resolve({ prompted: true, action: "snooze" });
           },
-          fail: () => resolve({ prompted: false, reason: "modal_fail" })
+          fail: () => {
+            promptedThisSession = false;
+            resolve({ prompted: false, reason: "modal_fail" });
+          }
         });
       });
     } catch (e) {
-      common_vendor.index.__f__("warn", "at utils/oaFollow.js:159", "[oaFollow] prompt fail", e);
+      common_vendor.index.__f__("warn", "at utils/oaFollow.js:218", "[oaFollow] prompt fail", e);
       return { skipped: true, reason: "error" };
+    } finally {
+      promptInFlight = false;
     }
   };
   if (delayMs > 0) {

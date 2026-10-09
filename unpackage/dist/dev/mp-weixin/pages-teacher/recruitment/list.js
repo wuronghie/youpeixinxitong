@@ -1,6 +1,6 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
-const TeacherTabBar = () => "../../components/TeacherTabBar.js";
+const TeacherTabBar = () => "../components/TeacherTabBar.js";
 const _sfc_main = {
   components: {
     TeacherTabBar
@@ -76,6 +76,20 @@ const _sfc_main = {
         return "女孩";
       return "";
     },
+    metaLine(item) {
+      const parts = [];
+      if (item.lesson_mode === "offline") {
+        parts.push(this.addressText(item) || "线下");
+      } else {
+        parts.push("线上");
+      }
+      const gender = this.studentGenderText(item.student_gender);
+      if (gender)
+        parts.push(gender);
+      if (item.time_note)
+        parts.push(item.time_note);
+      return parts.join(" · ");
+    },
     reload() {
       this.page = 1;
       this.list = [];
@@ -134,51 +148,42 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       trim: true
     })),
     g: common_vendor.t($options.gradeLabel),
-    h: $data.gradeOptions,
-    i: common_vendor.o((...args) => $options.onGradePick && $options.onGradePick(...args)),
-    j: $data.filters.lesson_mode === "" ? 1 : "",
-    k: common_vendor.o(($event) => {
+    h: !!$data.filters.student_grade ? 1 : "",
+    i: $data.gradeOptions,
+    j: common_vendor.o((...args) => $options.onGradePick && $options.onGradePick(...args)),
+    k: $data.filters.lesson_mode === "" ? 1 : "",
+    l: common_vendor.o(($event) => {
       $data.filters.lesson_mode = "";
       $options.reload();
     }),
-    l: $data.filters.lesson_mode === "online" ? 1 : "",
-    m: common_vendor.o(($event) => {
+    m: $data.filters.lesson_mode === "online" ? 1 : "",
+    n: common_vendor.o(($event) => {
       $data.filters.lesson_mode = "online";
       $options.reload();
     }),
-    n: $data.filters.lesson_mode === "offline" ? 1 : "",
-    o: common_vendor.o(($event) => {
+    o: $data.filters.lesson_mode === "offline" ? 1 : "",
+    p: common_vendor.o(($event) => {
       $data.filters.lesson_mode = "offline";
       $options.reload();
     }),
-    p: !$data.list.length && !$data.loading
+    q: !$data.list.length && !$data.loading
   }, !$data.list.length && !$data.loading ? {} : {}, {
-    q: common_vendor.f($data.list, (item, k0, i0) => {
-      return common_vendor.e({
-        a: common_vendor.t(item.display_name),
-        b: common_vendor.t($options.formatTime(item.create_time)),
-        c: common_vendor.t(item.response_count || 0),
-        d: common_vendor.t(item.subject),
-        e: common_vendor.t(item.student_grade),
-        f: $options.studentGenderText(item.student_gender)
-      }, $options.studentGenderText(item.student_gender) ? {
-        g: common_vendor.t($options.studentGenderText(item.student_gender))
-      } : {}, {
-        h: common_vendor.t(item.lesson_mode === "online" ? "线上" : "线下"),
-        i: item.lesson_mode === "offline" && $options.addressText(item)
-      }, item.lesson_mode === "offline" && $options.addressText(item) ? {
-        j: common_vendor.t($options.addressText(item))
-      } : {}, {
-        k: common_vendor.t(item.goal || item.remark || "家长暂未填写更多说明"),
-        l: common_vendor.t($options.budgetText(item)),
-        m: item._id,
-        n: common_vendor.o(($event) => $options.goDetail(item._id), item._id)
-      });
+    r: common_vendor.f($data.list, (item, k0, i0) => {
+      return {
+        a: common_vendor.t(item.subject),
+        b: common_vendor.t(item.student_grade),
+        c: common_vendor.t($options.metaLine(item)),
+        d: common_vendor.t(item.response_count || 0),
+        e: common_vendor.t(item.goal || item.remark || "家长暂未填写更多说明"),
+        f: common_vendor.t($options.budgetText(item)),
+        g: item._id,
+        h: common_vendor.o(($event) => $options.goDetail(item._id), item._id)
+      };
     }),
-    r: $data.loading
+    s: $data.loading
   }, $data.loading ? {} : {}, {
-    s: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
-    t: common_vendor.p({
+    t: common_vendor.o((...args) => $options.loadMore && $options.loadMore(...args)),
+    v: common_vendor.p({
       current: "recruitment"
     })
   });

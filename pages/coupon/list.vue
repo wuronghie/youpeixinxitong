@@ -1,42 +1,34 @@
+<!-- 家长端：我的优惠券。云对象 coupon-center.getAvailableCoupons -->
 <template>
 	<view class="page">
-		<scroll-view scroll-y class="scroll" @refresherrefresh="onPullDownRefresh" :refresher-enabled="true" :refresher-triggered="refresherTriggered">
-			<view class="px-3 py-3">
-				<!-- 顶部提示 -->
-				<view class="tips-card mb-3">
-					<text class="tips-title">我的优惠券</text>
-					<text class="tips-desc">仅支持在家长端预约课程支付时使用，满足使用门槛即可选择。</text>
-				</view>
+		<scroll-view
+			scroll-y
+			class="scroll"
+			:refresher-enabled="true"
+			:refresher-triggered="refresherTriggered"
+			@refresherrefresh="onPullDownRefreshInternal"
+		>
+			<text class="form-tip">仅支持家长端预约课程支付时使用，满足门槛即可选择。</text>
 
-				<!-- 空状态 -->
-				<view v-if="!loading && coupons.length === 0" class="empty-box">
-					<text class="empty-title">暂无可用优惠券</text>
-					<text class="empty-sub">可以通过好友邀请、活动发放等方式获得优惠券</text>
-				</view>
+			<view v-if="!loading && coupons.length === 0" class="empty">
+				<text class="empty-title">{{ waitingIssue ? '优惠券正在到账' : '暂无可用优惠券' }}</text>
+				<text class="empty-sub">{{ waitingIssue ? '请稍候或下拉刷新' : '可以通过好友邀请、活动发放等方式获得优惠券' }}</text>
+			</view>
 
-				<!-- 列表 -->
-				<view v-else>
-					<view
-						v-for="item in coupons"
-						:key="item._id"
-						class="coupon-card"
-					>
-						<view class="coupon-left">
-							<text class="amount" v-if="item.type === 'amount'">¥{{ formatAmount(item.amount) }}</text>
-							<text class="amount" v-else>{{ formatDiscount(item.discount) }}</text>
-							<text class="label">优惠券</text>
-						</view>
-						<view class="coupon-right">
-							<text class="name">{{ item.name || '优惠券' }}</text>
-							<text class="desc">{{ item.description || defaultDesc(item) }}</text>
-							<view class="meta-row">
-								<text class="meta-text">
-									{{ item.min_spend && item.min_spend > 0 ? `满¥${formatAmount(item.min_spend)}可用` : '无门槛' }}
-								</text>
-							</view>
-							<text class="time">有效期：{{ formatDate(item.valid_from) }} ~ {{ formatDate(item.valid_to) }}</text>
-						</view>
-					</view>
+			<view
+				v-for="item in coupons"
+				:key="item._id"
+				class="coupon"
+			>
+				<view class="coupon-amt">
+					<text class="amount" v-if="item.type === 'amount'">¥{{ formatAmount(item.amount) }}</text>
+					<text class="amount" v-else>{{ formatDiscount(item.discount) }}</text>
+					<text class="label">{{ item.type === 'amount' ? '满减' : '折扣' }}</text>
+				</view>
+				<view class="coupon-body">
+					<text class="name">{{ item.name || '优惠券' }}</text>
+					<text class="desc">{{ item.min_spend && item.min_spend > 0 ? `满 ¥${formatAmount(item.min_spend)} 可用` : '无门槛' }}{{ item.description ? ` · ${item.description}` : '' }}</text>
+					<text class="time">有效期至 {{ formatDate(item.valid_to) }}</text>
 				</view>
 			</view>
 		</scroll-view>
@@ -45,6 +37,7 @@
 
 <script>
 import { ensureLoggedIn } from '@/utils/auth.js'
+import { fetchAvailableCoupons, getCachedAvailableCoupons, getPendingIssuedCoupons } from '@/utils/coupons.js'
 
 export default {
 	name: 'MyCoupons',
@@ -52,13 +45,20 @@ export default {
 		return {
 			coupons: [],
 			loading: false,
-			refresherTriggered: false
+			refresherTriggered: false,
+			waitingIssue: false,
+			_loadSeq: 0
 		}
 	},
 	onShow() {
 		if (!ensureLoggedIn('parent')) {
 			return
 		}
+		const cached = getCachedAvailableCoupons('parent')
+		if (cached.length) {
+			this.coupons = cached
+		}
+		this.waitingIssue = !!getPendingIssuedCoupons()
 		this.loadCoupons()
 	},
 	methods: {
@@ -72,32 +72,31 @@ export default {
 			uni.stopPullDownRefresh()
 		},
 		async loadCoupons() {
-			if (this.loading) return
+			const seq = ++this._loadSeq
 			this.loading = true
 			try {
-				const couponCenter = uniCloud.importObject('coupon-center', { customUI: true })
-				const res = await couponCenter.getAvailableCoupons({ role: 'parent' })
-				console.log('[coupon-list] getAvailableCoupons 返回:', res)
-				if (res.code === 0 && res.data && Array.isArray(res.data.list)) {
-					this.coupons = res.data.list
-				} else {
-					this.coupons = []
-					if (res && res.message) {
-						uni.showToast({
-							title: res.message,
-							icon: 'none'
-						})
-					}
+				const { list, message, waiting } = await fetchAvailableCoupons('parent')
+				if (seq !== this._loadSeq) return
+				this.coupons = list
+				this.waitingIssue = waiting && list.length === 0
+				if (!list.length && message) {
+					uni.showToast({
+						title: message,
+						icon: 'none'
+					})
 				}
 			} catch (err) {
 				console.error('加载优惠券失败:', err)
+				if (seq !== this._loadSeq) return
 				this.coupons = []
 				uni.showToast({
 					title: '加载优惠券失败',
 					icon: 'none'
 				})
 			} finally {
-				this.loading = false
+				if (seq === this._loadSeq) {
+					this.loading = false
+				}
 			}
 		},
 		formatAmount(n) {
@@ -137,119 +136,96 @@ export default {
 <style scoped>
 .page {
 	min-height: 100vh;
-	background-color: #f5f5f5;
+	background: #F4F6F9;
 }
 
 .scroll {
 	height: 100vh;
 }
 
-.tips-card {
-	background: #fffbe8;
-	border-radius: 16rpx;
-	padding: 20rpx 24rpx;
-	border: 1rpx solid #ffe58f;
-}
-
-.tips-title {
-	font-size: 28rpx;
-	font-weight: 600;
-	color: #ad6800;
-	margin-bottom: 8rpx;
+.form-tip {
 	display: block;
-}
-
-.tips-desc {
+	padding: 20rpx 32rpx 8rpx;
 	font-size: 24rpx;
-	color: #ad6800;
+	color: #8B919C;
 	line-height: 1.5;
 }
 
-.empty-box {
-	margin-top: 80rpx;
-	padding: 0 24rpx;
+.empty {
+	padding: 80rpx 32rpx;
 	text-align: center;
-	color: #999999;
 }
 
 .empty-title {
 	display: block;
 	font-size: 28rpx;
+	color: #1F2329;
 	margin-bottom: 8rpx;
 }
 
 .empty-sub {
+	display: block;
 	font-size: 24rpx;
+	color: #8B919C;
 }
 
-.coupon-card {
+.coupon {
 	display: flex;
-	flex-direction: row;
-	background-color: #ffffff;
-	border-radius: 16rpx;
+	margin: 24rpx 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
 	overflow: hidden;
-	margin-bottom: 20rpx;
-	box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.04);
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
-.coupon-left {
-	width: 200rpx;
-	background: linear-gradient(135deg, #ff9f43, #ff6b01);
-	color: #ffffff;
+.coupon-amt {
+	width: 184rpx;
+	background: #2563EB;
+	color: #FFFFFF;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	padding: 20rpx 10rpx;
+	padding: 24rpx 12rpx;
 }
 
 .amount {
 	font-size: 40rpx;
-	font-weight: 700;
-	margin-bottom: 8rpx;
+	font-weight: 600;
+	line-height: 1.2;
 }
 
 .label {
+	margin-top: 8rpx;
 	font-size: 22rpx;
-	opacity: 0.9;
+	opacity: 0.85;
 }
 
-.coupon-right {
+.coupon-body {
 	flex: 1;
-	padding: 20rpx 24rpx;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
+	min-width: 0;
+	padding: 24rpx 28rpx;
 }
 
 .name {
+	display: block;
 	font-size: 30rpx;
 	font-weight: 600;
-	color: #333333;
-	margin-bottom: 6rpx;
+	color: #1F2329;
 }
 
 .desc {
+	display: block;
+	margin-top: 8rpx;
 	font-size: 24rpx;
-	color: #666666;
-	margin-bottom: 8rpx;
-}
-
-.meta-row {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	margin-bottom: 6rpx;
-}
-
-.meta-text {
-	font-size: 22rpx;
-	color: #999999;
+	color: #8B919C;
+	line-height: 1.45;
 }
 
 .time {
+	display: block;
+	margin-top: 8rpx;
 	font-size: 22rpx;
-	color: #bbbbbb;
+	color: #8B919C;
 }
 </style>
-

@@ -1,7 +1,5 @@
 {
   "navigationBarTitleText": "支付结果",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {}
 }

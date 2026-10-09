@@ -5,6 +5,7 @@
 
 let checking = false
 let lastPromptAt = 0
+let checkedThisSession = false
 
 function canPromptNow() {
 	const now = Date.now()
@@ -16,7 +17,7 @@ function canPromptNow() {
 function isAlreadyOnAppointmentDetail(appointmentId) {
 	const pages = getCurrentPages()
 	const page = pages.length ? pages[pages.length - 1] : null
-	if (!page || page.route !== 'pages/appointment/detail') return false
+	if (!page || (page.route !== 'pages-biz/appointment/detail' && page.route !== 'pages/appointment/detail')) return false
 	const options = page.options || {}
 	return options.id === appointmentId
 }
@@ -25,7 +26,7 @@ function goAppointmentDetail(appointmentId) {
 	if (!appointmentId) return
 	if (isAlreadyOnAppointmentDetail(appointmentId)) return
 	uni.navigateTo({
-		url: `/pages/appointment/detail?id=${appointmentId}`
+		url: `/pages-biz/appointment/detail?id=${appointmentId}`
 	})
 }
 
@@ -50,9 +51,10 @@ function promptTrialConfirm(item) {
 }
 
 /**
- * 在 App.onShow 中调用
+ * 进入小程序时检查一次；预约下课打卡 push 到达时可 force 再查
  */
-export async function checkPendingTrialConfirmReminder() {
+export async function checkPendingTrialConfirmReminder({ force = false } = {}) {
+	if (!force && checkedThisSession) return
 	if (!canPromptNow()) return
 
 	const token = uni.getStorageSync('uni_id_token')
@@ -71,6 +73,7 @@ export async function checkPendingTrialConfirmReminder() {
 	try {
 		const appointmentQuery = uniCloud.importObject('appointment-query', { customUI: true })
 		const res = await appointmentQuery.listPendingTrialConfirmations()
+		checkedThisSession = true
 		if (res.code !== 0 || !res.data || !res.data.list || !res.data.list.length) {
 			return
 		}

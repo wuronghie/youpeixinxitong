@@ -22,6 +22,8 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+const { notifyAppointmentPeers } = require('notify-push')
+
 module.exports = {
   _before: function() {
     // 云对象前置方法
@@ -218,6 +220,18 @@ module.exports = {
       await db.collection('payment-orders').add(refundOrder)
       
       console.log('预约已拒绝，费用已退款')
+
+      try {
+        await notifyAppointmentPeers(appointment, {
+          status: 'rejected',
+          title: '预约已拒绝',
+          content: reason ? `老师已拒绝预约：${reason}` : '老师已拒绝本次预约',
+          extra: { action: 'rejected' },
+          excludeUserId: teacher_id
+        })
+      } catch (pushErr) {
+        console.warn('[appointment-confirm.reject] push 失败:', pushErr)
+      }
       
       return success({
         appointment_id,

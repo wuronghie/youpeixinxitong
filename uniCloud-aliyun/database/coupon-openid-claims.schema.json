@@ -1,0 +1,43 @@
+{
+  "bsonType": "object",
+  "description": "按微信 openid 记录自动发券领取，账号注销后仍用于限领",
+  "permission": {
+    "read": "'admin' in auth.role || 'auditor' in auth.role",
+    "create": false,
+    "update": false,
+    "delete": "'admin' in auth.role"
+  },
+  "properties": {
+    "wx_openid": {
+      "bsonType": "string",
+      "description": "微信小程序 openid",
+      "title": "微信openid"
+    },
+    "activity_id": {
+      "bsonType": "string",
+      "description": "优惠活动ID（coupon-activities._id）",
+      "title": "活动ID"
+    },
+    "coupon_id": {
+      "bsonType": "string",
+      "description": "优惠券模板ID",
+      "title": "优惠券ID"
+    },
+    "user_id": {
+      "bsonType": "string",
+      "description": "发放时的用户 uid（注销后仅作追溯）",
+      "title": "用户ID"
+    },
+    "create_time": {
+      "bsonType": "timestamp",
+      "description": "领取时间",
+      "forceDefaultValue": {
+        "$env": "now"
+      }
+    }
+  },
+  "required": [
+    "wx_openid",
+    "activity_id"
+  ]
+}

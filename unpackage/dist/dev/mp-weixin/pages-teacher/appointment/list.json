@@ -1,8 +1,6 @@
 {
   "navigationBarTitleText": "预约管理",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {
-    "teacher-tab-bar": "../../components/TeacherTabBar"
+    "teacher-tab-bar": "../components/TeacherTabBar"
   }
 }

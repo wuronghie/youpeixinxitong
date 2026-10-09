@@ -5,14 +5,10 @@ const _sfc_main = {
   data() {
     return {
       status: "success",
-      // success | fail
       message: "",
       returnPage: "",
       appointmentId: "",
-      role: "",
-      // parent | teacher
-      successIcon: "/static/logo.png",
-      failIcon: "/static/logo.png"
+      role: ""
     };
   },
   onLoad(options = {}) {
@@ -26,7 +22,7 @@ const _sfc_main = {
     displayMessage() {
       if (this.message)
         return this.message;
-      return this.status === "success" ? "支付已完成，您可以返回继续浏览订单详情。" : "支付未完成，您可以返回重新发起支付或联系商家。";
+      return this.status === "success" ? "支付已完成，您可以返回继续浏览订单详情。" : "可返回订单重新支付，或稍后再试。";
     }
   },
   methods: {
@@ -47,22 +43,44 @@ const _sfc_main = {
           });
         } else {
           common_vendor.index.redirectTo({
-            url: `/pages/appointment/detail?id=${this.appointmentId}`
+            url: `/pages-biz/appointment/detail?id=${this.appointmentId}`
           });
         }
       } else {
         common_vendor.index.navigateBack({ delta: 1 });
       }
+    },
+    goHome() {
+      if (this.role === "teacher") {
+        common_vendor.index.redirectTo({ url: "/pages-teacher/index/index" });
+        return;
+      }
+      common_vendor.index.redirectTo({ url: "/pages/teacher/list" });
     }
   }
 };
 function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
-  return {
-    a: $data.status === "success" ? $data.successIcon : $data.failIcon,
-    b: common_vendor.t($data.status === "success" ? "支付成功" : "支付失败"),
-    c: common_vendor.t($options.displayMessage),
-    d: common_vendor.o((...args) => $options.handleBack && $options.handleBack(...args))
-  };
+  return common_vendor.e({
+    a: common_vendor.t($data.status === "success" ? "✓" : "!"),
+    b: common_vendor.n($data.status === "success" ? "ok" : "fail"),
+    c: common_vendor.t($data.status === "success" ? "支付成功" : "支付失败"),
+    d: common_vendor.t($options.displayMessage),
+    e: $data.status === "success" && $data.appointmentId
+  }, $data.status === "success" && $data.appointmentId ? {
+    f: common_vendor.o((...args) => $options.handleBack && $options.handleBack(...args))
+  } : {}, {
+    g: $data.status === "success" && !$data.appointmentId
+  }, $data.status === "success" && !$data.appointmentId ? {
+    h: common_vendor.o((...args) => $options.handleBack && $options.handleBack(...args))
+  } : {}, {
+    i: $data.status === "success"
+  }, $data.status === "success" ? {
+    j: common_vendor.o((...args) => $options.goHome && $options.goHome(...args))
+  } : {}, {
+    k: $data.status === "fail"
+  }, $data.status === "fail" ? {
+    l: common_vendor.o((...args) => $options.handleBack && $options.handleBack(...args))
+  } : {});
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-53ffba6a"]]);
 wx.createPage(MiniProgramPage);

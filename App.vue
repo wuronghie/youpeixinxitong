@@ -1,6 +1,6 @@
 <script>
 import { checkPendingTrialConfirmReminder } from '@/utils/trialConfirmReminder.js'
-import { bindPushClientId, setupChatPushListener } from '@/utils/chatPush.js'
+import { bindPushClientId, setupChatPushListener, refreshChatBadge } from '@/utils/chatPush.js'
 import { syncOaBind } from '@/utils/oaBind.js'
 import { promptFollowOfficialAccount } from '@/utils/oaFollow.js'
 
@@ -14,14 +14,17 @@ export default {
 		syncOaBind({ force: true })
 	},
 	onShow: function () {
-		console.log('[App] Show → 重新绑定 cid')
+		console.log('[App] Show → 重新绑定 cid，拉取一次未读')
 		bindPushClientId().then((ok) => {
 			console.log('[App] Show 绑定 cid 结果=', ok)
 		})
+		if (uni.getStorageSync('uni_id_token')) {
+			refreshChatBadge('app-show')
+		}
 		// 关注服务号后回到小程序时补绑 openid，否则新关注用户收不到模板通知
 		syncOaBind().then(() => {
-			// 未绑定时提示关注，并可一键跳转公众号
-			promptFollowOfficialAccount({ delayMs: 1500 })
+			// 未绑定时提示关注；会等到离开启动页再弹，避免被 reLaunch 冲掉
+			promptFollowOfficialAccount({ delayMs: 400 })
 		})
 		setTimeout(() => {
 			checkPendingTrialConfirmReminder()
@@ -36,10 +39,6 @@ export default {
 <style>
 	/*每个页面公共css */
 	/* #ifndef APP-PLUS-NVUE */
-	/* 官方ui库 */
-	@import "/common/uni.css";
-	/* 第三方动画库 */
-	@import "/common/animate.css";
 	/* 自定义图标库 */
 	@import "/common/icon.css";
 	/* UI基础库 */

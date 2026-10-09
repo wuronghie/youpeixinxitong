@@ -1,7 +1,5 @@
 {
   "navigationBarTitleText": "发表评价",
   "enablePullDownRefresh": false,
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
   "usingComponents": {}
 }

@@ -24,6 +24,48 @@ function error(message = 'error', code = -1, data = null) {
   }
 }
 
+function pickPhone(user = {}) {
+  const a = String(user.phone || '').replace(/\D/g, '')
+  const b = String(user.mobile || '').replace(/\D/g, '')
+  if (/^1[3-9]\d{9}$/.test(a)) return a
+  if (/^1[3-9]\d{9}$/.test(b)) return b
+  return a || b || ''
+}
+
+async function resolveUid(ctx) {
+  const token = ctx.getUniIdToken()
+  if (!token) {
+    return { error: '未获取到token，请先登录' }
+  }
+  let uid = null
+  try {
+    const payload = await ctx.uniID.checkToken(token)
+    if (payload && payload.code !== undefined && payload.code !== 0) {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const parts = decoded.split('_')
+      uid = parts.length >= 1 ? parts[0] : null
+    } else if (payload && payload.uid) {
+      uid = payload.uid
+    } else {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const parts = decoded.split('_')
+      uid = parts.length >= 1 ? parts[0] : null
+    }
+  } catch (checkError) {
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const parts = decoded.split('_')
+      uid = parts.length >= 1 ? parts[0] : null
+    } catch (decodeError) {
+      uid = null
+    }
+  }
+  if (!uid) {
+    return { error: 'token验证失败，请重新登录' }
+  }
+  return { uid }
+}
+
 module.exports = {
   _before: function() {
     // 云对象前置方法，初始化 uni-id 实例
@@ -106,6 +148,7 @@ module.exports = {
           nickname: true,
           avatar: true,
           phone: true,
+          mobile: true,
           gender: true,
           role: true,
           status: true,
@@ -124,6 +167,7 @@ module.exports = {
           nickname: '',
           avatar: '',
           phone: '',
+          mobile: '',
           gender: 0,
           role: null,
           status: 'active',
@@ -133,8 +177,10 @@ module.exports = {
           teacher_info: {}
         }, '用户信息为空，请完善信息')
       }
-      
-      return success(userDoc.data[0], '获取成功')
+
+      const user = userDoc.data[0] || {}
+      user.phone = pickPhone(user)
+      return success(user, '获取成功')
       
     } catch (e) {
       console.error('获取用户信息失败:', e)
@@ -265,7 +311,7 @@ module.exports = {
       // 验证用户角色 - 先查询完整信息，如果不存在再尝试通过openid查找
       let userDoc = await db.collection('uni-id-users')
         .doc(uid)
-        .field({ role: true, _id: true })
+        .field({ role: true, _id: true, parent_info: true, nickname: true, gender: true, phone: true, mobile: true })
         .get()
       
       if (!userDoc.data || userDoc.data.length === 0) {
@@ -276,7 +322,7 @@ module.exports = {
         await new Promise(resolve => setTimeout(resolve, 500))
         userDoc = await db.collection('uni-id-users')
           .doc(uid)
-          .field({ role: true, _id: true })
+          .field({ role: true, _id: true, parent_info: true, nickname: true, gender: true, phone: true, mobile: true })
           .get()
         
         if (!userDoc.data || userDoc.data.length === 0) {
@@ -290,31 +336,30 @@ module.exports = {
         return error('当前账号不是家长角色')
       }
       
-      if (!real_name || !phone) {
-        console.error('[updateParentProfile] 必填字段为空:', { real_name, phone })
-        return error('真实姓名和手机号不能为空')
+      const existingUser = userDoc.data[0] || {}
+      const existingParentInfo = existingUser.parent_info || {}
+      const phoneStr = pickPhone({ phone, mobile: existingUser.mobile, parent_info: { phone: existingParentInfo.phone } })
+
+      if (!phoneStr) {
+        console.error('[updateParentProfile] 手机号为空')
+        return error('手机号不能为空')
       }
       
       // 验证手机号格式（简单验证）
       const phoneRegex = /^1[3-9]\d{9}$/
-      if (!phoneRegex.test(phone)) {
-        console.error('[updateParentProfile] 手机号格式不正确:', phone)
+      if (!phoneRegex.test(phoneStr)) {
+        console.error('[updateParentProfile] 手机号格式不正确:', phoneStr)
         return error('手机号格式不正确')
       }
-      
-      // 验证性别（必填：male / female）
+
       const genderStr = typeof gender === 'string' ? gender.trim() : ''
-      if (!genderStr || !['male', 'female'].includes(genderStr)) {
-        console.error('[updateParentProfile] 性别格式不正确:', gender)
-        return error('请选择性别')
-      }
       const studentGenderStr = typeof student_gender === 'string' ? student_gender.trim() : ''
       if (!studentGenderStr || !['male', 'female'].includes(studentGenderStr)) {
         console.error('[updateParentProfile] 孩子性别格式不正确:', student_gender)
         return error('请选择孩子性别')
       }
-      // uni-id 约定：1=男, 2=女（0=未知）
-      const genderCode = genderStr === 'male' ? 1 : 2
+      // uni-id 约定：1=男, 2=女（0=未知）；家长性别改为选填，有值才更新
+      const genderCode = genderStr === 'male' ? 1 : genderStr === 'female' ? 2 : null
 
       // 家长侧可编辑文本：微信内容安全（msg_sec_check）
       const wxSec = require('./wx-mp-sec')
@@ -338,12 +383,13 @@ module.exports = {
         console.warn('[updateParentProfile] 无微信 openid，跳过文本内容安全')
       }
       
-      // 构建更新数据
+      // 构建更新数据（不再用家长姓名覆盖微信昵称）
       const updateData = {
-        nickname: real_name,  // 使用真实姓名作为昵称
-        phone: phone,
-        gender: genderCode,
+        phone: phoneStr,
         update_date: Date.now()
+      }
+      if (genderCode) {
+        updateData.gender = genderCode
       }
       
       if (avatar) {
@@ -364,13 +410,13 @@ module.exports = {
       // 注意：不再直接在 parent_info 中使用嵌套的 address 子对象，以避免
       // 旧数据中 address 为 null 时出现 “Cannot create field 'latitude' in element {address: null}” 的问题。
       const parentInfo = {
-        real_name: real_name,
+        real_name: existingParentInfo.real_name || '',
         student_name: student_name || '',
         student_gender: studentGenderStr,
         student_grade: student_grade || '',
         student_subjects: Array.isArray(student_subjects) ? student_subjects : [],
         learning_goal: learning_goal || '',
-        contact_wechat: contact_wechat || '',
+        contact_wechat: (contact_wechat && String(contact_wechat).trim()) || existingParentInfo.contact_wechat || '',
         // 仅存储可读的地址文本
         address_detail: finalAddressDetail,
         // 经纬度单独存储，避免与旧的 address:null 结构冲突
@@ -405,6 +451,70 @@ module.exports = {
     }
   },
   
+  /**
+   * 开屏/授权后保存手机号与微信号，不覆盖其它资料
+   * @param {Object} params
+   * @param {String} params.phone 手机号（可选，缺省时用已绑定 mobile）
+   * @param {String} params.contact_wechat 微信号
+   */
+  async saveContactInfo(params = {}) {
+    try {
+      const resolved = await resolveUid(this)
+      if (resolved.error) return error(resolved.error)
+      const uid = resolved.uid
+      const db = uniCloud.database()
+
+      const userDoc = await db.collection('uni-id-users')
+        .doc(uid)
+        .field({ role: true, parent_info: true, phone: true, mobile: true })
+        .get()
+      if (!userDoc.data || userDoc.data.length === 0) {
+        return error('用户不存在')
+      }
+      const user = userDoc.data[0] || {}
+      let phone = String(params.phone || '').replace(/\D/g, '')
+      if (!phone) phone = pickPhone(user)
+      const contactWechat = String(params.contact_wechat || '').trim()
+      const role = user.role
+      const now = Date.now()
+      const userUpdate = { update_date: now }
+      if (phone && /^1[3-9]\d{9}$/.test(phone)) {
+        userUpdate.phone = phone
+      }
+
+      if (role === 'teacher') {
+        if (Object.keys(userUpdate).length > 1) {
+          await db.collection('uni-id-users').doc(uid).update(userUpdate)
+        }
+        const profileUpdate = { update_time: now }
+        if (phone && /^1[3-9]\d{9}$/.test(phone)) {
+          profileUpdate.contact_mobile = phone
+        }
+        if (contactWechat) {
+          profileUpdate.contact_wechat = contactWechat
+        }
+        if (Object.keys(profileUpdate).length > 1) {
+          const profileDoc = await db.collection('teacher-profiles').where({ teacher_id: uid }).limit(1).get()
+          const rows = profileDoc.result?.data || profileDoc.data || []
+          if (rows.length) {
+            await db.collection('teacher-profiles').doc(rows[0]._id).update(profileUpdate)
+          }
+        }
+      } else {
+        const parentInfo = { ...(user.parent_info || {}) }
+        if (contactWechat) parentInfo.contact_wechat = contactWechat
+        parentInfo.update_time = now
+        userUpdate.parent_info = parentInfo
+        await db.collection('uni-id-users').doc(uid).update(userUpdate)
+      }
+
+      return success({ phone, contact_wechat: contactWechat }, '已保存')
+    } catch (e) {
+      console.error('[saveContactInfo] 保存联系方式失败:', e)
+      return error(e.message || e.errMsg || '保存失败')
+    }
+  },
+
   /**
    * 更新用户信息（教师版 - 简化版，实际应该使用 teacher-profile，使用 token 验证）
    * @param {Object} params

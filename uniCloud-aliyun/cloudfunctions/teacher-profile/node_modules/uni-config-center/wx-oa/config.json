@@ -7,7 +7,9 @@
   "templates": {
     "check_in": "2DqafAtEP-xD_Ozi7c8R3dyI1YiBqBLkOWMHh4cDqQE",
     "new_chat": "btcgyTDHTfLiYb2WXmwgqiNzdMLglLeRAgKwSWX4GkM",
-    "appointment_success": "f8ayRdkNq-pYOe9gdXNz9OpIFZfKBKhpxfyQZ7_pKoM"
+    "appointment_success": "f8ayRdkNq-pYOe9gdXNz9OpIFZfKBKhpxfyQZ7_pKoM",
+    "class_remind": "c4Pw9vfdfDNLhuwdh_IVLmVAGGbOdigVus6bYfzh6UE",
+    "review_remind": "btcgyTDHTfLiYb2WXmwgqiNzdMLglLeRAgKwSWX4GkM"
   },
   "templateDataKeys": {
     "check_in": {
@@ -27,6 +29,18 @@
       "time10": "date",
       "phrase17": "type",
       "thing18": "project"
+    },
+    "class_remind": {
+      "thing9": "visitor_name",
+      "thing16": "service",
+      "time11": "time",
+      "phone_number10": "phone"
+    },
+    "review_remind": {
+      "thing2": "visitor_name",
+      "thing4": "reason",
+      "time5": "visit_time",
+      "time16": "send_time"
     }
   },
   "mpAppId": "wx920e8bcaa338caf6",

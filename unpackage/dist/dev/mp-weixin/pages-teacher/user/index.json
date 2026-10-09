@@ -1,9 +1,6 @@
 {
-  "navigationBarTitleText": "个人中心",
-  "enableShareAppMessage": true,
-  "enableShareTimeline": true,
+  "navigationBarTitleText": "我的",
   "usingComponents": {
-    "card": "../../components/common/card",
-    "teacher-tab-bar": "../../components/TeacherTabBar"
+    "teacher-tab-bar": "../components/TeacherTabBar"
   }
 }

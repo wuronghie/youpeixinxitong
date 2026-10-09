@@ -1,8 +1,10 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_auth = require("../../utils/auth.js");
+const utils_coupons = require("../../utils/coupons.js");
 const utils_chatPush = require("../../utils/chatPush.js");
 const utils_imageConfig = require("../../utils/imageConfig.js");
+const utils_wxPhone = require("../../utils/wxPhone.js");
 const _sfc_main = {
   name: "Login",
   data() {
@@ -36,6 +38,13 @@ const _sfc_main = {
         }
       ]
     };
+  },
+  computed: {
+    canStartWxLogin() {
+      let mp = false;
+      mp = true;
+      return mp && !common_vendor.index.getStorageSync("pending_wx_phone_code") && !!this.selectedRole && this.hasAgreed && !this.isLogging;
+    }
   },
   /**
    * 页面加载时触发
@@ -98,7 +107,35 @@ const _sfc_main = {
      *   - 可以添加登录前的验证逻辑（如协议同意检查）
      *   - 可以添加登录统计、埋点等
      */
-    async handleLogin() {
+    async onWxLoginPhone(e) {
+      await this.handleLogin(e);
+    },
+    async bindLoginPhone(phoneEvent) {
+      const eventCode = phoneEvent && phoneEvent.detail && phoneEvent.detail.code;
+      const pendingCode = common_vendor.index.getStorageSync("pending_wx_phone_code");
+      const code = eventCode || pendingCode;
+      if (!code)
+        return "";
+      try {
+        if (eventCode) {
+          const phone2 = await utils_wxPhone.bindWeixinPhoneAndSync(phoneEvent);
+          if (pendingCode)
+            common_vendor.index.removeStorageSync("pending_wx_phone_code");
+          return phone2;
+        }
+        await utils_wxPhone.bindWeixinPhoneByCode(pendingCode);
+        common_vendor.index.removeStorageSync("pending_wx_phone_code");
+        const phone = await utils_wxPhone.refreshBoundPhone();
+        if (phone)
+          utils_wxPhone.persistPickedPhone(phone);
+        return phone;
+      } catch (error) {
+        common_vendor.index.__f__("warn", "at pages/login/index.vue:226", "[login] 绑定手机号失败:", error);
+        common_vendor.index.showToast({ title: error && error.message || "手机号授权失败，可稍后在资料里补齐", icon: "none" });
+        return "";
+      }
+    },
+    async handleLogin(phoneEvent) {
       if (this.isLogging) {
         return;
       }
@@ -110,49 +147,72 @@ const _sfc_main = {
         common_vendor.index.showToast({ title: "请先阅读并勾选同意《用户协议》和《隐私政策》", icon: "none" });
         return;
       }
-      common_vendor.index.__f__("log", "at pages/login/index.vue:215", "[login] 使用角色:", this.selectedRole);
+      common_vendor.index.__f__("log", "at pages/login/index.vue:244", "[login] 使用角色:", this.selectedRole);
       this.isLogging = true;
       try {
         const loginRes = await new Promise((resolve, reject) => {
           common_vendor.index.login({ provider: "weixin", success: resolve, fail: reject });
         });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:221", "[login] 获取到微信code:", loginRes.code);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:250", "[login] 获取到微信code:", loginRes.code);
         const userLogin = common_vendor.tr.importObject("user-login", { customUI: true });
         const res = await userLogin.login({ code: loginRes.code, role: this.selectedRole });
-        common_vendor.index.__f__("log", "at pages/login/index.vue:225", "[login] 云函数返回:", res);
+        common_vendor.index.__f__("log", "at pages/login/index.vue:254", "[login] 云函数返回:", res);
         if (res.code === 0) {
-          let { token, userInfo } = res.data;
-          if (token) {
-            common_vendor.index.setStorageSync("uni_id_token", token);
-            common_vendor.index.setStorageSync("token", token);
-          }
+          let { token, tokenExpired, userInfo, issuedCount, issuedCoupons } = res.data;
+          utils_auth.persistAuthToken(token, tokenExpired);
           if (userInfo) {
             utils_auth.setStoredUserInfo(userInfo);
           }
+          const boundPhone = await this.bindLoginPhone(phoneEvent);
+          if (boundPhone) {
+            userInfo = { ...userInfo || {}, phone: boundPhone, mobile: boundPhone };
+            utils_auth.setStoredUserInfo(userInfo);
+          }
           common_vendor.index.setStorageSync("last_role", this.selectedRole);
+          if (issuedCount > 0) {
+            utils_coupons.persistIssuedCoupons({
+              count: issuedCount,
+              names: issuedCoupons || [],
+              role: userInfo && userInfo.role || this.selectedRole
+            });
+          }
           utils_chatPush.bindPushClientId();
-          common_vendor.index.showToast({ title: "登录成功", icon: "success" });
+          if (issuedCount > 0) {
+            common_vendor.index.showToast({
+              title: `登录成功，已发放${issuedCount}张优惠券`,
+              icon: "none",
+              duration: 2500
+            });
+          } else {
+            common_vendor.index.showToast({ title: "登录成功", icon: "success" });
+          }
           try {
             const freshInfo = await utils_auth.fetchRemoteUserInfo({ token });
             userInfo = freshInfo || userInfo;
           } catch (fetchError) {
-            common_vendor.index.__f__("warn", "at pages/login/index.vue:244", "获取最新用户信息失败，使用登录返回的数据", fetchError);
+            common_vendor.index.__f__("warn", "at pages/login/index.vue:290", "获取最新用户信息失败，使用登录返回的数据", fetchError);
           }
           if (userInfo && userInfo.role) {
-            if (userInfo.role === "parent") {
+            if (userInfo.role === "parent" || userInfo.role === "teacher") {
               const pendingCode = common_vendor.index.getStorageSync("pending_invite_code");
               if (pendingCode) {
                 try {
                   const inviteCenter = common_vendor.tr.importObject("invite-center", { customUI: true });
                   await inviteCenter.acceptInvite({ invite_code: pendingCode });
                   common_vendor.index.removeStorageSync("pending_invite_code");
+                  utils_coupons.persistIssuedCoupons({
+                    count: (issuedCount || 0) + 1,
+                    names: issuedCoupons || [],
+                    role: userInfo.role
+                  });
                 } catch (inviteErr) {
-                  common_vendor.index.__f__("error", "at pages/login/index.vue:256", "[login] 处理邀请关系失败:", inviteErr);
+                  common_vendor.index.__f__("error", "at pages/login/index.vue:307", "[login] 处理邀请关系失败:", inviteErr);
                 }
               }
             }
             const profileCheck = await utils_auth.checkProfileComplete(userInfo);
-            common_vendor.index.__f__("log", "at pages/login/index.vue:263", "[login] 信息检查结果:", profileCheck);
+            common_vendor.index.__f__("log", "at pages/login/index.vue:314", "[login] 信息检查结果:", profileCheck);
+            utils_coupons.prefetchAvailableCoupons(userInfo.role);
             utils_auth.redirectByRole(userInfo.role);
             if (!profileCheck.isComplete) {
               setTimeout(() => {
@@ -176,7 +236,7 @@ const _sfc_main = {
           common_vendor.index.showToast({ title: res.message || "登录失败", icon: "none" });
         }
       } catch (error) {
-        common_vendor.index.__f__("error", "at pages/login/index.vue:292", "登录失败:", error);
+        common_vendor.index.__f__("error", "at pages/login/index.vue:344", "登录失败:", error);
         common_vendor.index.showToast({ title: "登录失败，请稍后再试", icon: "none" });
       } finally {
         this.isLogging = false;
@@ -203,25 +263,30 @@ function _sfc_render(_ctx, _cache, $props, $setup, $data, $options) {
       return common_vendor.e({
         a: $options.getRoleIconUrl(role.iconName),
         b: common_vendor.t(role.label),
-        c: common_vendor.n($data.selectedRole === role.value ? "text-white" : "text-dark"),
-        d: common_vendor.t(role.desc),
-        e: common_vendor.n($data.selectedRole === role.value ? "text-white" : "text-light-muted"),
-        f: $data.selectedRole === role.value
+        c: common_vendor.t(role.desc),
+        d: $data.selectedRole === role.value
       }, $data.selectedRole === role.value ? {} : {}, {
-        g: role.value,
-        h: common_vendor.n($data.selectedRole === role.value ? "main-bg-color" : "bg-light"),
-        i: common_vendor.o(($event) => $options.selectRole(role.value), role.value)
+        e: role.value,
+        f: $data.selectedRole === role.value ? 1 : "",
+        g: common_vendor.o(($event) => $options.selectRole(role.value), role.value)
       });
     }),
-    c: $data.isLogging
+    c: !$options.canStartWxLogin
+  }, !$options.canStartWxLogin ? common_vendor.e({
+    d: $data.isLogging
   }, $data.isLogging ? {} : {}, {
-    d: common_vendor.n(!$data.selectedRole || $data.isLogging ? "bg-light-secondary text-muted" : ""),
-    e: common_vendor.o((...args) => $options.handleLogin && $options.handleLogin(...args)),
-    f: common_vendor.o((...args) => $options.skipLogin && $options.skipLogin(...args)),
-    g: $data.hasAgreed,
-    h: common_vendor.o(($event) => $options.openAgreement("service")),
-    i: common_vendor.o(($event) => $options.openAgreement("privacy")),
-    j: common_vendor.o((...args) => $options.onAgreementChange && $options.onAgreementChange(...args))
+    e: !$data.selectedRole || $data.isLogging ? 1 : "",
+    f: common_vendor.o((...args) => $options.handleLogin && $options.handleLogin(...args))
+  }) : {}, {
+    g: $options.canStartWxLogin
+  }, $options.canStartWxLogin ? {
+    h: common_vendor.o((...args) => $options.onWxLoginPhone && $options.onWxLoginPhone(...args))
+  } : {}, {
+    i: common_vendor.o((...args) => $options.skipLogin && $options.skipLogin(...args)),
+    j: $data.hasAgreed,
+    k: common_vendor.o(($event) => $options.openAgreement("service")),
+    l: common_vendor.o(($event) => $options.openAgreement("privacy")),
+    m: common_vendor.o((...args) => $options.onAgreementChange && $options.onAgreementChange(...args))
   });
 }
 const MiniProgramPage = /* @__PURE__ */ common_vendor._export_sfc(_sfc_main, [["render", _sfc_render], ["__scopeId", "data-v-d08ef7d4"]]);

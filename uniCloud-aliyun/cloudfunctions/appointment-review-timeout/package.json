@@ -1,0 +1,25 @@
+{
+  "name": "appointment-review-timeout",
+  "version": "1.0.0",
+  "description": "下课21小时提醒评价、24小时未评价默认好评",
+  "main": "index.js",
+  "cloudfunction-config": {
+    "memorySize": 256,
+    "timeout": 60,
+    "triggers": [
+      {
+        "name": "review-timeout-every-5min",
+        "type": "timer",
+        "config": "0 */5 * * * * *"
+      }
+    ]
+  },
+  "dependencies": {
+    "chat-notice": "file:../common/chat-notice",
+    "notify-push": "file:../common/notify-push",
+    "wx-oa-client": "file:../common/wx-oa-client"
+  },
+  "extensions": {
+    "uni-cloud-push": {}
+  }
+}

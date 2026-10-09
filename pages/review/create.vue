@@ -1,134 +1,100 @@
 <template>
-  <view class="review-page">
-    <!-- 教师信息头部 -->
-    <view class="review-page__hero">
-      <image
-        class="review-page__avatar"
-        :src="teacherInfo.avatar || defaultAvatarUrl"
-        mode="aspectFill"
-      />
-      <view class="review-page__hero-meta">
-        <text class="review-page__hero-name">{{ teacherInfo.name || '教师' }}</text>
-        <text class="review-page__hero-sub">
-          {{ teacherInfo.subjectText }}
-          <text v-if="teacherInfo.experience"> · {{ teacherInfo.experience }}</text>
-        </text>
-      </view>
-    </view>
+	<view class="page">
+		<view class="hero-card">
+			<image
+				class="hero-avatar"
+				:src="teacherInfo.avatar || defaultAvatarUrl"
+				mode="aspectFill"
+			/>
+			<text class="hero-name">{{ teacherInfo.name || '教师' }}老师</text>
+			<text class="hero-meta">{{ teacherMeta }}</text>
+		</view>
 
-    <scroll-view scroll-y class="review-page__scroll">
-      <view class="review-page__body">
-        <!-- 试课结果（一步合并：必须先选） -->
-        <view v-if="isTrial" class="review-card">
-          <view class="review-card__header">
-            <text class="review-card__title">确认试课结果</text>
-            <text class="review-card__subtitle">请选择本次试课是否成功，提交后将同步完成结算 + 写入评价</text>
-          </view>
-          <view
-            class="result-option"
-            :class="{ 'is-active': formData.is_satisfied === true }"
-            @click="selectResult(true)"
-          >
-            <text class="result-option__emoji">😊</text>
-            <view class="result-option__body">
-              <text class="result-option__title">试课成功</text>
-              <text class="result-option__desc">满意老师授课，确认本次试课成功，可继续预约正式课</text>
-            </view>
-          </view>
-          <view
-            class="result-option"
-            :class="{ 'is-active': formData.is_satisfied === false }"
-            @click="selectResult(false)"
-          >
-            <text class="result-option__emoji">🤔</text>
-            <view class="result-option__body">
-              <text class="result-option__title">试课不满意</text>
-              <text class="result-option__desc">确认本次试课不成功；不影响 70/30 结算，如老师爽约等异常请走退款申请</text>
-            </view>
-          </view>
-          <view v-if="formData.is_satisfied === false" class="result-reason">
-            <textarea
-              class="result-reason__input"
-              v-model="formData.fail_reason"
-              maxlength="200"
-              placeholder="（可选）告诉我们不满意的原因，平台仅作为质量改进参考"
-            />
-          </view>
-        </view>
+		<view v-if="isTrial" class="section-card">
+			<text class="section-title">确认试课结果</text>
+			<text class="section-sub">请选择本次试课是否成功，提交后将同步完成结算并写入评价。</text>
+			<view class="choice">
+				<view
+					class="choice-item"
+					:class="{ on: formData.is_satisfied === true }"
+					@click="selectResult(true)"
+				>
+					<text class="choice-title">试课成功</text>
+					<text class="choice-sub">后续可预约正式课</text>
+				</view>
+				<view
+					class="choice-item"
+					:class="{ on: formData.is_satisfied === false }"
+					@click="selectResult(false)"
+				>
+					<text class="choice-title">试课不满意</text>
+					<text class="choice-sub">可说明原因</text>
+				</view>
+			</view>
+			<textarea
+				v-if="formData.is_satisfied === false"
+				class="intro-input"
+				v-model="formData.fail_reason"
+				maxlength="200"
+				placeholder="（可选）告诉我们不满意的原因，平台仅作为质量改进参考"
+				:show-confirm-bar="false"
+				:cursor-spacing="24"
+				placeholder-class="ph"
+			/>
+		</view>
 
-        <!-- 课程满意度 -->
-        <view class="review-card">
-          <view class="review-card__header">
-            <text class="review-card__title">课程满意度</text>
-            <text class="review-card__subtitle">{{ ratingTips[formData.rating - 1] }}</text>
-          </view>
-          <view class="rating-row">
-            <view
-              v-for="i in 5"
-              :key="i"
-              class="rating-cell"
-              :class="{ 'is-active': i <= formData.rating }"
-              @click="setRating(i)"
-            >
-              <text class="rating-cell__star">★</text>
-            </view>
-          </view>
-        </view>
+		<view class="section-card center">
+			<text class="section-title">课程满意度</text>
+			<text class="section-sub">{{ ratingTips[formData.rating - 1] }}</text>
+			<view class="stars">
+				<text
+					v-for="i in 5"
+					:key="i"
+					class="star"
+					:class="{ on: i <= formData.rating }"
+					@click="setRating(i)"
+				>★</text>
+			</view>
+		</view>
 
-        <!-- 标签 -->
-        <view class="review-card">
-          <view class="review-card__header">
-            <text class="review-card__title">老师最值得点赞的地方</text>
-            <text class="review-card__subtitle">可多选，最多 4 项</text>
-          </view>
-          <view class="tag-wrap">
-            <view
-              v-for="tag in tagOptions"
-              :key="tag"
-              class="tag-chip"
-              :class="{ 'is-active': formData.tags.includes(tag) }"
-              @click="toggleTag(tag)"
-            >
-              {{ tag }}
-            </view>
-          </view>
-        </view>
+		<view class="chips-wrap">
+			<text
+				v-for="tag in tagOptions"
+				:key="tag"
+				class="chip"
+				:class="{ on: formData.tags.includes(tag) }"
+				@click="toggleTag(tag)"
+			>{{ tag }}</text>
+		</view>
 
-        <!-- 详细评价 -->
-        <view class="review-card">
-          <view class="review-card__header">
-            <text class="review-card__title">详细评价</text>
-            <text class="review-card__subtitle">至少 10 个字，帮助其他家长更好了解老师</text>
-          </view>
-          <textarea
-            class="review-textarea"
-            v-model="formData.content"
-            :maxlength="maxContentLength"
-            :placeholder="textareaPlaceholder"
-            placeholder-class="review-textarea__placeholder"
-          />
-          <view class="review-textarea__counter">
-            {{ formData.content.length }}/{{ maxContentLength }}
-          </view>
-        </view>
+		<view class="section-card">
+			<text class="section-title">详细评价（选填，最多500字）</text>
+			<textarea
+				class="intro-input"
+				v-model="formData.content"
+				:maxlength="maxContentLength"
+				:placeholder="textareaPlaceholder"
+				:show-confirm-bar="false"
+				:cursor-spacing="24"
+				placeholder-class="ph"
+			/>
+			<text class="count">{{ formData.content.length }}/{{ maxContentLength }}</text>
+		</view>
 
-        <view class="review-tips">
-          <text class="review-tips__line">提交时会先调用「确认结果」接口完成结算（70/30 + 信息费处理），再写入评价；任一步骤失败都会回滚提示。</text>
-          <text class="review-tips__line">评价将展示给老师和其他家长，我们会保护您的隐私。</text>
-        </view>
-      </view>
-    </scroll-view>
+		<text class="form-tip">文字评价可不填，只打星也能提交。提交后即确认上课结果，不可再申请退款。教师下课打卡后 24 小时未评价将默认好评。</text>
 
-    <view class="review-page__footer">
-      <button
-        class="review-page__submit"
-        :disabled="isSubmitting || !canSubmit"
-        @click="submit"
-      >
-        {{ submitText }}
-      </button>
-    </view>
-  </view>
+		<view class="scroll-spacer"></view>
+
+		<view class="action-bar">
+			<button
+				class="save-btn"
+				:disabled="isSubmitting || !canSubmit"
+				@click="submit"
+			>
+				{{ submitText }}
+			</button>
+		</view>
+	</view>
 </template>
 
 <script setup>
@@ -140,7 +106,7 @@ import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 const defaultAvatarUrl = getDefaultAvatarUrl()
 const tagOptions = ['讲解清晰', '耐心负责', '课堂有趣', '反馈及时', '备课充分', '专业度高', '善于引导', '课堂纪律好']
 const ratingTips = ['很不满意', '不太满意', '一般般', '比较满意', '非常满意']
-const textareaPlaceholder = '可以从课堂氛围、讲解质量、作业反馈等方面分享您的真实体验～'
+const textareaPlaceholder = '选填。也可以只打星提交，或从课堂氛围、讲解质量等方面分享体验'
 const maxContentLength = 500
 
 const appointmentId = ref('')
@@ -169,9 +135,15 @@ const formData = reactive({
 
 const canSubmit = computed(() => {
   if (formData.rating < 1) return false
-  if (formData.content.trim().length < 10) return false
   if (isTrial.value && formData.is_satisfied === null) return false
   return true
+})
+
+const teacherMeta = computed(() => {
+  const parts = [teacherInfo.subjectText]
+  if (isTrial.value) parts.push('试课')
+  else if (teacherInfo.experience) parts.push(teacherInfo.experience)
+  return parts.filter(Boolean).join(' · ')
 })
 
 const submitText = computed(() => {
@@ -283,11 +255,6 @@ function validate() {
     uni.showToast({ title: '请为本次课程打分', icon: 'none' })
     return false
   }
-  const content = formData.content.trim()
-  if (content.length < 10) {
-    uni.showToast({ title: '评价内容不少于 10 个字', icon: 'none' })
-    return false
-  }
   if (isTrial.value && formData.is_satisfied === null) {
     uni.showToast({ title: '请选择试课结果', icon: 'none' })
     return false
@@ -347,244 +314,213 @@ async function submit() {
 }
 </script>
 
-<style>
-.review-page {
-  min-height: 100vh;
-  background: #f5f6fa;
-  display: flex;
-  flex-direction: column;
+<style scoped>
+.page {
+	min-height: 100vh;
+	background: #F4F6F9;
+	padding: 24rpx 0 calc(148rpx + env(safe-area-inset-bottom));
 }
 
-.review-page__hero {
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  color: #fff;
-  padding: 32rpx 32rpx 40rpx;
-  display: flex;
-  align-items: center;
+.hero-card,
+.section-card {
+	margin: 0 32rpx 24rpx;
+	padding: 28rpx 32rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
-.review-page__avatar {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 50%;
-  border: 4rpx solid rgba(255, 255, 255, 0.3);
-  background: #fff;
+.hero-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
 }
 
-.review-page__hero-meta {
-  margin-left: 24rpx;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.hero-avatar {
+	width: 112rpx;
+	height: 112rpx;
+	border-radius: 50%;
+	background: #EEF3FF;
+	margin-bottom: 16rpx;
 }
 
-.review-page__hero-name {
-  font-size: 34rpx;
-  font-weight: 600;
+.hero-name {
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-.review-page__hero-sub {
-  font-size: 24rpx;
-  margin-top: 6rpx;
-  opacity: 0.85;
+.hero-meta {
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
 }
 
-.review-page__scroll {
-  flex: 1;
-  height: 0;
+.section-title {
+	display: block;
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-.review-page__body {
-  padding: 24rpx 24rpx 200rpx;
+.section-sub {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
 }
 
-.review-card {
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 24rpx;
-  margin-bottom: 20rpx;
-  box-shadow: 0 2rpx 12rpx rgba(15, 23, 42, 0.04);
+.section-card.center {
+	text-align: center;
 }
 
-.review-card__header {
-  margin-bottom: 16rpx;
-  display: flex;
-  flex-direction: column;
+.choice {
+	display: flex;
+	gap: 16rpx;
+	margin-top: 20rpx;
 }
 
-.review-card__title {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #111827;
+.choice-item {
+	flex: 1;
+	min-height: 128rpx;
+	padding: 20rpx 16rpx;
+	border: 2rpx solid #EBEDF0;
+	border-radius: 24rpx;
+	background: #FFFFFF;
+	box-sizing: border-box;
 }
 
-.review-card__subtitle {
-  font-size: 24rpx;
-  color: #6b7280;
-  margin-top: 4rpx;
+.choice-item.on {
+	border-color: #2563EB;
+	background: #EEF3FF;
 }
 
-.result-option {
-  display: flex;
-  align-items: center;
-  padding: 20rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 12rpx;
-  margin-bottom: 16rpx;
-  background: #f9fafb;
-  transition: border-color 0.15s;
+.choice-title {
+	display: block;
+	font-size: 28rpx;
+	font-weight: 600;
+	color: #1F2329;
 }
 
-.result-option.is-active {
-  border-color: #2563eb;
-  background: #eff6ff;
+.choice-sub {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
 }
 
-.result-option__emoji {
-  font-size: 40rpx;
-  margin-right: 20rpx;
+.intro-input {
+	width: 100%;
+	min-height: 160rpx;
+	margin-top: 16rpx;
+	padding: 20rpx;
+	border-radius: 16rpx;
+	background: #F4F6F9;
+	font-size: 26rpx;
+	color: #1F2329;
+	line-height: 1.6;
+	box-sizing: border-box;
 }
 
-.result-option__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
+.ph {
+	color: #C5C8CE;
 }
 
-.result-option__title {
-  font-size: 28rpx;
-  font-weight: 500;
-  color: #111827;
+.count {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+	text-align: right;
 }
 
-.result-option__desc {
-  font-size: 22rpx;
-  color: #6b7280;
-  margin-top: 4rpx;
+.stars {
+	display: flex;
+	justify-content: center;
+	gap: 16rpx;
+	margin-top: 20rpx;
 }
 
-.result-reason {
-  margin-top: 12rpx;
+.star {
+	min-width: 88rpx;
+	min-height: 88rpx;
+	font-size: 56rpx;
+	color: #EBEDF0;
+	line-height: 88rpx;
+	text-align: center;
 }
 
-.result-reason__input {
-  width: 100%;
-  min-height: 120rpx;
-  background: #f9fafb;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 12rpx;
-  padding: 16rpx;
-  font-size: 26rpx;
-  box-sizing: border-box;
+.star.on {
+	color: #F59E0B;
 }
 
-.rating-row {
-  display: flex;
-  gap: 16rpx;
+.chips-wrap {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12rpx;
+	padding: 0 32rpx 24rpx;
 }
 
-.rating-cell {
-  flex: 1;
-  height: 96rpx;
-  border-radius: 12rpx;
-  background: #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #9ca3af;
-  transition: all 0.15s;
+.chip {
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 12rpx;
+	background: #F1F2F4;
+	color: #5C6370;
+	font-size: 24rpx;
+	line-height: 56rpx;
 }
 
-.rating-cell.is-active {
-  background: #fde68a;
-  color: #b45309;
+.chip.on {
+	background: #EEF3FF;
+	color: #2563EB;
+	font-weight: 600;
 }
 
-.rating-cell__star {
-  font-size: 40rpx;
+.form-tip {
+	display: block;
+	padding: 0 32rpx 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+	line-height: 1.5;
 }
 
-.tag-wrap {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16rpx;
+.scroll-spacer {
+	height: 24rpx;
 }
 
-.tag-chip {
-  padding: 12rpx 20rpx;
-  border-radius: 999rpx;
-  background: #f3f4f6;
-  color: #374151;
-  font-size: 24rpx;
+.action-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 20;
+	padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom));
+	background: #FFFFFF;
+	border-top: 1rpx solid #EBEDF0;
 }
 
-.tag-chip.is-active {
-  background: #2563eb;
-  color: #fff;
+.save-btn {
+	width: 100%;
+	height: 88rpx;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: 20rpx;
+	background: #2563EB;
+	color: #FFFFFF;
+	font-size: 32rpx;
+	font-weight: 600;
+	line-height: 88rpx;
 }
 
-.review-textarea {
-  width: 100%;
-  min-height: 220rpx;
-  border: 2rpx solid #e5e7eb;
-  border-radius: 12rpx;
-  padding: 16rpx;
-  font-size: 26rpx;
-  box-sizing: border-box;
-  background: #f9fafb;
+.save-btn::after {
+	border: none;
 }
 
-.review-textarea__placeholder {
-  color: #9ca3af;
-}
-
-.review-textarea__counter {
-  text-align: right;
-  font-size: 22rpx;
-  color: #9ca3af;
-  margin-top: 8rpx;
-}
-
-.review-tips {
-  background: #fff7ed;
-  border: 2rpx dashed #fdba74;
-  border-radius: 12rpx;
-  padding: 16rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
-}
-
-.review-tips__line {
-  font-size: 22rpx;
-  color: #9a3412;
-}
-
-.review-page__footer {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 20rpx 24rpx;
-  background: #fff;
-  border-top: 2rpx solid #e5e7eb;
-  z-index: 100;
-}
-
-.review-page__submit {
-  width: 100%;
-  height: 88rpx;
-  line-height: 88rpx;
-  border-radius: 999rpx;
-  background: #2563eb;
-  color: #fff;
-  font-size: 30rpx;
-  font-weight: 500;
-  border: none;
-}
-
-.review-page__submit[disabled] {
-  background: #93c5fd;
-  color: #fff;
+.save-btn[disabled] {
+	opacity: 0.55;
 }
 </style>

@@ -1,21 +1,5 @@
 <template>
 	<view class="conversation-page">
-		<!-- 顶部导航栏 -->
-		<view class="navbar">
-			<view class="navbar-content">
-				<view class="navbar-left" @click="goBack">
-					<view class="icon-arrow-left navbar-back"></view>
-				</view>
-				<view class="navbar-center">
-					<image class="navbar-avatar" :src="otherUserInfo.avatar || defaultAvatarUrl" mode="aspectFill"></image>
-					<text class="navbar-name">{{ otherUserInfo.nickname || '家长' }}</text>
-				</view>
-				<view class="navbar-right">
-					<view class="icon-more navbar-more"></view>
-				</view>
-			</view>
-		</view>
-
 		<!-- 会话信息未就绪时先占位，避免闪现「支付信息费」 -->
 		<view v-if="!isInitialized" class="conversation-loading">
 			<text class="conversation-loading-text">加载中...</text>
@@ -42,7 +26,6 @@
 						<!-- 试课邀请卡片 -->
 						<view class="trial-invite-card">
 							<view class="trial-invite-header">
-								<text class="trial-invite-icon">🎓</text>
 								<text class="trial-invite-title">试课邀请</text>
 							</view>
 							<view class="trial-invite-content">
@@ -63,7 +46,6 @@
 					<view v-else-if="isAttendanceClockMessage(item.data)" class="message-item message-center">
 						<view class="attendance-clock-card" @click="goAttendanceAppointment(item.data)">
 							<view class="attendance-clock-header">
-								<text class="attendance-clock-icon">{{ getAttendanceClockIcon(item.data) }}</text>
 								<text class="attendance-clock-title">{{ getAttendanceClockTitle(item.data) }}</text>
 							</view>
 							<view class="attendance-clock-row">
@@ -75,6 +57,27 @@
 								<text class="attendance-clock-value">{{ getAttendanceClockAddress(item.data) }}</text>
 							</view>
 							<text class="attendance-clock-tip">{{ getAttendanceClockTip(item.data) }}</text>
+						</view>
+					</view>
+					<view v-else-if="isReviewResultMessage(item.data)" class="message-item message-center">
+						<view class="attendance-clock-card" @click="goReviewAppointment(item.data)">
+							<view class="attendance-clock-header">
+								<text class="attendance-clock-title">{{ getReviewResultTitle(item.data) }}</text>
+							</view>
+							<text class="review-stars">{{ getReviewStars(item.data) }}</text>
+							<view v-if="getReviewResultLine(item.data)" class="attendance-clock-row">
+								<text class="attendance-clock-label">结果</text>
+								<text class="attendance-clock-value">{{ getReviewResultLine(item.data) }}</text>
+							</view>
+							<view v-if="getReviewTags(item.data)" class="attendance-clock-row">
+								<text class="attendance-clock-label">标签</text>
+								<text class="attendance-clock-value">{{ getReviewTags(item.data) }}</text>
+							</view>
+							<view v-if="getReviewContent(item.data)" class="attendance-clock-row">
+								<text class="attendance-clock-label">评价</text>
+								<text class="attendance-clock-value">{{ getReviewContent(item.data) }}</text>
+							</view>
+							<text class="attendance-clock-tip">{{ getReviewResultTip(item.data) }}</text>
 						</view>
 					</view>
 					<view v-else class="message-item" :class="{ 'message-right': item.data.sender_role === currentUserRole }">
@@ -108,7 +111,6 @@
 				</view>
 
 				<view v-if="!formattedMessages.length && !loading" class="empty-message">
-					<view class="empty-icon icon-chat" style="width: 120rpx; height: 120rpx; color: #ddd;"></view>
 					<text class="empty-text">尚未开始对话，先和家长打个招呼吧</text>
 				</view>
 			</view>
@@ -116,13 +118,14 @@
 
 		<!-- 输入栏 -->
 		<view class="input-bar">
-			<view v-if="needPayDeposit" class="deposit-tip">
-				<text class="deposit-tip-text">支付信息费后才能开始聊天</text>
+			<view v-if="needPayDeposit" class="deposit-card">
+				<text class="deposit-title">需先支付信息费</text>
+				<text class="deposit-desc">{{ depositFeeHint }}</text>
 				<view class="deposit-fee-row">
 					<text class="deposit-fee-label">信息费</text>
 					<text class="deposit-fee-value">¥{{ infoFeeAmount }}</text>
 				</view>
-				<view class="deposit-coupon-row" @click="openCouponSelector">
+				<view class="deposit-coupon-row" @click.stop="openCouponSelector">
 					<text class="deposit-fee-label">优惠券</text>
 					<view class="deposit-coupon-value">
 						<text :class="canUseCoupon ? 'deposit-coupon-active' : 'deposit-coupon-muted'">{{ couponDisplayText }}</text>
@@ -134,44 +137,46 @@
 					<text class="deposit-discount-value">-¥{{ Number(couponDiscountAmount || 0).toFixed(2) }}</text>
 				</view>
 				<view v-if="couponDiscountAmount > 0" class="deposit-fee-row">
-					<text class="deposit-fee-label">应付金额</text>
+					<text class="deposit-fee-label">应付</text>
 					<text class="deposit-payable-value">¥{{ Number(payableInfoFeeAmount || 0).toFixed(2) }}</text>
 				</view>
-				<view class="deposit-btn" @click="handlePayDeposit" :class="{ 'deposit-btn-disabled': payingDeposit }">
-					<text class="deposit-btn-text">{{ payingDeposit ? '支付中...' : `支付信息费（¥${Number(payableInfoFeeAmount || 0).toFixed(2)}）` }}</text>
+				<view class="deposit-btn" @click.stop="handlePayDeposit" :class="{ 'deposit-btn-disabled': payingDeposit }">
+					<text class="deposit-btn-text">{{ payDepositButtonText }}</text>
 				</view>
 			</view>
 			<view v-else-if="waitingParentPay" class="wait-pay-tip">
 				<text class="wait-pay-tip-text">家长已确认试课信息，等待支付试课费</text>
 			</view>
-			<view v-else>
-				<!-- 邀请试课按钮 -->
-				<view v-if="canShowInviteTrial" class="invite-trial-bar">
-					<view class="invite-trial-btn" @click="handleInviteTrial" :class="{ 'invite-trial-btn-disabled': invitingTrial }">
-						<text class="invite-trial-btn-text">{{ invitingTrial ? '发送中...' : '邀请试课' }}</text>
-					</view>
+			<view v-else class="input-wrapper">
+				<view
+					v-if="canShowInviteTrial"
+					class="invite-mini"
+					:class="{ disabled: invitingTrial }"
+					@click="handleInviteTrial"
+				>
+					<text>{{ invitingTrial ? '发送中' : '邀请试课' }}</text>
 				</view>
-				<view class="input-wrapper">
-					<view class="input-box">
-						<textarea
-							v-model="inputText"
-							class="input-textarea"
-							auto-height
-							confirm-type="send"
-							:maxlength="300"
-							placeholder="请输入聊天内容..."
-							@confirm="sendMessage"
-							:disabled="sending || !canSend"
-							placeholder-class="input-placeholder"
-						/>
-					</view>
-					<view 
-						class="send-btn"
-						:class="{ 'send-btn-active': canSendMessage }"
-						@click="sendMessage"
-					>
-						<text class="send-btn-text">{{ sending ? '发送中' : '发送' }}</text>
-					</view>
+				<view class="input-box">
+					<textarea
+						v-model="inputText"
+						class="input-textarea"
+						auto-height
+						:show-confirm-bar="false"
+						:cursor-spacing="24"
+						confirm-type="send"
+						:maxlength="300"
+						placeholder="发送消息（300字内）"
+						@confirm="sendMessage"
+						:disabled="sending || !canSend"
+						placeholder-class="input-placeholder"
+					/>
+				</view>
+				<view
+					class="send-btn"
+					:class="{ 'send-btn-active': canSendMessage }"
+					@click="sendMessage"
+				>
+					<text class="send-btn-text">{{ sending ? '发送中' : '发送' }}</text>
 				</view>
 			</view>
 		</view>
@@ -217,10 +222,10 @@ import { getDefaultAvatarUrl } from '@/utils/imageConfig.js'
 
 import { mockMessages, useMockData } from '@/utils/mockData.js'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
-import { saveAppointmentTeacherPreview } from '@/utils/appointmentTeacherPreview.js'
-import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '@/utils/payment.js'
+import { saveAppointmentTeacherPreview } from '../utils/appointmentTeacherPreview.js'
+import { createAndPayWithUniPay, payExistingOrderWithUniPay } from '../utils/payment.js'
 import { CHAT_POLL_ENABLED, CHAT_POLL_INTERVAL } from '@/utils/chatPoll.js'
-import { onChatPush, offChatPush, refreshChatBadge } from '@/utils/chatPush.js'
+import { onChatPush, offChatPush, refreshChatBadge, onAppPush, offAppPush, APP_PUSH_TYPES } from '@/utils/chatPush.js'
 
 export default {
 	name: 'TeacherChatConversation',
@@ -247,6 +252,7 @@ export default {
 			payingDeposit: false,
 			couponPreview: null,
 			couponLoading: false,
+			ignorePayUntil: 0,
 			invitingTrial: false, // 是否正在发送试课邀请
 			hasTrialSuccess: false, // 与当前家长是否已有试课成功记录
 			hasActiveTrial: false, // 是否有进行中的试课
@@ -263,15 +269,25 @@ export default {
 			pollInterval: CHAT_POLL_INTERVAL.conversation,
 			initPromise: null, // 保存初始化 Promise
 			// 老师端自身课时费（元/小时），用于计算信息费 = 课时费 × 2
-			teacherHourlyRate: 0
+			teacherHourlyRate: 0,
+			// 招募场景：按家长预算下限计算信息费
+			recruitmentHourlyRate: 0
 		}
 	},
 	computed: {
-		// 信息费金额（元）= 老师课时费 × 2（一节试课 2 小时）；老师未设置时兜底 1 元，与后端兜底一致
+		// 信息费金额（元）= 课时费 × 2（一节试课 2 小时）；招募按家长下限，其余按老师定价
 		infoFeeAmount() {
-			const rate = Number(this.teacherHourlyRate) || 0
+			const rate = Number(this.recruitmentHourlyRate) > 0
+				? Number(this.recruitmentHourlyRate)
+				: (Number(this.teacherHourlyRate) || 0)
 			const fee = rate > 0 ? Number((rate * 2).toFixed(2)) : 0
 			return fee > 0 ? fee : 1
+		},
+		depositFeeHint() {
+			if (Number(this.recruitmentHourlyRate) > 0) {
+				return `招募信息费 = 家长预算下限 ¥${Number(this.recruitmentHourlyRate)} × 2。可用优惠券抵扣。`
+			}
+			return '信息费 = 课时费 × 2。可用优惠券抵扣。'
 		},
 		trialInviteTotalAmount() {
 			const rate = Number(this.trialInviteHourlyRateInput) || 0
@@ -302,6 +318,12 @@ export default {
 					: this.couponPreview.couponName
 			}
 			return '请选择优惠券'
+		},
+		payDepositButtonText() {
+			if (this.payingDeposit) return '支付中...'
+			const payable = Number(this.payableInfoFeeAmount || 0)
+			if (this.couponPreview && payable <= 0) return '确认支付（优惠券全额抵扣）'
+			return `支付信息费（¥${payable.toFixed(2)}）`
 		},
 		formattedMessages() {
 			const result = []
@@ -369,8 +391,9 @@ export default {
 			}
 		}
 
-		this.initConversation()
+		this.initConversation().then(() => this.loadRecruitmentHourlyRate())
 		this.loadTeacherHourlyRate()
+		this.syncNavTitle()
 	},
 	async onShow() {
 		if (!this.isInitialized && !this.initPromise) {
@@ -382,6 +405,7 @@ export default {
 		if (this.isInitialized && this.conversationId && !this.useMock) {
 			console.log('[teacher-chat] onShow 就绪，绑定 push，conversationId=', this.conversationId)
 			this.loadNewMessages()
+			this.loadTrialInviteStatuses()
 			this.startPolling()
 			this.bindChatPush()
 		} else {
@@ -411,13 +435,22 @@ export default {
 					return
 				}
 				this.loadNewMessages()
+				this.loadTrialInviteStatuses()
 			}
 			onChatPush(this._onChatPush)
+			this._onAppointmentPush = () => {
+				this.loadTrialInviteStatuses()
+			}
+			onAppPush(APP_PUSH_TYPES.APPOINTMENT_UPDATE, this._onAppointmentPush)
 		},
 		unbindChatPush() {
 			if (!this._onChatPush) return
 			offChatPush(this._onChatPush)
 			this._onChatPush = null
+			if (this._onAppointmentPush) {
+				offAppPush(this._onAppointmentPush)
+				this._onAppointmentPush = null
+			}
 		},
 		startPolling() {
 			this.stopPolling()
@@ -451,6 +484,22 @@ export default {
 				}
 			} catch (e) {
 				console.warn('[信息费] 获取教师课时费失败，使用兜底金额:', e)
+			}
+		},
+		async loadRecruitmentHourlyRate() {
+			const aptId = this.appointmentId || (this.conversationInfo && this.conversationInfo.appointment_id)
+			if (!aptId || this.useMock) return
+			try {
+				const query = uniCloud.importObject('appointment-query', { customUI: true })
+				const res = await query.getAppointmentDetail({ appointment_id: aptId })
+				const apt = res && res.data
+				if (!apt) return
+				const isRecruitment = !!(apt.recruitment_id || apt.invited_via === 'recruitment' || this.inviteSource === 'recruitment')
+				if (!isRecruitment) return
+				const rate = Number(apt.trial_invite_hourly_rate || apt.hourly_rate || 0)
+				if (rate > 0) this.recruitmentHourlyRate = rate
+			} catch (e) {
+				console.warn('[信息费] 获取招募课时费失败:', e)
 			}
 		},
 		async initConversation() {
@@ -494,6 +543,7 @@ export default {
 			try {
 				if (this.useMock) {
 					this.otherUserInfo = { nickname: '家长', avatar: '/static/default-avatar.png' }
+					this.syncNavTitle()
 					return
 				}
 				const chatSend = uniCloud.importObject('chat-send', { customUI: true })
@@ -518,6 +568,7 @@ export default {
 							nickname: res.data.other_user.nickname || res.data.other_user.display_name || '家长',
 							avatar: res.data.other_user.avatar || '/static/default-avatar.png'
 						}
+						this.syncNavTitle()
 					}
 					if (!this.conversationId && res.data.conversation_id) {
 						this.conversationId = res.data.conversation_id
@@ -808,6 +859,11 @@ export default {
 		goBack() {
 			uni.navigateBack()
 		},
+		syncNavTitle() {
+			uni.setNavigationBarTitle({
+				title: (this.otherUserInfo && this.otherUserInfo.nickname) || '家长'
+			})
+		},
 		/**
 		 * 判断消息是否为试课邀请消息
 		 * @param {Object} msg - 消息对象
@@ -862,6 +918,58 @@ export default {
 		},
 		goAttendanceAppointment(msg) {
 			const p = this.parseAttendanceClockPayload(msg)
+			const id = (p && p.appointment_id) || this.appointmentId
+			if (!id) {
+				uni.showToast({ title: '未关联预约', icon: 'none' })
+				return
+			}
+			uni.navigateTo({ url: `/pages-teacher/appointment/detail?id=${id}` })
+		},
+		parseReviewResultPayload(msg) {
+			if (!msg || !msg.content) return null
+			try {
+				const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content
+				if (parsed && parsed.type === 'review_result') return parsed
+			} catch (e) {
+				return null
+			}
+			return null
+		},
+		isReviewResultMessage(msg) {
+			return !!this.parseReviewResultPayload(msg)
+		},
+		getReviewResultTitle(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			return (p && p.title) || '课程评价'
+		},
+		getReviewStars(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			const n = Math.min(5, Math.max(0, Number(p && p.rating) || 0))
+			return '★'.repeat(n) + '☆'.repeat(5 - n)
+		},
+		getReviewResultLine(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			if (!p) return ''
+			if (p.is_auto) return '系统默认好评'
+			if (p.is_satisfied === true) return '试课成功'
+			if (p.is_satisfied === false) return '试课不满意'
+			return ''
+		},
+		getReviewTags(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			const tags = (p && Array.isArray(p.tags)) ? p.tags.filter(Boolean) : []
+			return tags.join('、')
+		},
+		getReviewContent(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			return (p && p.content) || ''
+		},
+		getReviewResultTip(msg) {
+			const p = this.parseReviewResultPayload(msg)
+			return (p && p.tip) || '点击查看预约详情'
+		},
+		goReviewAppointment(msg) {
+			const p = this.parseReviewResultPayload(msg)
 			const id = (p && p.appointment_id) || this.appointmentId
 			if (!id) {
 				uni.showToast({ title: '未关联预约', icon: 'none' })
@@ -1050,7 +1158,7 @@ export default {
 				avatar: this.otherUserInfo.avatar || ''
 			})
 			uni.navigateTo({
-				url: `/pages/appointment/create?invite_id=${inviteId}`
+				url: `/pages-biz/appointment/create?invite_id=${inviteId}`
 			})
 		},
 		async openCouponSelector() {
@@ -1094,7 +1202,8 @@ export default {
 
 				uni.showActionSheet({
 					itemList,
-					success: async ({ tapIndex }) => {
+					success: ({ tapIndex }) => {
+						this.ignorePayUntil = Date.now() + 800
 						if (tapIndex === 0) {
 							this.couponPreview = null
 							return
@@ -1103,23 +1212,26 @@ export default {
 						const couponRecord = usableCoupons[tapIndex - 1]
 						if (!couponRecord) return
 
-						try {
-							const previewRes = await couponCenter.previewForInfoFee({
-								amount: this.infoFeeAmount,
-								user_coupon_id: couponRecord._id
-							})
-							if (previewRes.code === 0 && previewRes.data) {
-								this.couponPreview = {
-									...previewRes.data,
-									couponName: couponRecord.name || previewRes.data.couponName
+						setTimeout(async () => {
+							try {
+								const previewRes = await couponCenter.previewForInfoFee({
+									amount: this.infoFeeAmount,
+									user_coupon_id: couponRecord._id
+								})
+								if (previewRes.code === 0 && previewRes.data) {
+									this.couponPreview = {
+										...previewRes.data,
+										couponName: couponRecord.name || previewRes.data.couponName
+									}
+									uni.showToast({ title: '已选择优惠券，请点击支付完成抵扣', icon: 'none' })
+								} else {
+									uni.showToast({ title: previewRes.message || '优惠券不可用', icon: 'none' })
 								}
-							} else {
-								uni.showToast({ title: previewRes.message || '优惠券不可用', icon: 'none' })
+							} catch (e) {
+								console.error('试算教师优惠券失败:', e)
+								uni.showToast({ title: '优惠券试算失败，请稍后重试', icon: 'none' })
 							}
-						} catch (e) {
-							console.error('试算教师优惠券失败:', e)
-							uni.showToast({ title: '优惠券试算失败，请稍后重试', icon: 'none' })
-						}
+						}, 50)
 					}
 				})
 			} catch (error) {
@@ -1131,6 +1243,7 @@ export default {
 		},
 		async handlePayDeposit() {
 			if (this.payingDeposit) return
+			if (Date.now() < this.ignorePayUntil) return
 
 			const appointmentId = this.appointmentId || this.conversationInfo?.appointment_id
 			if (!appointmentId) {
@@ -1162,7 +1275,7 @@ export default {
 
 					try {
 						const payComponent = this.$refs.pay
-						if (!payComponent || typeof payComponent.open !== 'function') {
+						if (payableAmount > 0 && (!payComponent || typeof payComponent.open !== 'function')) {
 							throw new Error('支付组件未就绪，请稍后重试')
 						}
 
@@ -1213,16 +1326,21 @@ export default {
 							user_coupon_id: this.couponPreview ? this.couponPreview.user_coupon_id : null
 						})
 						if (payRes && payRes.data && payRes.data.zero_pay) {
+							if (this.conversationInfo) {
+								this.conversationInfo.chat_enabled = true
+								this.conversationInfo.teacher_deposit_paid = true
+							}
 							uni.showToast({ title: '优惠券已抵扣信息费', icon: 'success' })
 							this.couponPreview = null
 							await this.loadUserInfo()
-							await this.loadMessages()
+							await this.refreshMessages()
 						}
 					} catch (error) {
 						uni.hideLoading()
 						console.error('支付失败:', error)
+						const raw = error && error.message ? String(error.message) : ''
 						uni.showToast({
-							title: error.message || '支付失败，请稍后再试',
+							title: /is not a function/i.test(raw) ? '支付已完成，请刷新页面查看' : (raw || '支付失败，请稍后再试'),
 							icon: 'none'
 						})
 					} finally {
@@ -1328,7 +1446,7 @@ export default {
 
 .conversation-loading-text {
 	font-size: 28rpx;
-	color: #999999;
+	color: #8B919C;
 }
 
 /* 导航栏 */
@@ -1444,10 +1562,11 @@ export default {
 }
 
 .message-avatar {
-	width: 88rpx;
-	height: 88rpx;
-	border-radius: 6rpx;
+	width: 80rpx;
+	height: 80rpx;
+	border-radius: 50%;
 	flex-shrink: 0;
+	background: #EEF3FF;
 }
 
 .message-content-wrapper {
@@ -1472,49 +1591,19 @@ export default {
 
 .message-bubble {
 	padding: 18rpx 24rpx;
-	border-radius: 10rpx;
+	border-radius: 16rpx;
 	word-wrap: break-word;
 	word-break: break-all;
 	display: inline-block;
 	position: relative;
-	box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
 }
 
 .bubble-left {
 	background: #FFFFFF;
-	border-top-left-radius: 0;
-	position: relative;
-}
-
-.bubble-left::before {
-	content: '';
-	position: absolute;
-	left: -16rpx;
-	top: 20rpx;
-	width: 0;
-	height: 0;
-	border-top: 12rpx solid transparent;
-	border-bottom: 12rpx solid transparent;
-	border-right: 16rpx solid #FFFFFF;
 }
 
 .bubble-right {
-	background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-	border-top-right-radius: 0;
-	position: relative;
-}
-
-.bubble-right::after {
-	content: '';
-	position: absolute;
-	right: -16rpx;
-	top: 20rpx;
-	width: 0;
-	height: 0;
-	border-top: 12rpx solid transparent;
-	border-bottom: 12rpx solid transparent;
-	border-left: 16rpx solid;
-	border-left-color: #357ABD;
+	background: #2563EB;
 }
 
 .message-text {
@@ -1533,33 +1622,41 @@ export default {
 /* 输入栏 */
 .input-bar {
 	background: #FFFFFF;
-	border-top: 1rpx solid #E5E5E5;
+	border-top: 1rpx solid #EBEDF0;
 	padding-bottom: env(safe-area-inset-bottom);
 }
 
-.deposit-tip {
-	background: #FFF7E6;
-	padding: 30rpx;
-	border-bottom: 1rpx solid #FFE7A6;
+.deposit-card {
+	margin: 16rpx 24rpx 20rpx;
+	padding: 28rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
 }
 
 .wait-pay-tip {
-	background: #E8F3FF;
-	padding: 20rpx 30rpx;
-	border-bottom: 1rpx solid #B7D8FF;
+	padding: 20rpx 32rpx;
+	background: #EEF3FF;
 }
 
 .wait-pay-tip-text {
 	font-size: 24rpx;
-	color: #2979FF;
+	color: #2563EB;
 }
 
-.deposit-tip-text {
-	font-size: 28rpx;
-	color: #FF9500;
+.deposit-title {
 	display: block;
-	margin-bottom: 20rpx;
-	text-align: center;
+	font-size: 32rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.deposit-desc {
+	display: block;
+	margin: 8rpx 0 20rpx;
+	font-size: 24rpx;
+	color: #5C6370;
+	line-height: 1.5;
 }
 
 .deposit-fee-row,
@@ -1567,24 +1664,18 @@ export default {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	background: #FFFFFF;
-	border-radius: 10rpx;
-	padding: 18rpx 20rpx;
-	margin-bottom: 12rpx;
-}
-
-.deposit-coupon-row {
-	border: 1rpx solid #FFE7A6;
+	padding: 16rpx 0;
+	border-bottom: 1rpx solid #EBEDF0;
 }
 
 .deposit-fee-label {
 	font-size: 26rpx;
-	color: #666666;
+	color: #8B919C;
 }
 
 .deposit-fee-value {
 	font-size: 26rpx;
-	color: #333333;
+	color: #1F2329;
 	font-weight: 600;
 }
 
@@ -1596,7 +1687,7 @@ export default {
 
 .deposit-coupon-active {
 	font-size: 26rpx;
-	color: #FF9500;
+	color: #2563EB;
 }
 
 .deposit-coupon-muted {
@@ -1612,20 +1703,21 @@ export default {
 
 .deposit-discount-value {
 	font-size: 26rpx;
-	color: #FF6B01;
+	color: #FA5151;
 	font-weight: 600;
 }
 
 .deposit-payable-value {
 	font-size: 30rpx;
-	color: #FF6B01;
-	font-weight: 700;
+	color: #FA5151;
+	font-weight: 600;
 }
 
 .deposit-btn {
-	background: #FF9500;
-	border-radius: 10rpx;
-	padding: 24rpx;
+	margin-top: 20rpx;
+	background: #2563EB;
+	border-radius: 20rpx;
+	padding: 20rpx;
 	text-align: center;
 }
 
@@ -1643,16 +1735,32 @@ export default {
 	display: flex;
 	align-items: flex-end;
 	padding: 16rpx 20rpx;
-	background: #F7F7F7;
+	background: #FFFFFF;
+	gap: 12rpx;
+}
+
+.invite-mini {
+	flex-shrink: 0;
+	height: 64rpx;
+	padding: 0 16rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 64rpx;
+}
+
+.invite-mini.disabled {
+	opacity: 0.5;
 }
 
 .input-box {
 	flex: 1;
-	background: #FFFFFF;
-	border-radius: 8rpx;
-	padding: 16rpx 20rpx;
-	margin-right: 16rpx;
-	min-height: 72rpx;
+	background: #F4F6F9;
+	border-radius: 16rpx;
+	padding: 12rpx 20rpx;
+	min-height: 64rpx;
 	max-height: 200rpx;
 }
 
@@ -1669,9 +1777,9 @@ export default {
 
 .send-btn {
 	width: 100rpx;
-	height: 72rpx;
-	background: #07C160;
-	border-radius: 8rpx;
+	height: 64rpx;
+	background: #C6C6C6;
+	border-radius: 16rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1679,7 +1787,7 @@ export default {
 }
 
 .send-btn-active {
-	background: #07C160;
+	background: #2563EB;
 }
 
 .send-btn-text {
@@ -1769,32 +1877,7 @@ export default {
 	box-shadow: 12rpx 0 0 currentColor;
 }
 
-/* 邀请试课按钮栏 */
-.invite-trial-bar {
-	padding: 12rpx 24rpx;
-	background-color: #F5F5F5;
-	border-bottom: 1rpx solid #E5E5E5;
-}
-
-.invite-trial-btn {
-	width: 100%;
-	height: 72rpx;
-	background-color: #4A90E2;
-	border-radius: 36rpx;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.invite-trial-btn-disabled {
-	opacity: 0.6;
-}
-
-.invite-trial-btn-text {
-	color: #FFFFFF;
-	font-size: 28rpx;
-	font-weight: 500;
-}
+/* 邀请试课已并入底栏 invite-mini */
 
 /* 试课邀请卡片 */
 .message-center {
@@ -1824,7 +1907,7 @@ export default {
 .trial-invite-title {
 	font-size: 32rpx;
 	font-weight: 600;
-	color: #333333;
+	color: #1F2329;
 }
 
 .trial-invite-content {
@@ -1840,8 +1923,8 @@ export default {
 .trial-invite-btn {
 	width: 100%;
 	height: 72rpx;
-	background-color: #4A90E2;
-	border-radius: 36rpx;
+	background-color: #2563EB;
+	border-radius: 20rpx;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1890,7 +1973,7 @@ export default {
 .attendance-clock-title {
 	font-size: 30rpx;
 	font-weight: 600;
-	color: #333333;
+	color: #1F2329;
 }
 
 .attendance-clock-row {
@@ -1917,7 +2000,15 @@ export default {
 	display: block;
 	margin-top: 12rpx;
 	font-size: 22rpx;
-	color: #4A90E2;
+	color: #2563EB;
+}
+
+.review-stars {
+	display: block;
+	margin: 8rpx 0 12rpx;
+	font-size: 32rpx;
+	color: #F59E0B;
+	letter-spacing: 4rpx;
 }
 
 .icon-chat {
@@ -2033,7 +2124,7 @@ export default {
 }
 
 .trial-fee-btn-confirm {
-	background: #07c160;
+	background: #2563EB;
 	color: #fff;
 }
 </style>

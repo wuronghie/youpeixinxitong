@@ -1,156 +1,142 @@
 <template>
-	<view style="background: #F5F5F5;">
-		<!-- 头部 -->
-		<view class="main-bg-color py-4 px-3 text-white">
-			<view class="d-flex a-center mb-3">
-				<image class="rounded-circle border-light mr-3" :src="userInfo.avatar || defaultAvatarUrl" mode="aspectFill" style="width: 120rpx;height: 120rpx;border: 4rpx solid rgba(255,255,255,0.3);"></image>
-				<view class="flex-1">
-					<text class="font-lg font-weight d-block mb-2">{{ userInfo.displayName }}</text>
-					<view class="d-flex a-center flex-wrap">
-						<text class="stat-tag rounded px-2 py-1 font-xs mr-2 mb-1 text-white">教师</text>
-						<text v-if="teacherStatusText" class="stat-tag rounded px-2 py-1 font-xs mb-1 text-white">{{ teacherStatusText }}</text>
-					</view>
-					<view class="d-flex a-center mt-2">
-						<view v-if="userInfo.phone" class="d-flex a-center font-xs mr-3" style="opacity: 0.85;">
-							<view class="icon-phone mr-1" style="width: 28rpx; height: 28rpx;"></view>
-							{{ userInfo.phone }}
-						</view>
-						<text
-							v-if="userInfo.uid"
-							class="font-xs user-id-copy"
-							style="opacity: 0.85;"
-							@click.stop="copyUserId"
-						>ID: {{ userInfo.uid }}</text>
-					</view>
+	<view class="page">
+		<view class="me-band">
+			<text class="me-greet">{{ greetText }}</text>
+			<text class="me-title">我的</text>
+		</view>
+
+		<view class="id-card">
+			<view class="id-top">
+				<image class="id-avatar" :src="userInfo.avatar || defaultAvatarUrl" mode="aspectFill"></image>
+				<view class="id-meta">
+					<text class="id-name">{{ userInfo.displayName }}</text>
+					<text class="id-hint">教师 · {{ teacherStatusText || '待完善资料' }}</text>
 				</view>
+				<button class="me-edit" @click.stop="goToPage('/pages-teacher/profile/edit')">完善资料</button>
 			</view>
-			<view class="stat-card rounded px-3 py-2">
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ metrics.totalStudents || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">学员数</text>
+			<view v-if="userInfo.uid" class="id-copy" @click.stop="copyUserId">
+				<text class="id-copy-text">ID {{ userInfo.uid }}</text>
+				<text class="id-copy-btn">复制</text>
+			</view>
+		</view>
+
+		<view class="apt-card">
+			<view class="apt-head">
+				<text class="apt-title">教学数据</text>
+				<text class="apt-more" @click="goToPage('/pages-teacher/index/index')">工作台 ›</text>
+			</view>
+			<view class="apt-grid">
+				<view class="apt-cell" @click="goToPage('/pages-teacher/appointment/list')">
+					<text class="apt-num">{{ metrics.totalStudents || 0 }}</text>
+					<text class="apt-label">学员</text>
 				</view>
-				<view style="width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.2);"></view>
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ metrics.totalTrials || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">总试课数</text>
+				<view class="apt-cell" @click="goToPage('/pages-teacher/appointment/list')">
+					<text class="apt-num">{{ metrics.totalTrials || 0 }}</text>
+					<text class="apt-label">试课</text>
 				</view>
-				<view style="width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.2);"></view>
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ metrics.successfulTrials || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">试课成功</text>
+				<view class="apt-cell" @click="goToPage('/pages-teacher/appointment/list')">
+					<text class="apt-num">{{ metrics.successfulTrials || 0 }}</text>
+					<text class="apt-label">成功</text>
 				</view>
-				<view style="width: 2rpx; height: 60rpx; background: rgba(255,255,255,0.2);"></view>
-				<view class="flex-1 text-center">
-					<text class="font-md font-weight text-white d-block mb-1">{{ metrics.totalIncome || 0 }}</text>
-					<text class="font-xs text-white" style="opacity: 0.9;">累计收入</text>
+				<view class="apt-cell" @click="goToPage('/pages-teacher/wallet/index')">
+					<text class="apt-num">{{ metrics.totalIncome || 0 }}</text>
+					<text class="apt-label">收入</text>
 				</view>
 			</view>
 		</view>
 
-		<scroll-view scroll-y class="scroll">
-			<view class="px-2 py-3">
-				<!-- 快捷功能 -->
-				<card headTitle="快捷功能" class="mb-3">
-					<view class="d-flex j-sb flex-wrap">
-						<view
-							v-for="action in actionList"
-							:key="action.url"
-							class="quick-action-item d-flex flex-column a-center mb-3"
-							@click="goToPage(action.url)"
-						>
-							<image
-								:src="action.icon"
-								class="quick-action-icon mb-2"
-								mode="aspectFit"
-							/>
-							<text class="font-xs text-center">{{ action.title }}</text>
-						</view>
-					</view>
-				</card>
-
-				<!-- 账号信息 -->
-				<card headTitle="账号信息" class="mb-3">
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">姓名</text>
-						<text class="font-sm text-right">{{ userInfo.displayName || '-' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">手机号</text>
-						<text class="font-sm text-right">{{ userInfo.phone || '未绑定' }}</text>
-					</view>
-					<view class="d-flex a-center j-sb py-2">
-						<text class="font-sm">认证状态</text>
-						<text class="font-sm text-right" :class="metrics.verificationStatus === 'verified' ? 'text-success' : ''">{{ statusTextMap[metrics.verificationStatus] || '待完善' }}</text>
-					</view>
-				</card>
-
-				<!-- 教师资料 -->
-				<card headTitle="教师资料" class="mb-3" v-if="(teacherProfile.subjects && teacherProfile.subjects.length > 0) || (teacherProfile.grades && teacherProfile.grades.length > 0) || teacherProfile.hourly_rate">
-					<view v-if="teacherProfile.subjects && teacherProfile.subjects.length > 0" class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">主教科目</text>
-						<text class="font-sm text-right">{{ (teacherProfile.subjects || []).join('、') }}</text>
-					</view>
-					<view v-if="teacherProfile.grades && teacherProfile.grades.length > 0" class="d-flex a-center j-sb py-2 border-bottom">
-						<text class="font-sm">适合年级</text>
-						<text class="font-sm text-right">{{ (teacherProfile.grades || []).join('、') }}</text>
-					</view>
-					<view v-if="teacherProfile.hourly_rate" class="d-flex a-center j-sb py-2">
-						<text class="font-sm">时薪</text>
-						<text class="font-sm text-right main-text-color font-weight">¥{{ teacherProfile.hourly_rate }}/小时</text>
-					</view>
-				</card>
-
-				<!-- 常用设置 -->
-				<card headTitle="常用设置" class="mb-3">
-					<view
-						v-for="item in listMenus"
-						:key="item.url"
-						class="d-flex a-center j-sb py-3 border-bottom"
-						@click="goToPage(item.url)"
-					>
-						<view class="d-flex a-center">
-							<image
-								:src="item.icon"
-								class="menu-icon mr-3"
-								mode="aspectFit"
-							/>
-							<view class="d-flex flex-column">
-								<text class="font-sm font-weight mb-1">{{ item.title }}</text>
-								<text class="font-xs text-light-muted">{{ item.desc }}</text>
-							</view>
-						</view>
-						<text class="font-md text-light-muted">›</text>
-					</view>
-				</card>
-
-				<!-- 退出登录和注销账号 -->
-				<view class="mt-3 mb-3">
-					<button class="w-100 border border-danger text-danger rounded px-3 py-2 font-sm mb-2" @click="handleLogout">退出登录</button>
-					<button class="w-100 border border-warning text-warning rounded px-3 py-2 font-sm" @click="handleDeleteAccount">注销账号</button>
+		<view class="svc-card">
+			<view
+				v-for="action in actionList"
+				:key="action.url"
+				class="svc-item"
+				@click="goToPage(action.url)"
+			>
+				<view class="svc-tile">
+					<image class="svc-icon" :src="action.icon" mode="aspectFit"></image>
 				</view>
+				<text class="svc-text">{{ action.title }}</text>
 			</view>
-			<!-- 备案信息 -->
-			<view class="icp-footer">
-				<text class="icp-text">蜀ICP备2026004236号-1X</text>
+		</view>
+
+		<view class="menu-card">
+			<view
+				v-for="item in listMenus"
+				:key="item.url"
+				class="menu-item"
+				hover-class="menu-item--hover"
+				@click="goToPage(item.url)"
+			>
+				<view class="menu-left">
+					<view class="menu-ico">
+						<image class="menu-ico-img" :src="item.icon" mode="aspectFit"></image>
+					</view>
+					<text class="menu-text">{{ item.title }}</text>
+				</view>
+				<text class="menu-arrow">›</text>
 			</view>
-		</scroll-view>
+			<view class="menu-item" hover-class="menu-item--hover" @click="copyInviteCode">
+				<view class="menu-left">
+					<view class="menu-ico">
+						<image class="menu-ico-img" :src="inviteIcon" mode="aspectFit"></image>
+					</view>
+					<text class="menu-text">我的邀请码</text>
+				</view>
+				<text class="code-pill">{{ myInviteCode || '--' }} 复制</text>
+			</view>
+			<view class="menu-item" hover-class="menu-item--hover" @click="openInviteInput">
+				<view class="menu-left">
+					<view class="menu-ico">
+						<image class="menu-ico-img" :src="inviteIcon" mode="aspectFit"></image>
+					</view>
+					<text class="menu-text">填写好友邀请码</text>
+				</view>
+				<text v-if="inviteBound || boundInviteCode" class="code-pill">{{ boundInviteCode ? ('已填写 ' + boundInviteCode) : '已填写' }}</text>
+				<text v-else class="menu-arrow">›</text>
+			</view>
+			<view class="menu-item" hover-class="menu-item--hover" @click="contactService">
+				<view class="menu-left">
+					<view class="menu-ico">
+						<image class="menu-ico-img" :src="serviceIcon" mode="aspectFit"></image>
+					</view>
+					<text class="menu-text">联系客服</text>
+				</view>
+				<text class="code-pill">{{ adminWechat }} 复制</text>
+			</view>
+		</view>
+
+		<view class="menu-card">
+			<view class="menu-item" hover-class="menu-item--hover" @click="handleLogout">
+				<view class="menu-left">
+					<text class="menu-text">退出登录</text>
+				</view>
+				<text class="menu-arrow">›</text>
+			</view>
+			<view class="menu-item danger" hover-class="menu-item--hover" @click="handleDeleteAccount">
+				<view class="menu-left">
+					<text class="menu-text">注销账号</text>
+				</view>
+				<text class="menu-arrow">›</text>
+			</view>
+		</view>
+
+		<text class="icp">蜀ICP备2026004236号-1X</text>
+
 		<view class="tabbar-spacer"></view>
 		<TeacherTabBar current="user" />
 	</view>
 </template>
 
 <script>
-import card from '@/components/common/card.vue'
 import { mockUserInfo, useMockData } from '@/utils/mockData.js'
 import { ensureLoggedIn, clearStoredAuth, setStoredUserInfo } from '@/utils/auth.js'
-import TeacherTabBar from '@/components/TeacherTabBar.vue'
+import TeacherTabBar from '@/pages-teacher/components/TeacherTabBar.vue'
 import pullRefreshMixin from '@/utils/pullRefreshMixin.js'
-import { getDefaultAvatarUrl, getIconUrl } from '@/utils/imageConfig.js'
+import { getDefaultAvatarUrl, getIconUrl, getInviteIconUrl } from '@/utils/imageConfig.js'
 
 export default {
 	name: 'TeacherUserCenter',
 	components: {
-		card,
 		TeacherTabBar
 	},
 	mixins: [pullRefreshMixin],
@@ -211,8 +197,8 @@ export default {
 					url: '/pages-teacher/profile/index'
 				},
 				{
-					title: '收款确认',
-					desc: '微信转账待确认时在此处理',
+					title: '我的课酬',
+					desc: '查看课酬流水与到账状态',
 					icon: getIconUrl('wallet.png'),
 					url: '/pages-teacher/wallet/index'
 				},
@@ -239,14 +225,14 @@ export default {
 					desc: '查看平台通知和审核结果',
 					icon: getIconUrl('bell.png'),
 					url: '/pages-teacher/user/messages'
-				},
-				{
-					title: '消息中心',
-					desc: '与家长实时沟通',
-					icon: getIconUrl('chat.png'),
-					url: '/pages-teacher/chat/list'
 				}
 			],
+			serviceIcon: getIconUrl('chat.png'),
+			inviteIcon: getInviteIconUrl(),
+			myInviteCode: '',
+			boundInviteCode: '',
+			inviteBound: false,
+			adminWechat: 'chen18148503231',
 			statusTextMap: {
 				pending: '待完善资料',
 				verifying: '审核中',
@@ -261,6 +247,12 @@ export default {
 		teacherStatusText() {
 			const status = this.metrics.verificationStatus
 			return this.statusTextMap[status] || ''
+		},
+		greetText() {
+			const hour = new Date().getHours()
+			if (hour < 12) return '上午好'
+			if (hour < 18) return '下午好'
+			return '晚上好'
 		}
 	},
 	onLoad() {
@@ -281,6 +273,22 @@ export default {
 		this.loadData()
 	},
 	methods: {
+		contactService() {
+			const wechat = this.adminWechat
+			if (!wechat) {
+				uni.showToast({ title: '暂无客服微信', icon: 'none' })
+				return
+			}
+			uni.setClipboardData({
+				data: wechat,
+				success: () => {
+					uni.showToast({ title: '微信号已复制', icon: 'success' })
+				},
+				fail: () => {
+					uni.showToast({ title: '复制失败', icon: 'none' })
+				}
+			})
+		},
 		copyUserId() {
 			const uid = this.userInfo && this.userInfo.uid
 			if (!uid) {
@@ -299,13 +307,13 @@ export default {
 		},
 		async refreshData() {
 			console.log('[teacher-user-center] 下拉刷新：重新加载个人中心')
-			await this.loadUserInfo()
+			await Promise.all([this.loadUserInfo(), this.loadInviteCode()])
 		},
 		async loadData() {
 			if (this.loading) return
 			this.loading = true
 			try {
-				await Promise.all([this.loadUserInfo(), this.loadTeacherMetrics()])
+				await Promise.all([this.loadUserInfo(), this.loadTeacherMetrics(), this.loadInviteCode()])
 			} finally {
 				this.loading = false
 			}
@@ -410,6 +418,129 @@ export default {
 				console.error('加载教师统计失败:', error)
 			}
 		},
+		applyInviteBind(data = {}) {
+			const uid = (this.userInfo && this.userInfo.uid) || (uni.getStorageSync('userInfo') || {}).uid
+			const bound = data.bound === true || !!data.bound_invite_code
+			if (data.bound_invite_code) {
+				this.boundInviteCode = data.bound_invite_code
+			}
+			if (bound) {
+				this.inviteBound = true
+				if (uid && this.boundInviteCode) {
+					uni.setStorageSync(`bound_invite_code_${uid}`, this.boundInviteCode)
+				}
+			} else if (data.bound === false) {
+				this.inviteBound = false
+				this.boundInviteCode = ''
+			}
+		},
+		async loadInviteCode() {
+			try {
+				if (this.useMock) {
+					this.myInviteCode = 'DEMO88'
+					this.boundInviteCode = ''
+					this.inviteBound = false
+					return
+				}
+				const uid = (this.userInfo && this.userInfo.uid) || (uni.getStorageSync('userInfo') || {}).uid
+				const cached = uid ? uni.getStorageSync(`bound_invite_code_${uid}`) : ''
+				if (cached) {
+					this.boundInviteCode = cached
+					this.inviteBound = true
+				}
+				const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
+				const res = await inviteCenter.getMyInviteCode()
+				if (res.code === 0 && res.data) {
+					if (res.data.invite_code) this.myInviteCode = res.data.invite_code
+					this.applyInviteBind(res.data)
+				}
+			} catch (error) {
+				console.error('加载邀请码失败:', error)
+			}
+		},
+		async copyInviteCode() {
+			try {
+				if (!this.myInviteCode && !this.useMock) {
+					const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
+					const res = await inviteCenter.getMyInviteCode()
+					if (res.code === 0 && res.data && res.data.invite_code) {
+						this.myInviteCode = res.data.invite_code
+						this.applyInviteBind(res.data)
+					} else {
+						uni.showToast({ title: res.message || '生成邀请码失败', icon: 'none' })
+						return
+					}
+				}
+				const codeToCopy = this.myInviteCode || (this.useMock ? 'DEMO88' : '')
+				if (!codeToCopy) {
+					uni.showToast({ title: '邀请码生成中，请稍后再试', icon: 'none' })
+					return
+				}
+				uni.setClipboardData({
+					data: codeToCopy,
+					success: () => {
+						uni.showToast({ title: '邀请码已复制', icon: 'success' })
+					}
+				})
+			} catch (error) {
+				console.error('生成或复制邀请码失败:', error)
+				uni.showToast({ title: '生成邀请码失败，请稍后重试', icon: 'none' })
+			}
+		},
+		async openInviteInput() {
+			if (this.useMock) {
+				uni.showToast({ title: '演示模式下不支持填写邀请码', icon: 'none' })
+				return
+			}
+			if (this.inviteBound || this.boundInviteCode) {
+				uni.showModal({
+					title: '已填写邀请码',
+					content: this.boundInviteCode ? `您已填写邀请码：${this.boundInviteCode}` : '您已填写过邀请码，不能再次填写',
+					showCancel: false,
+					confirmText: '知道了'
+				})
+				return
+			}
+			try {
+				const modalRes = await new Promise(resolve => {
+					uni.showModal({
+						title: '填写好友邀请码',
+						editable: true,
+						placeholderText: '请输入 6 位邀请码（不区分大小写）',
+						cancelText: '取消',
+						confirmText: '确定',
+						success: resolve
+					})
+				})
+				if (!modalRes.confirm) return
+
+				const raw = (modalRes.content || '').trim()
+				if (!raw) {
+					uni.showToast({ title: '请输入邀请码', icon: 'none' })
+					return
+				}
+				const inviteCode = raw.toUpperCase()
+				if (inviteCode.length < 4 || inviteCode.length > 10) {
+					uni.showToast({ title: '邀请码格式不正确', icon: 'none' })
+					return
+				}
+
+				const inviteCenter = uniCloud.importObject('invite-center', { customUI: true })
+				const res = await inviteCenter.acceptInvite({ invite_code: inviteCode })
+				if (res.code === 0) {
+					this.applyInviteBind({
+						bound: true,
+						bound_invite_code: (res.data && res.data.bound_invite_code) || inviteCode
+					})
+					uni.showToast({ title: res.message || '邀请码填写成功', icon: 'success' })
+				} else {
+					uni.showToast({ title: res.message || '邀请码无效', icon: 'none', duration: 3000 })
+				}
+			} catch (error) {
+				console.error('填写邀请码失败:', error)
+				uni.showToast({ title: error.message || '填写邀请码失败', icon: 'none' })
+			}
+		},
 		goToPage(url) {
 			if (!url) return
 			uni.navigateTo({ url })
@@ -472,328 +603,302 @@ export default {
 </script>
 
 <style scoped>
-.scroll {
-	flex: 1;
-	height: calc(100vh - 400rpx);
+.page {
+	background: #F4F6F9;
+	min-height: 100vh;
 }
 
-/* 统计卡片样式 */
-.stat-card {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
+.me-band {
+	background: linear-gradient(160deg, #1D4ED8 0%, #2563EB 58%, #4F7DF3 100%);
+	padding: 20rpx 32rpx 72rpx;
+	color: #FFFFFF;
+}
+
+.me-greet {
+	display: block;
+	font-size: 24rpx;
+	opacity: 0.82;
+}
+
+.me-title {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 40rpx;
+	font-weight: 600;
+}
+
+.id-card,
+.apt-card,
+.svc-card,
+.menu-card {
+	margin: 0 32rpx 24rpx;
+	background: #FFFFFF;
+	border-radius: 24rpx;
+	box-shadow: 0 8rpx 24rpx rgba(31, 35, 41, 0.04);
+}
+
+.id-card {
+	margin-top: -48rpx;
+	padding: 32rpx;
+}
+
+.id-top {
 	display: flex;
+	align-items: center;
+	gap: 24rpx;
+}
+
+.id-avatar {
+	width: 112rpx;
+	height: 112rpx;
+	border-radius: 50%;
+	background: #93B4FF;
+	flex-shrink: 0;
+	box-shadow: 0 0 0 6rpx #EEF3FF;
+}
+
+.id-meta {
+	flex: 1;
+	min-width: 0;
+}
+
+.id-name {
+	display: block;
+	font-size: 36rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.3;
+}
+
+.id-hint {
+	display: block;
+	margin-top: 8rpx;
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.me-edit {
+	flex-shrink: 0;
+	height: 60rpx;
+	padding: 0 24rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 24rpx;
+	font-weight: 600;
+	line-height: 60rpx;
+	border: none;
+}
+
+.me-edit::after {
+	border: none;
+}
+
+.id-copy {
+	margin-top: 24rpx;
+	padding: 16rpx 20rpx;
+	background: #F4F6F9;
+	border-radius: 16rpx;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 20rpx;
+}
+
+.id-copy-text {
+	flex: 1;
+	min-width: 0;
+	font-size: 22rpx;
+	color: #8B919C;
+	line-height: 1.45;
+	word-break: break-all;
+}
+
+.id-copy-btn {
+	flex-shrink: 0;
+	font-size: 24rpx;
+	font-weight: 600;
+	color: #2563EB;
+}
+
+.apt-card {
+	padding: 28rpx 20rpx 16rpx;
+}
+
+.apt-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 12rpx 20rpx;
+}
+
+.apt-title {
+	font-size: 30rpx;
+	font-weight: 600;
+	color: #1F2329;
+}
+
+.apt-more {
+	font-size: 24rpx;
+	color: #8B919C;
+}
+
+.apt-grid {
+	display: flex;
+}
+
+.apt-cell {
+	flex: 1;
+	text-align: center;
+	position: relative;
+	padding: 8rpx 0 12rpx;
+}
+
+.apt-cell + .apt-cell::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 16rpx;
+	bottom: 24rpx;
+	width: 1rpx;
+	background: #EBEDF0;
+}
+
+.apt-num {
+	display: block;
+	font-size: 40rpx;
+	font-weight: 600;
+	color: #1F2329;
+	line-height: 1.2;
+}
+
+.apt-label {
+	display: block;
+	margin-top: 4rpx;
+	font-size: 22rpx;
+	color: #8B919C;
+}
+
+.svc-card {
+	padding: 28rpx 16rpx 20rpx;
+	display: flex;
+}
+
+.svc-item {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
 	align-items: center;
 }
 
-/* 统计标签样式 */
-.stat-tag {
-	background-color: rgba(255, 255, 255, 0.2);
-	backdrop-filter: blur(10rpx);
+.svc-tile {
+	width: 80rpx;
+	height: 80rpx;
+	border-radius: 24rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 12rpx;
+}
+
+.svc-icon {
+	width: 40rpx;
+	height: 40rpx;
+}
+
+.svc-text {
+	font-size: 22rpx;
+	color: #5C6370;
+}
+
+.menu-card {
+	padding: 0;
+	overflow: hidden;
+}
+
+.menu-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 104rpx;
+	padding: 20rpx 32rpx;
+	border-bottom: 1rpx solid #F3F4F6;
+}
+
+.menu-item:last-child {
+	border-bottom: none;
+}
+
+.menu-item--hover {
+	background: #F8FAFC;
+}
+
+.menu-left {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	flex: 1;
+}
+
+.menu-ico {
+	width: 56rpx;
+	height: 56rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-right: 20rpx;
+	flex-shrink: 0;
+}
+
+.menu-ico-img {
+	width: 32rpx;
+	height: 32rpx;
+}
+
+.menu-text {
+	font-size: 30rpx;
+	color: #1F2329;
+}
+
+.menu-item.danger .menu-text {
+	color: #FA5151;
+}
+
+.menu-arrow {
+	color: #C5C8CE;
+	font-size: 24rpx;
+	margin-left: 12rpx;
+}
+
+.code-pill {
+	flex-shrink: 0;
+	height: 56rpx;
+	padding: 0 20rpx;
+	border-radius: 16rpx;
+	background: #EEF3FF;
+	color: #2563EB;
+	font-size: 22rpx;
+	font-weight: 600;
+	line-height: 56rpx;
+	max-width: 360rpx;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.icp {
+	display: block;
+	text-align: center;
+	padding: 8rpx 0 24rpx;
+	font-size: 22rpx;
+	color: #B0B4BA;
 }
 
 .tabbar-spacer {
 	height: 140rpx;
-}
-
-.icp-footer {
-	padding: 16rpx 0 24rpx;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.icp-text {
-	font-size: 22rpx;
-	color: #aaaaaa;
-}
-
-/* CSS图标样式 */
-.icon-dashboard {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-dashboard::before {
-	content: '';
-	position: absolute;
-	top: 4rpx;
-	left: 4rpx;
-	width: 12rpx;
-	height: 12rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 2rpx;
-}
-.icon-dashboard::after {
-	content: '';
-	position: absolute;
-	top: 4rpx;
-	right: 4rpx;
-	width: 12rpx;
-	height: 12rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 2rpx;
-	box-shadow: 0 16rpx 0 -2rpx currentColor, -16rpx 16rpx 0 -2rpx currentColor, -16rpx 0 0 -2rpx currentColor;
-}
-
-.icon-calendar {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 4rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-calendar::before {
-	content: '';
-	position: absolute;
-	top: -2rpx;
-	left: -2rpx;
-	right: -2rpx;
-	height: 8rpx;
-	background: currentColor;
-	border-radius: 4rpx 4rpx 0 0;
-}
-.icon-calendar::after {
-	content: '';
-	position: absolute;
-	top: 12rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 8rpx 0 0 currentColor, 0 6rpx 0 currentColor, 8rpx 6rpx 0 currentColor;
-}
-
-.icon-edit {
-	width: 48rpx;
-	height: 48rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-edit::before {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 4rpx;
-	width: 24rpx;
-	height: 24rpx;
-	border: 2rpx solid currentColor;
-	border-top: none;
-	border-left: none;
-	background: transparent;
-}
-.icon-edit::after {
-	content: '';
-	position: absolute;
-	bottom: 28rpx;
-	left: 24rpx;
-	width: 12rpx;
-	height: 3rpx;
-	background: currentColor;
-	transform: rotate(45deg);
-	transform-origin: left center;
-}
-
-.icon-user {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-user::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 16rpx;
-	height: 16rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 50%;
-	background: transparent;
-}
-.icon-user::after {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 24rpx;
-	height: 16rpx;
-	border: 2rpx solid currentColor;
-	border-top: none;
-	border-radius: 0 0 24rpx 24rpx;
-	background: transparent;
-}
-
-.icon-wallet {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-wallet::before {
-	content: '';
-	position: absolute;
-	top: 6rpx;
-	left: 6rpx;
-	width: 12rpx;
-	height: 8rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 2rpx;
-	background: transparent;
-}
-.icon-wallet::after {
-	content: '';
-	position: absolute;
-	bottom: 6rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 16rpx;
-	height: 3rpx;
-	background: currentColor;
-}
-
-.icon-star {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-star::before {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	width: 0;
-	height: 0;
-	border-left: 10rpx solid transparent;
-	border-right: 10rpx solid transparent;
-	border-bottom: 7rpx solid currentColor;
-}
-.icon-star::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%) rotate(180deg);
-	width: 0;
-	height: 0;
-	border-left: 10rpx solid transparent;
-	border-right: 10rpx solid transparent;
-	border-bottom: 7rpx solid currentColor;
-}
-
-.icon-bell {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-bell::before {
-	content: '';
-	position: absolute;
-	top: 4rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 20rpx;
-	height: 18rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 10rpx 10rpx 2rpx 2rpx;
-	background: transparent;
-}
-.icon-bell::after {
-	content: '';
-	position: absolute;
-	bottom: 2rpx;
-	left: 50%;
-	transform: translateX(-50%);
-	width: 4rpx;
-	height: 6rpx;
-	border: 2rpx solid currentColor;
-	border-top: none;
-	border-radius: 0 0 4rpx 4rpx;
-}
-
-.icon-chat {
-	width: 40rpx;
-	height: 40rpx;
-	position: relative;
-	display: inline-block;
-	background: transparent;
-	box-sizing: border-box;
-	overflow: visible;
-}
-.icon-chat::before {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 28rpx;
-	height: 20rpx;
-	border: 2rpx solid currentColor;
-	border-radius: 6rpx 6rpx 6rpx 0;
-	background: transparent;
-}
-.icon-chat::after {
-	content: '';
-	position: absolute;
-	bottom: 4rpx;
-	left: 6rpx;
-	width: 4rpx;
-	height: 4rpx;
-	background: currentColor;
-	border-radius: 50%;
-	box-shadow: 6rpx 0 0 currentColor, 12rpx 0 0 currentColor;
-}
-
-/* 快捷功能按钮布局 */
-.quick-action-item {
-	flex: 0 0 25%;
-	max-width: 25%;
-	min-width: 0;
-	padding: 0 10rpx;
-	box-sizing: border-box;
-}
-
-.quick-action-icon {
-	width: 40rpx;
-	height: 40rpx;
-}
-
-.menu-icon {
-	width: 40rpx;
-	height: 40rpx;
-}
-
-.phone-icon {
-	width: 28rpx;
-	height: 28rpx;
 }
 </style>
